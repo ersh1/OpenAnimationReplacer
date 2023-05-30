@@ -1,0 +1,23 @@
+{
+  "name": "openanimationreplacer",
+  "version": "1",
+  "dependencies": [
+    "cryptopp",
+    "effolkronium-random",
+    "fmt",
+    {
+      "name" : "imgui",
+      "version>=": "1.89.2",
+      "features": [ "win32-binding", "dx11-binding" ]
+    },
+    "mergemapper",
+    "rapidcsv",
+    "rapidjson",
+    "rsm-binary-io",
+    "rsm-mmio",
+    "simpleini",
+    "spdlog",
+    "xbyak"
+  ],
+  "builtin-baseline": "f14984af3738e69f197bf0e647a8dca12de92996"
+}

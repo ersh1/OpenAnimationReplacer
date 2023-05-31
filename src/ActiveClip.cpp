@@ -30,8 +30,8 @@ void ActiveClip::ReplaceAnimation(ReplacementAnimation* a_replacementAnimation)
 
     if (_currentReplacementAnimation) {
         // alter variables for the lifetime of this object to the ones read from the replacement animation
-        _clipGenerator->animationBindingIndex = _currentReplacementAnimation->GetIndex();  // this is the most important part - this is what actually replaces the animation
-		// the animation binding index is the index of an entry inside hkbCharacterStringData->animationNames, which contains the actual path to the animation file or one of the replacements
+        _clipGenerator->animationBindingIndex = _currentReplacementAnimation->GetIndex(); // this is the most important part - this is what actually replaces the animation
+        // the animation binding index is the index of an entry inside hkbCharacterStringData->animationNames, which contains the actual path to the animation file or one of the replacements
         if (_currentReplacementAnimation->GetIgnoreNoTriggersFlag()) {
             _clipGenerator->flags &= ~0x10;
         }
@@ -111,7 +111,7 @@ void ActiveClip::StopBlend()
 
 void ActiveClip::PreUpdate(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context, [[maybe_unused]] float a_timestep)
 {
-	// check if the animation should be interrupted (queue a replacement if so)
+    // check if the animation should be interrupted (queue a replacement if so)
     if (!_queuedReplacement && IsInterruptible()) {
         const auto newReplacementAnim = OpenAnimationReplacer::GetSingleton().GetReplacementAnimation(a_context.character, a_clipGenerator, _originalIndex);
         if (_currentReplacementAnimation != newReplacementAnim) {
@@ -119,7 +119,7 @@ void ActiveClip::PreUpdate(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbC
         }
     }
 
-	// replace anim if queued
+    // replace anim if queued
     if (_queuedReplacement) {
         ReplaceActiveAnimation(a_clipGenerator, a_context);
     }
@@ -139,7 +139,8 @@ void ActiveClip::PreGenerate([[maybe_unused]] RE::hkbClipGenerator* a_clipGenera
 
 void ActiveClip::OnActivate(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context)
 {
-    if (!IsTransitioning()) {  // don't try to replace animation while transitioning interruptible anims as we already replaced it, this should only run on the actual Activate called by the game
+    if (!IsTransitioning()) {
+        // don't try to replace animation while transitioning interruptible anims as we already replaced it, this should only run on the actual Activate called by the game
         if (const auto replacements = OpenAnimationReplacer::GetSingleton().GetReplacements(a_context.character, a_clipGenerator->animationBindingIndex)) {
             SetReplacements(replacements);
             const RE::BShkbAnimationGraph* animGraph = SKSE::stl::adjust_pointer<RE::BShkbAnimationGraph>(a_context.character, -0xC0);
@@ -153,7 +154,7 @@ void ActiveClip::OnActivate(RE::hkbClipGenerator* a_clipGenerator, const RE::hkb
 
 void ActiveClip::OnGenerate([[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] const RE::hkbContext& a_context, RE::hkbGeneratorOutput& a_output)
 {
-	// manually blend the output pose with the previous animation's output pose
+    // manually blend the output pose with the previous animation's output pose
     using TrackHeader = RE::hkbGeneratorOutput::TrackHeader;
 
     if (!a_clipGenerator) {
@@ -302,9 +303,9 @@ ActiveClip::BlendFromClipGenerator::~BlendFromClipGenerator()
 
 void ActiveClip::BlendFromClipGenerator::Activate([[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context)
 {
-    const auto fakeClipGeneratorPtr = reinterpret_cast<RE::hkbClipGenerator*>(this);  // pretend this is an actual hkbClipGenerator
+    const auto fakeClipGeneratorPtr = reinterpret_cast<RE::hkbClipGenerator*>(this); // pretend this is an actual hkbClipGenerator
 
-	// replicate the relevant part of hkbClipGenerator::Activate
+    // replicate the relevant part of hkbClipGenerator::Activate
 
     if (!userData) {
         const auto animationFileManagerSingleton = RE::AnimationFileManagerSingleton::GetSingleton();
@@ -316,9 +317,9 @@ void ActiveClip::BlendFromClipGenerator::Activate([[maybe_unused]] RE::hkbClipGe
 
 void ActiveClip::BlendFromClipGenerator::Update([[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context, float a_deltaTime)
 {
-    auto fakeClipGeneratorPtr = reinterpret_cast<RE::hkbClipGenerator*>(this);  // pretend this is an actual hkbClipGenerator
+    auto fakeClipGeneratorPtr = reinterpret_cast<RE::hkbClipGenerator*>(this); // pretend this is an actual hkbClipGenerator
 
-	// replicate what happens in hkbClipGenerator::Update. Not sure everything here is necessary but there might be rare edge cases where it matters (looping etc)
+    // replicate what happens in hkbClipGenerator::Update. Not sure everything here is necessary but there might be rare edge cases where it matters (looping etc)
 
     if (userData == 8) {
         const auto animationFileManagerSingleton = RE::AnimationFileManagerSingleton::GetSingleton();
@@ -326,7 +327,7 @@ void ActiveClip::BlendFromClipGenerator::Update([[maybe_unused]] RE::hkbClipGene
             Activate(a_clipGenerator, a_context);
         }
     }
-    
+
     if (fabs(playbackSpeed) <= 0.001f) {
         playbackSpeed = playbackSpeed <= 0.f ? 0.001f : -0.001f;
     }

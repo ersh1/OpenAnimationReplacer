@@ -1,6 +1,5 @@
 #include "UIAnimationQueue.h"
 #include "Settings.h"
-#include "Havok/Havok.h"
 
 namespace UI
 {

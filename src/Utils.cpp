@@ -48,12 +48,12 @@ namespace Utils
 
     std::string_view GetFileNameWithoutExtension(std::string_view a_s)
     {
-		size_t slashIndex = a_s.find_last_of('\\');
-		size_t extIndex = a_s.find_last_of('.');
-		if (slashIndex != std::string::npos && extIndex != std::string::npos && slashIndex < extIndex) {
-			return a_s.substr(slashIndex + 1, extIndex - slashIndex - 1);
-		}
-		return a_s;
+        const size_t slashIndex = a_s.find_last_of('\\');
+        const size_t extIndex = a_s.find_last_of('.');
+        if (slashIndex != std::string::npos && extIndex != std::string::npos && slashIndex < extIndex) {
+            return a_s.substr(slashIndex + 1, extIndex - slashIndex - 1);
+        }
+        return a_s;
     }
 
     bool CompareStringsIgnoreCase(const std::string_view a_lhs, const std::string_view a_rhs)

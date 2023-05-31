@@ -5,11 +5,20 @@
 
 #include <ranges>
 
+void DetectedProblems::UpdateShowErrorBanner() const
+{
+    if (_bIsOutdated || !_missingPlugins.empty() || !_subModsWithInvalidConditions.empty()) {
+        UI::UIManager::GetSingleton().bShowErrorBanner = true;
+    } else {
+        UI::UIManager::GetSingleton().bShowErrorBanner = false;
+    }
+}
+
 void DetectedProblems::MarkOutdatedVersion()
 {
     _bIsOutdated = true;
 
-    UI::UIManager::GetSingleton().bShowErrorBanner = true;
+    UpdateShowErrorBanner();
 }
 
 void DetectedProblems::AddMissingPluginName(std::string_view a_pluginName, REL::Version a_pluginVersion)
@@ -19,7 +28,7 @@ void DetectedProblems::AddMissingPluginName(std::string_view a_pluginName, REL::
         _missingPlugins.emplace(a_pluginName, a_pluginVersion);
     }
 
-    UI::UIManager::GetSingleton().bShowErrorBanner = true;
+    UpdateShowErrorBanner();
 }
 
 void DetectedProblems::CheckForSubModsSharingPriority()
@@ -31,7 +40,7 @@ void DetectedProblems::CheckForSubModsSharingPriority()
     OpenAnimationReplacer::GetSingleton().ForEachReplacerMod([&](const auto& a_replacerMod) {
         std::unordered_map<int32_t, const SubMod*> priorityMap{};
         a_replacerMod->ForEachSubMod([&](const SubMod* a_subMod) {
-            auto priority = a_subMod->GetPriority();
+            const auto priority = a_subMod->GetPriority();
             auto [it, bInserted] = priorityMap.try_emplace(priority, a_subMod);
             if (!bInserted) {
                 _subModsSharingPriority[priority].insert(it->second);
@@ -86,9 +95,26 @@ void DetectedProblems::CheckForSubModsSharingPriority()
     }
 }
 
+void DetectedProblems::CheckForSubModsWithInvalidConditions()
+{
+    WriteLocker locker(_dataLock);
+    _subModsWithInvalidConditions.clear();
+
+    OpenAnimationReplacer::GetSingleton().ForEachReplacerMod([&](const auto& a_replacerMod) {
+        a_replacerMod->ForEachSubMod([&](const SubMod* a_subMod) {
+            if (a_subMod->GetConditionSet()->HasInvalidConditions()) {
+                _subModsWithInvalidConditions.insert(a_subMod);
+            }
+            return RE::BSVisit::BSVisitControl::kContinue;
+        });
+    });
+
+    UpdateShowErrorBanner();
+}
+
 DetectedProblems::Severity DetectedProblems::GetProblemSeverity() const
 {
-    if (IsOutdated() || HasMissingPlugins()) {
+    if (IsOutdated() || HasMissingPlugins() || HasSubModsWithInvalidConditions()) {
         return Severity::kError;
     }
 
@@ -107,6 +133,10 @@ std::string_view DetectedProblems::GetProblemMessage() const
 
     if (HasMissingPlugins()) {
         return "ERROR: Missing required Open Animation Replacer plugins! Click for details..."sv;
+    }
+
+    if (HasSubModsWithInvalidConditions()) {
+        return "ERROR: Detected submods with invalid conditions! Click for details..."sv;
     }
 
     if (HasSubModsSharingPriority()) {
@@ -133,5 +163,14 @@ void DetectedProblems::ForEachSubModSharingPriority(const std::function<void(con
         for (auto& subMod : subMods) {
             a_func(subMod);
         }
+    }
+}
+
+void DetectedProblems::ForEachSubModWithInvalidConditions(const std::function<void(const SubMod*)>& a_func) const
+{
+    ReadLocker locker(_dataLock);
+
+    for (auto& subMod : _subModsWithInvalidConditions) {
+        a_func(subMod);
     }
 }

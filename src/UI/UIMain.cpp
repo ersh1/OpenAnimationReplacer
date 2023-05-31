@@ -30,8 +30,8 @@ namespace UI
 
         SetWindowDimensions(0.f, 0.f, 850.f, -1, WindowAlignment::kCenterLeft);
 
-		const auto title = std::format("Open Animation Replacer {}.{}.{}", Plugin::VERSION.major(), Plugin::VERSION.minor(), Plugin::VERSION.patch());
-		if (ImGui::Begin(title.data(), &UIManager::GetSingleton().bShowMain, ImGuiWindowFlags_NoCollapse)) {
+        const auto title = std::format("Open Animation Replacer {}.{}.{}", Plugin::VERSION.major(), Plugin::VERSION.minor(), Plugin::VERSION.patch());
+        if (ImGui::Begin(title.data(), &UIManager::GetSingleton().bShowMain, ImGuiWindowFlags_NoCollapse)) {
             if (ImGui::BeginTable("EvaluateForReference", 2, ImGuiTableFlags_None)) {
                 ImGui::TableNextRow();
                 ImGui::TableSetColumnIndex(0);
@@ -96,7 +96,7 @@ namespace UI
                 const std::string_view problemText = problems.GetProblemMessage();
                 using Severity = DetectedProblems::Severity;
 
-				if (problems.GetProblemSeverity() > Severity::kNone) {
+                if (problems.GetProblemSeverity() > Severity::kNone) {
                     // Problems found
                     switch (problems.GetProblemSeverity()) {
                     case Severity::kWarning:
@@ -128,14 +128,19 @@ namespace UI
                         height += 100.f;
                         height += problems.NumMissingPlugins() * ImGui::GetTextLineHeightWithSpacing();
                     }
+                    if (problems.HasSubModsWithInvalidConditions()) {
+                        height += 200.f;
+                        height += problems.NumSubModsSharingPriority() * ImGui::GetTextLineHeightWithSpacing();
+                    }
                     if (problems.HasSubModsSharingPriority()) {
                         height += 200.f;
                         height += problems.NumSubModsSharingPriority() * ImGui::GetTextLineHeightWithSpacing();
                     }
+
                     const float buttonHeight = ImGui::GetTextLineHeightWithSpacing() + ImGui::GetStyle().FramePadding.y * 2.f;
                     height += buttonHeight;
 
-                    height = std::fmin(height, 600.f);
+                    height = std::clamp(height, 600.f, ImGui::GetIO().DisplaySize.y);
 
                     ImGui::SetNextWindowSize(ImVec2(800.f, height));
                     if (ImGui::BeginPopupModal("Problems", nullptr, ImGuiWindowFlags_NoResize)) {
@@ -164,6 +169,23 @@ namespace UI
                                 ImGui::PopStyleColor();
                                 ImGui::Spacing();
                                 DrawMissingPlugins();
+
+                                bShouldDrawSeparator = true;
+                            }
+
+                            if (problems.HasSubModsWithInvalidConditions()) {
+                                if (bShouldDrawSeparator) {
+                                    ImGui::Spacing();
+                                    ImGui::Spacing();
+                                    ImGui::Separator();
+                                    ImGui::Spacing();
+                                    ImGui::Spacing();
+                                }
+                                ImGui::PushStyleColor(ImGuiCol_Text, UICommon::ERROR_TEXT_COLOR);
+                                ImGui::TextWrapped("ERROR: At least one replacer mod has conditions that are invalid.\nThe mod will not function correctly. Please check the conditions of the replacer mod, and check whether there's an update available!");
+                                ImGui::PopStyleColor();
+                                ImGui::Spacing();
+                                DrawSubModsWithInvalidConditions();
 
                                 bShouldDrawSeparator = true;
                             }
@@ -246,15 +268,9 @@ namespace UI
             ImGui::TextUnformatted("General Settings");
             ImGui::Spacing();
 
-            if (ImGui::Checkbox("Show Welcome Banner", &Settings::bShowWelcomeBanner)) {
-                Settings::WriteSettings();
-            }
-            ImGui::SameLine();
-            UICommon::HelpMarker("Enable to show the welcome banner on startup.");
-
             constexpr uint16_t animLimitMin = 0x4000;
             const uint16_t animLimitMax = Settings::GetMaxAnimLimit();
-            if (ImGui::SliderScalar("Animation Limit", ImGuiDataType_U16, &Settings::uAnimationLimit, &animLimitMin, &animLimitMax, "%d", ImGuiSliderFlags_AlwaysClamp)) {
+            if (ImGui::SliderScalar("Animation limit", ImGuiDataType_U16, &Settings::uAnimationLimit, &animLimitMin, &animLimitMax, "%d", ImGuiSliderFlags_AlwaysClamp)) {
                 Settings::WriteSettings();
             }
             ImGui::SameLine();
@@ -262,26 +278,80 @@ namespace UI
 
             constexpr uint32_t heapMin = 0x20000000;
             constexpr uint32_t heapMax = 0x7FC00000;
-            if (ImGui::SliderScalar("Havok Heap Size", ImGuiDataType_U32, &Settings::uHavokHeapSize, &heapMin, &heapMax, "0x%X", ImGuiSliderFlags_AlwaysClamp)) {
+            if (ImGui::SliderScalar("Havok heap size", ImGuiDataType_U32, &Settings::uHavokHeapSize, &heapMin, &heapMax, "0x%X", ImGuiSliderFlags_AlwaysClamp)) {
                 Settings::WriteSettings();
             }
             ImGui::SameLine();
             UICommon::HelpMarker("Set the havok heap size. Takes effect after restarting the game. (Vanilla value is 0x20000000)");
 
-            if (ImGui::Checkbox("Async Parsing", &Settings::bAsyncParsing)) {
+            if (ImGui::Checkbox("Async parsing", &Settings::bAsyncParsing)) {
                 Settings::WriteSettings();
             }
             ImGui::SameLine();
             UICommon::HelpMarker("Enable to asynchronously parse all the replacer mods on load. This dramatically speeds up the process. No real reason to disable this setting.");
 
-            if (UICommon::InputKey("Menu Key", Settings::uToggleUIKeyData)) {
+            if (Settings::bDisablePreloading) {
+                ImGui::BeginDisabled();
+                bool bDummy = false;
+                ImGui::Checkbox("Load default behaviors in main menu", &bDummy);
+                ImGui::EndDisabled();
+            } else {
+                if (ImGui::Checkbox("Load default behaviors in main menu", &Settings::bLoadDefaultBehaviorsInMainMenu)) {
+                    Settings::WriteSettings();
+                }
+            }
+            ImGui::SameLine();
+            UICommon::HelpMarker("Enable to start loading default male/female behaviors in the main menu. Ignored with animation preloading disabled as there's no benefit in doing so in that case.");
+
+            ImGui::Spacing();
+            ImGui::Separator();
+
+            // Duplicate filtering settings
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextUnformatted("Duplicate Filtering Settings");
+            ImGui::Spacing();
+
+            if (ImGui::Checkbox("Filter out duplicate animations", &Settings::bFilterOutDuplicateAnimations)) {
+                Settings::WriteSettings();
+            }
+            ImGui::SameLine();
+            UICommon::HelpMarker("Enable to check for duplicates before adding an animation. Only one copy of an animation binding will be used in multiple replacer animations. This might massively cut down on the number of loaded animations as replacer mods tend to use multiple copies of the same animation with different condition.");
+
+            ImGui::BeginDisabled(!Settings::bFilterOutDuplicateAnimations);
+            if (ImGui::Checkbox("Cache animation file hashes", &Settings::bCacheAnimationFileHashes)) {
+                Settings::WriteSettings();
+            }
+            ImGui::SameLine();
+            UICommon::HelpMarker("Enable to save a cache of animation file hashes, so the hashes don't have to be recalculated on every game launch. It's saved to a .bin file next to the .dll. This should speed up the loading process a little bit.");
+            ImGui::SameLine();
+            if (ImGui::Button("Clear cache")) {
+                AnimationFileHashCache::GetSingleton().DeleteCache();
+            }
+            UICommon::AddTooltip("Delete the animation file hash cache. This will cause the hashes to be recalculated on the next game launch.");
+            ImGui::EndDisabled();
+
+            ImGui::Spacing();
+            ImGui::Separator();
+
+            // UI settings
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextUnformatted("UI Settings");
+            ImGui::Spacing();
+
+            if (ImGui::Checkbox("Show welcome banner", &Settings::bShowWelcomeBanner)) {
+                Settings::WriteSettings();
+            }
+            ImGui::SameLine();
+            UICommon::HelpMarker("Enable to show the welcome banner on startup.");
+
+            if (UICommon::InputKey("Menu key", Settings::uToggleUIKeyData)) {
                 Settings::WriteSettings();
             }
             ImGui::SameLine();
             UICommon::HelpMarker("Set the key to toggle the UI.");
 
             static float tempScale = Settings::fUIScale;
-            ImGui::SliderFloat("UI Scale", &tempScale, 1.f, 2.f, "%.1f", ImGuiSliderFlags_AlwaysClamp);
+            ImGui::SliderFloat("UI scale", &tempScale, 1.f, 2.f, "%.1f", ImGuiSliderFlags_AlwaysClamp);
             ImGui::SameLine();
             UICommon::HelpMarker("Set the UI scale.");
             ImGui::SameLine();
@@ -306,7 +376,7 @@ namespace UI
             ImGui::SameLine();
             UICommon::HelpMarker("Enable to show a progress bar while animations are loading.");
 
-            if (ImGui::SliderFloat("Linger Time", &Settings::fAnimationQueueLingerTime, 0.f, 10.f, "%.1f s", ImGuiSliderFlags_AlwaysClamp)) {
+            if (ImGui::SliderFloat("Linger time", &Settings::fAnimationQueueLingerTime, 0.f, 10.f, "%.1f s", ImGuiSliderFlags_AlwaysClamp)) {
                 Settings::WriteSettings();
             }
             ImGui::SameLine();
@@ -322,39 +392,39 @@ namespace UI
 
             constexpr uint32_t entriesMin = 1;
             constexpr uint32_t entriesMax = 20;
-            if (ImGui::SliderScalar("Max Entries", ImGuiDataType_U32, &Settings::uAnimationLogMaxEntries, &entriesMin, &entriesMax, "%d", ImGuiSliderFlags_AlwaysClamp)) {
+            if (ImGui::SliderScalar("Max entries", ImGuiDataType_U32, &Settings::uAnimationLogMaxEntries, &entriesMin, &entriesMax, "%d", ImGuiSliderFlags_AlwaysClamp)) {
                 AnimationLog::GetSingleton().ClampLog();
                 Settings::WriteSettings();
             }
             ImGui::SameLine();
             UICommon::HelpMarker("Set the maximum number of entries in the animation log.");
 
-            const char* logTypes[] = { "When Replaced", "With Potential Replacements", "All" };
-			if (ImGui::SliderInt("Activate Log Mode", reinterpret_cast<int*>(&Settings::uAnimationActivateLogMode), 0, 2, logTypes[Settings::uAnimationActivateLogMode])) {
+            const char* logTypes[] = { "When replaced", "With potential replacements", "All" };
+            if (ImGui::SliderInt("Activate log mode", reinterpret_cast<int*>(&Settings::uAnimationActivateLogMode), 0, 2, logTypes[Settings::uAnimationActivateLogMode])) {
                 Settings::WriteSettings();
             }
             ImGui::SameLine();
             UICommon::HelpMarker("Set conditions in which animation clip activation should be logged.");
 
-            if (ImGui::SliderInt("Echo Log Mode", reinterpret_cast<int*>(&Settings::uAnimationEchoLogMode), 0, 2, logTypes[Settings::uAnimationEchoLogMode])) {
-				Settings::WriteSettings();
-			}
-			ImGui::SameLine();
-			UICommon::HelpMarker("Set conditions in which animation clip echo should be logged. (Echo is when an animation clip transitions into itself. Happens with some non-looping clips)");
+            if (ImGui::SliderInt("Echo log mode", reinterpret_cast<int*>(&Settings::uAnimationEchoLogMode), 0, 2, logTypes[Settings::uAnimationEchoLogMode])) {
+                Settings::WriteSettings();
+            }
+            ImGui::SameLine();
+            UICommon::HelpMarker("Set conditions in which animation clip echo should be logged. (Echo is when an animation clip transitions into itself. Happens with some non-looping clips)");
 
-			if (ImGui::SliderInt("Loop Log Mode", reinterpret_cast<int*>(&Settings::uAnimationLoopLogMode), 0, 2, logTypes[Settings::uAnimationLoopLogMode])) {
-				Settings::WriteSettings();
-			}
-			ImGui::SameLine();
-			UICommon::HelpMarker("Set conditions in which animation clip looping should be logged.");
-			
-            if (ImGui::Checkbox("Only Log Current Project", &Settings::bAnimationLogOnlyActiveGraph)) {
+            if (ImGui::SliderInt("Loop log mode", reinterpret_cast<int*>(&Settings::uAnimationLoopLogMode), 0, 2, logTypes[Settings::uAnimationLoopLogMode])) {
+                Settings::WriteSettings();
+            }
+            ImGui::SameLine();
+            UICommon::HelpMarker("Set conditions in which animation clip looping should be logged.");
+
+            if (ImGui::Checkbox("Only log current project", &Settings::bAnimationLogOnlyActiveGraph)) {
                 Settings::WriteSettings();
             }
             ImGui::SameLine();
             UICommon::HelpMarker("Enable to only log animation clips from the active behavior graph - filter out first person animations when in third person, etc.");
 
-            if (ImGui::Checkbox("Write to Log File", &Settings::bAnimationLogWriteToTextLog)) {
+            if (ImGui::Checkbox("Write to log file", &Settings::bAnimationLogWriteToTextLog)) {
                 Settings::WriteSettings();
             }
             ImGui::SameLine();
@@ -370,7 +440,7 @@ namespace UI
             UICommon::HelpMarker("These settings are considered experimental and might not work correctly for you. They take effect after restarting the game.");
             ImGui::Spacing();
 
-            if (ImGui::Checkbox("Disable Preloading", &Settings::bDisablePreloading)) {
+            if (ImGui::Checkbox("Disable preloading", &Settings::bDisablePreloading)) {
                 if (Settings::bDisablePreloading) {
                     Settings::bLoadDefaultBehaviorsInMainMenu = false;
                 }
@@ -379,34 +449,7 @@ namespace UI
             ImGui::SameLine();
             UICommon::HelpMarker("Set to disable preloading all animations when the behavior is first loaded. This might not be necessary if your animations are loading fast enough. In my experience everything works perfectly fine with preloading disabled, but I'm leaving it enabled by default.");
 
-            ImGui::BeginDisabled(Settings::bDisablePreloading);
-            if (ImGui::Checkbox("Load Default Behaviors in Main Menu", &Settings::bLoadDefaultBehaviorsInMainMenu)) {
-                Settings::WriteSettings();
-            }
-            ImGui::EndDisabled();
-            ImGui::SameLine();
-            UICommon::HelpMarker("Enable to start loading default male/female behaviors in the main menu. Ignored with preloading disabled as there's no benefit in doing so in that case.");
-
-            if (ImGui::Checkbox("Filter Out Duplicate Animations", &Settings::bFilterOutDuplicateAnimations)) {
-                Settings::WriteSettings();
-            }
-            ImGui::SameLine();
-            UICommon::HelpMarker("Enable to check for duplicates before adding an animation. Only one copy of an animation binding will be used in multiple replacer animations. This should massively cut down on the number of loaded animations as replacer mods tend to use multiple copies of the same animation with different condition. Should work exactly the same but needs testing to ensure that it's flawless.");
-
-            ImGui::BeginDisabled(!Settings::bFilterOutDuplicateAnimations);
-            if (ImGui::Checkbox("Cache Animation File Hashes", &Settings::bCacheAnimationFileHashes)) {
-                Settings::WriteSettings();
-            }
-            ImGui::SameLine();
-            UICommon::HelpMarker("Enable to save a cache of animation file hashes, so the hashes don't have to be recalculated on every game launch. It's saved to a .bin file next to the .dll. This should speed up the loading process a little bit.");
-            ImGui::SameLine();
-            if (ImGui::Button("Clear Cache")) {
-                AnimationFileHashCache::GetSingleton().DeleteCache();
-            }
-            UICommon::AddTooltip("Delete the animation file hash cache. This will cause the hashes to be recalculated on the next game launch.");
-            ImGui::EndDisabled();
-
-            if (ImGui::Checkbox("Increase Animation Limit", &Settings::bIncreaseAnimationLimit)) {
+            if (ImGui::Checkbox("Increase animation limit", &Settings::bIncreaseAnimationLimit)) {
                 Settings::ClampAnimLimit();
                 Settings::WriteSettings();
             }
@@ -471,25 +514,49 @@ namespace UI
                 } else if (prevPriority != a_subMod->GetPriority()) {
                     ImGui::Spacing();
                 }
-				prevPriority = a_subMod->GetPriority();
+                prevPriority = a_subMod->GetPriority();
 
                 ImGui::TableNextRow();
                 ImGui::TableSetColumnIndex(0);
 
                 const bool bOpen = ImGui::TreeNode(nodeName.data());
                 ImGui::TableSetColumnIndex(1);
-				ImGui::TextUnformatted(std::to_string(a_subMod->GetPriority()).data());
+                ImGui::TextUnformatted(std::to_string(a_subMod->GetPriority()).data());
                 if (bOpen) {
                     if (parentMod) {
                         ImGui::TableNextRow();
                         ImGui::TableSetColumnIndex(0);
-						ImGui::TextUnformatted(parentMod->GetName().data());
+                        ImGui::TextUnformatted(parentMod->GetName().data());
                         ImGui::TextUnformatted(a_subMod->GetPath().data());
                         // tooltip for full path in case it doesn't fit
                         UICommon::AddTooltip(a_subMod->GetPath().data());
                     }
                     ImGui::TreePop();
                 }
+            });
+
+            ImGui::EndTable();
+        }
+    }
+
+    void UIMain::DrawSubModsWithInvalidConditions() const
+    {
+        if (ImGui::BeginTable("SubModsWithInvalidConditions", 2, ImGuiTableFlags_NoSavedSettings | ImGuiTableFlags_BordersOuter)) {
+            ImGui::TableSetupColumn("Parent mod", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("Submod", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupScrollFreeze(0, 1);
+            ImGui::TableHeadersRow();
+
+            DetectedProblems::GetSingleton().ForEachSubModWithInvalidConditions([&](const SubMod* a_subMod) {
+                const auto subModName = a_subMod->GetName();
+                const auto parentModName = a_subMod->GetParentMod()->GetName();
+
+                ImGui::TableNextRow();
+                ImGui::TableSetColumnIndex(0);
+
+                ImGui::TextUnformatted(parentModName.data());
+                ImGui::TableSetColumnIndex(1);
+                ImGui::TextUnformatted(subModName.data());
             });
 
             ImGui::EndTable();
@@ -521,13 +588,13 @@ namespace UI
             OpenAnimationReplacer::GetSingleton().ForEachReplacerMod([&](ReplacerMod* a_replacerMod) {
                 // Parse names for filtering and duplicate names
                 std::unordered_map<std::string, SubModNameFilterResult> subModNameFilterResults{};
-				bool bEntireReplacerModMatchesFilter = !std::strlen(nameFilterBuf) || Utils::ContainsStringIgnoreCase(a_replacerMod->GetName(), nameFilterBuf) || Utils::ContainsStringIgnoreCase(a_replacerMod->GetAuthor(), nameFilterBuf);
+                const bool bEntireReplacerModMatchesFilter = !std::strlen(nameFilterBuf) || Utils::ContainsStringIgnoreCase(a_replacerMod->GetName(), nameFilterBuf) || Utils::ContainsStringIgnoreCase(a_replacerMod->GetAuthor(), nameFilterBuf);
                 bool bDisplayMod = bEntireReplacerModMatchesFilter;
 
                 a_replacerMod->ForEachSubMod([&](const SubMod* a_subMod) {
                     SubModNameFilterResult res;
-					const auto subModName = a_subMod->GetName();
-					res.bDisplay = bEntireReplacerModMatchesFilter || Utils::ContainsStringIgnoreCase(subModName, nameFilterBuf);
+                    const auto subModName = a_subMod->GetName();
+                    res.bDisplay = bEntireReplacerModMatchesFilter || Utils::ContainsStringIgnoreCase(subModName, nameFilterBuf);
 
                     // if at least one submod matches filter, display the replacer mod
                     if (res.bDisplay) {
@@ -536,7 +603,7 @@ namespace UI
 
                     auto [it, bInserted] = subModNameFilterResults.try_emplace(subModName.data(), res);
                     if (!bInserted) {
-						subModNameFilterResults[subModName.data()].bDuplicateName = true;
+                        subModNameFilterResults[subModName.data()].bDuplicateName = true;
                     }
 
                     return RE::BSVisit::BSVisitControl::kContinue;
@@ -559,52 +626,52 @@ namespace UI
         if (ImGui::TreeNode(a_replacerMod, a_replacerMod->GetName().data())) {
             // Mod name
             if (!a_replacerMod->IsLegacy() && _editMode == ConditionEditMode::kAuthor) {
-                std::string nameId = "Mod name##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + "name";
+                const std::string nameId = "Mod name##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + "name";
                 ImGui::SetNextItemWidth(-150.f);
-				std::string tempName(a_replacerMod->GetName());
+                std::string tempName(a_replacerMod->GetName());
                 if (ImGui::InputTextWithHint(nameId.data(), "Mod name", &tempName)) {
-					a_replacerMod->SetName(tempName);
+                    a_replacerMod->SetName(tempName);
                     a_replacerMod->SetDirty(true);
                 }
             }
 
             // Mod author
-            std::string authorId = "Author##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + "author";
-			if (!a_replacerMod->IsLegacy() && _editMode == ConditionEditMode::kAuthor) {
+            const std::string authorId = "Author##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + "author";
+            if (!a_replacerMod->IsLegacy() && _editMode == ConditionEditMode::kAuthor) {
                 ImGui::SetNextItemWidth(250.f);
-				std::string tempAuthor(a_replacerMod->GetAuthor());
+                std::string tempAuthor(a_replacerMod->GetAuthor());
                 if (ImGui::InputTextWithHint(authorId.data(), "Author", &tempAuthor)) {
-					a_replacerMod->SetAuthor(tempAuthor);
+                    a_replacerMod->SetAuthor(tempAuthor);
                     a_replacerMod->SetDirty(true);
                 }
-			} else if (!a_replacerMod->GetAuthor().empty()) {
+            } else if (!a_replacerMod->GetAuthor().empty()) {
                 if (ImGui::BeginTable(authorId.data(), 1, ImGuiTableFlags_BordersOuter)) {
                     ImGui::TableNextRow();
                     ImGui::TableSetColumnIndex(0);
                     UICommon::TextDescriptionRightAligned("Author");
                     ImGui::AlignTextToFramePadding();
-					ImGui::TextUnformatted(a_replacerMod->GetAuthor().data());
+                    ImGui::TextUnformatted(a_replacerMod->GetAuthor().data());
                     ImGui::EndTable();
                 }
             }
 
             // Mod description
             const std::string descriptionId = "Mod description##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + "description";
-			if (!a_replacerMod->IsLegacy() && _editMode == ConditionEditMode::kAuthor) {
+            if (!a_replacerMod->IsLegacy() && _editMode == ConditionEditMode::kAuthor) {
                 ImGui::SetNextItemWidth(-150.f);
-				std::string tempDescription(a_replacerMod->GetDescription());
+                std::string tempDescription(a_replacerMod->GetDescription());
                 if (ImGui::InputTextMultiline(descriptionId.data(), &tempDescription, ImVec2(0, ImGui::GetTextLineHeight() * 5))) {
-					a_replacerMod->SetDescription(tempDescription);
+                    a_replacerMod->SetDescription(tempDescription);
                     a_replacerMod->SetDirty(true);
                 }
                 ImGui::Spacing();
-			} else if (!a_replacerMod->GetDescription().empty()) {
+            } else if (!a_replacerMod->GetDescription().empty()) {
                 if (ImGui::BeginTable(descriptionId.data(), 1, ImGuiTableFlags_BordersOuter)) {
                     ImGui::TableNextRow();
                     ImGui::TableSetColumnIndex(0);
                     ImGui::AlignTextToFramePadding();
                     UICommon::TextDescriptionRightAligned("Description");
-					ImGui::TextUnformatted(a_replacerMod->GetDescription().data());
+                    ImGui::TextUnformatted(a_replacerMod->GetDescription().data());
                     ImGui::EndTable();
                 }
                 ImGui::Spacing();
@@ -614,7 +681,7 @@ namespace UI
             ImGui::TextUnformatted("Submods:");
             a_replacerMod->ForEachSubMod([&](SubMod* a_subMod) {
                 // Filter
-                auto search = a_filterResults.find(a_subMod->GetName().data());
+                const auto search = a_filterResults.find(a_subMod->GetName().data());
                 if (search != a_filterResults.end()) {
                     const SubModNameFilterResult& filterResult = search->second;
                     if (filterResult.bDisplay) {
@@ -625,7 +692,7 @@ namespace UI
             });
 
             // Save mod config
-			if (!a_replacerMod->IsLegacy() && _editMode == ConditionEditMode::kAuthor) {
+            if (!a_replacerMod->IsLegacy() && _editMode == ConditionEditMode::kAuthor) {
                 const bool bIsDirty = a_replacerMod->IsDirty();
                 if (!bIsDirty) {
                     ImGui::BeginDisabled();
@@ -658,10 +725,10 @@ namespace UI
         if (_editMode > ConditionEditMode::kNone) {
             std::string idString = std::format("{}##bDisabled", reinterpret_cast<uintptr_t>(a_subMod));
             ImGui::PushID(idString.data());
-			bool bEnabled = !a_subMod->IsDisabled();
+            bool bEnabled = !a_subMod->IsDisabled();
             if (ImGui::Checkbox("##disableSubMod", &bEnabled)) {
                 a_subMod->SetDisabled(!bEnabled);
-                OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::UpdateSubModJob>(a_subMod, false);
+                OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::UpdateSubModJob>(a_subMod, true);
                 a_subMod->SetDirty(true);
             }
             UICommon::AddTooltip("If unchecked, the submod will be disabled and none of its replacement animations will be considered.");
@@ -690,7 +757,7 @@ namespace UI
 
         // node name
         ImGui::SameLine();
-		ImGui::TextUnformatted(a_subMod->GetName().data());
+        ImGui::TextUnformatted(a_subMod->GetName().data());
         ImGui::SameLine();
 
         if (a_bAddPathToName) {
@@ -715,12 +782,12 @@ namespace UI
         if (bNodeOpen) {
             // Submod name
             {
-                if (_editMode != ConditionEditMode::kNone) {
+                if (_editMode == ConditionEditMode::kAuthor) {
                     std::string subModNameId = "Submod name##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "name";
                     ImGui::SetNextItemWidth(-150.f);
-					std::string tempName(a_subMod->GetName());
+                    std::string tempName(a_subMod->GetName());
                     if (ImGui::InputTextWithHint(subModNameId.data(), "Submod name", &tempName)) {
-						a_subMod->SetName(tempName);
+                        a_subMod->SetName(tempName);
                         a_subMod->SetDirty(true);
                     }
                 }
@@ -729,20 +796,20 @@ namespace UI
             // Submod description
             {
                 std::string subModDescriptionId = "Submod description##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "description";
-                if (_editMode != ConditionEditMode::kNone) {
+                if (_editMode == ConditionEditMode::kAuthor) {
                     ImGui::SetNextItemWidth(-150.f);
-					std::string tempDescription(a_subMod->GetDescription());
+                    std::string tempDescription(a_subMod->GetDescription());
                     if (ImGui::InputTextMultiline(subModDescriptionId.data(), &tempDescription, ImVec2(0, ImGui::GetTextLineHeight() * 5))) {
-						a_subMod->SetDescription(tempDescription);
+                        a_subMod->SetDescription(tempDescription);
                         a_subMod->SetDirty(true);
                     }
-				} else if (!a_subMod->GetDescription().empty()) {
+                } else if (!a_subMod->GetDescription().empty()) {
                     if (ImGui::BeginTable(subModDescriptionId.data(), 1, ImGuiTableFlags_BordersOuter)) {
                         ImGui::TableNextRow();
                         ImGui::TableSetColumnIndex(0);
                         ImGui::AlignTextToFramePadding();
                         UICommon::TextDescriptionRightAligned("Description");
-						ImGui::TextUnformatted(a_subMod->GetDescription().data());
+                        ImGui::TextUnformatted(a_subMod->GetDescription().data());
                         ImGui::EndTable();
                     }
                 }
@@ -752,9 +819,9 @@ namespace UI
             {
                 std::string priorityLabel = "Priority##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "priority";
                 if (_editMode != ConditionEditMode::kNone) {
-					int32_t tempPriority = a_subMod->GetPriority();
-                    if (InputPriority(priorityLabel.data(), &tempPriority)) {
-						a_subMod->SetPriority(tempPriority);
+                    int32_t tempPriority = a_subMod->GetPriority();
+                    if (ImGui::InputInt(priorityLabel.data(), &tempPriority)) {
+                        a_subMod->SetPriority(tempPriority);
                         OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::UpdateSubModJob>(a_subMod, true);
                         a_subMod->SetDirty(true);
                     }
@@ -778,9 +845,9 @@ namespace UI
                 std::string overrideAnimationsFolderTooltip = "If set, this submod will load animations from the given folder (in the parent directory) instead of its own folder.";
                 if (_editMode != ConditionEditMode::kNone) {
                     ImGui::SetNextItemWidth(-220.f);
-					std::string tempOverrideAnimationsFolder(a_subMod->GetOverrideAnimationsFolder());
+                    std::string tempOverrideAnimationsFolder(a_subMod->GetOverrideAnimationsFolder());
                     if (ImGui::InputTextWithHint(overrideAnimationsFolderLabel.data(), "Override animations folder", &tempOverrideAnimationsFolder)) {
-						a_subMod->SetOverrideAnimationsFolder(tempOverrideAnimationsFolder);
+                        a_subMod->SetOverrideAnimationsFolder(tempOverrideAnimationsFolder);
                         a_subMod->SetDirty(true);
                     }
                     ImGui::SameLine();
@@ -805,9 +872,9 @@ namespace UI
                 std::string requiredProjectNameTooltip = "If set, this submod will only load for the specified project name. Leave empty to load for all projects.";
                 if (_editMode != ConditionEditMode::kNone) {
                     ImGui::SetNextItemWidth(-220.f);
-					std::string tempRequiredProjectName(a_subMod->GetRequiredProjectName());
+                    std::string tempRequiredProjectName(a_subMod->GetRequiredProjectName());
                     if (ImGui::InputTextWithHint(requiredProjectNameId.data(), "Required project name", &tempRequiredProjectName)) {
-					    a_subMod->SetRequiredProjectName(tempRequiredProjectName);
+                        a_subMod->SetRequiredProjectName(tempRequiredProjectName);
                         a_subMod->SetDirty(true);
                     }
                     ImGui::SameLine();
@@ -832,9 +899,9 @@ namespace UI
                 std::string noTriggersTooltip = "If checked, the animation clip flag \"Don't convert annotations to triggers\", set on some animation clips in vanilla, will be ignored. This means that animation triggers (events), included in the replacer animation as annotations, will now run instead of being ignored.";
 
                 if (_editMode != ConditionEditMode::kNone) {
-					bool tempIgnoreNoTriggersFlag = a_subMod->IsIgnoringNoTriggersFlag();
+                    bool tempIgnoreNoTriggersFlag = a_subMod->IsIgnoringNoTriggersFlag();
                     if (ImGui::Checkbox(noTriggersFlagLabel.data(), &tempIgnoreNoTriggersFlag)) {
-						a_subMod->SetIgnoringNoTriggersFlag(tempIgnoreNoTriggersFlag);
+                        a_subMod->SetIgnoringNoTriggersFlag(tempIgnoreNoTriggersFlag);
                         OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::UpdateSubModJob>(a_subMod, false);
                         a_subMod->SetDirty(true);
                     }
@@ -842,7 +909,7 @@ namespace UI
                     UICommon::HelpMarker(noTriggersTooltip.data());
                 } else if (a_subMod->IsIgnoringNoTriggersFlag()) {
                     ImGui::BeginDisabled();
-					bool tempIgnoreNoTriggersFlag = a_subMod->IsIgnoringNoTriggersFlag();
+                    bool tempIgnoreNoTriggersFlag = a_subMod->IsIgnoringNoTriggersFlag();
                     ImGui::Checkbox(noTriggersFlagLabel.data(), &tempIgnoreNoTriggersFlag);
                     ImGui::EndDisabled();
                     ImGui::SameLine();
@@ -856,9 +923,9 @@ namespace UI
                 std::string interruptibleTooltip = "If checked, the conditions will be checked every frame and the clip will be switched to another one if needed. Mostly useful for looping animations.";
 
                 if (_editMode != ConditionEditMode::kNone) {
-					bool tempInterruptible = a_subMod->IsInterruptible();
+                    bool tempInterruptible = a_subMod->IsInterruptible();
                     if (ImGui::Checkbox(interruptibleLabel.data(), &tempInterruptible)) {
-						a_subMod->SetInterruptible(tempInterruptible);
+                        a_subMod->SetInterruptible(tempInterruptible);
                         OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::UpdateSubModJob>(a_subMod, false);
                         a_subMod->SetDirty(true);
                     }
@@ -866,8 +933,8 @@ namespace UI
                     UICommon::HelpMarker(interruptibleTooltip.data());
                 } else if (a_subMod->IsInterruptible()) {
                     ImGui::BeginDisabled();
-					bool tempInterruptible = a_subMod->IsInterruptible();
-					ImGui::Checkbox(interruptibleLabel.data(), &tempInterruptible);
+                    bool tempInterruptible = a_subMod->IsInterruptible();
+                    ImGui::Checkbox(interruptibleLabel.data(), &tempInterruptible);
                     ImGui::EndDisabled();
                     ImGui::SameLine();
                     UICommon::HelpMarker(interruptibleTooltip.data());
@@ -880,9 +947,9 @@ namespace UI
                 std::string keepRandomTooltip = "If checked, the results of the random conditions won't be reset when the animation loops. Mostly useful for random movement animations that don't want to be interrupted after every step or two.";
 
                 if (_editMode != ConditionEditMode::kNone) {
-					bool tempKeepRandomResultsOnLoop = a_subMod->IsKeepingRandomResultsOnLoop();
+                    bool tempKeepRandomResultsOnLoop = a_subMod->IsKeepingRandomResultsOnLoop();
                     if (ImGui::Checkbox(keepRandomLabel.data(), &tempKeepRandomResultsOnLoop)) {
-						a_subMod->SetKeepRandomResultsOnLoop(tempKeepRandomResultsOnLoop);
+                        a_subMod->SetKeepRandomResultsOnLoop(tempKeepRandomResultsOnLoop);
                         OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::UpdateSubModJob>(a_subMod, false);
                         a_subMod->SetDirty(true);
                     }
@@ -890,7 +957,7 @@ namespace UI
                     UICommon::HelpMarker(keepRandomTooltip.data());
                 } else if (a_subMod->IsKeepingRandomResultsOnLoop()) {
                     ImGui::BeginDisabled();
-					bool tempKeepRandomResultsOnLoop = a_subMod->IsKeepingRandomResultsOnLoop();
+                    bool tempKeepRandomResultsOnLoop = a_subMod->IsKeepingRandomResultsOnLoop();
                     ImGui::Checkbox(keepRandomLabel.data(), &tempKeepRandomResultsOnLoop);
                     ImGui::EndDisabled();
                     ImGui::SameLine();
@@ -966,16 +1033,27 @@ namespace UI
             }
 
             if (_editMode != ConditionEditMode::kNone) {
-                // Save submod config
-                bool bIsDirty = a_subMod->IsDirty();
-                if (!bIsDirty) {
-                    ImGui::BeginDisabled();
-                }
-                if (ImGui::Button("Save submod config")) {
-                    a_subMod->SaveConfig(_editMode);
-                }
-                if (!bIsDirty) {
+                if (_editMode == ConditionEditMode::kAuthor && a_replacerMod->IsLegacy()) {
+                    // Save migration config
+                    ImGui::BeginDisabled(a_subMod->GetConditionSet()->HasInvalidConditions());
+                    UICommon::ButtonWithConfirmationModal("Save author config for migration", "This author config won't be read because this is a legacy mod.\nThe functionality is here for convenience only.\nYou can copy the resulting file to the proper folder when migrating your mods to the new structure.\n\n"sv, [&]() {
+                        a_subMod->SaveConfig(_editMode, false);
+                    });
                     ImGui::EndDisabled();
+                } else {
+                    // Save submod config
+                    bool bIsDirty = a_subMod->IsDirty();
+                    if (!bIsDirty) {
+                        ImGui::BeginDisabled();
+                    }
+                    ImGui::BeginDisabled(a_subMod->GetConditionSet()->HasInvalidConditions());
+                    if (ImGui::Button(_editMode == ConditionEditMode::kAuthor ? "Save author config" : "Save user config")) {
+                        a_subMod->SaveConfig(_editMode);
+                    }
+                    ImGui::EndDisabled();
+                    if (!bIsDirty) {
+                        ImGui::EndDisabled();
+                    }
                 }
 
                 // Reload submod config
@@ -1001,13 +1079,15 @@ namespace UI
                 }
 
                 // copy json to clipboard button
-				if (a_replacerMod->IsLegacy() && _editMode == ConditionEditMode::kAuthor) {
+                if (a_replacerMod->IsLegacy() && _editMode == ConditionEditMode::kAuthor) {
                     ImGui::SameLine();
+                    ImGui::BeginDisabled(a_subMod->GetConditionSet()->HasInvalidConditions());
                     if (ImGui::Button("Copy submod config to clipboard")) {
                         ImGui::LogToClipboard();
                         ImGui::LogText(a_subMod->SerializeToString().data());
                         ImGui::LogFinish();
                     }
+                    ImGui::EndDisabled();
                 }
             }
 
@@ -1029,7 +1109,7 @@ namespace UI
 
         if (ImGui::BeginChild("Datas")) {
             OpenAnimationReplacer::GetSingleton().ForEachReplacerProjectData([&](RE::hkbCharacterStringData* a_stringData, const auto& a_projectData) {
-                auto& name = a_stringData->name;
+                const auto& name = a_stringData->name;
 
                 ImGui::PushID(a_stringData);
                 if (ImGui::TreeNode(name.data())) {
@@ -1085,13 +1165,13 @@ namespace UI
         // Evaluate
         auto evalResult = ConditionEvaluateResult::kFailure;
         if (const auto refrToEvaluate = UIManager::GetSingleton().GetRefrToEvaluate()) {
-			if (a_replacementAnimation->EvaluateConditions(refrToEvaluate, nullptr)) {
-				if (Utils::ConditionSetHasRandomResult(a_replacementAnimation->GetConditionSet())) {
-					evalResult = ConditionEvaluateResult::kRandom;
-				} else {
-					evalResult = ConditionEvaluateResult::kSuccess;
-				}
-			}
+            if (a_replacementAnimation->EvaluateConditions(refrToEvaluate, nullptr)) {
+                if (Utils::ConditionSetHasRandomResult(a_replacementAnimation->GetConditionSet())) {
+                    evalResult = ConditionEvaluateResult::kRandom;
+                } else {
+                    evalResult = ConditionEvaluateResult::kSuccess;
+                }
+            }
         }
 
         const std::string priorityText = "Priority: " + std::to_string(a_replacementAnimation->GetPriority());
@@ -1108,7 +1188,7 @@ namespace UI
             const auto animPath = a_replacementAnimation->GetAnimPath();
             ImGui::TextUnformatted(animPath.data());
             UICommon::AddTooltip(animPath.data()); // tooltip for full path in case it doesn't fit
-			DrawConditionSet(a_replacementAnimation->GetConditionSet(), ConditionEditMode::kNone, true, ImGui::GetCursorScreenPos());
+            DrawConditionSet(a_replacementAnimation->GetConditionSet(), ConditionEditMode::kNone, true, ImGui::GetCursorScreenPos());
             ImGui::TreePop();
         }
         ImGui::PopID();
@@ -1152,11 +1232,12 @@ namespace UI
         if (a_editMode > ConditionEditMode::kNone) {
             // Add condition button
             if (ImGui::Button("Add new condition")) {
-                if (auto newCondition = Conditions::CreateCondition(_lastAddNewConditionName)) {
-                    a_conditionSet->AddCondition(newCondition, true);
+                if (_lastAddNewConditionName.empty()) {
+                    auto isFormCondition = Conditions::CreateCondition("IsForm"sv);
+                    a_conditionSet->AddCondition(isFormCondition, true);
                 } else {
-					auto isFormCondition = Conditions::CreateCondition("IsForm"sv);
-					a_conditionSet->AddCondition(isFormCondition, true);
+                    auto newCondition = Conditions::CreateCondition(_lastAddNewConditionName);
+                    a_conditionSet->AddCondition(newCondition, true);
                 }
             }
 
@@ -1170,10 +1251,13 @@ namespace UI
             if (ImGui::BeginPopupContextItem(popupId.data())) {
                 const auto xButtonSize = ImGui::CalcTextSize("Paste condition set").x + style.FramePadding.x * 2 + style.ItemSpacing.x;
 
+                // Copy conditions button
+                ImGui::BeginDisabled(a_conditionSet->HasInvalidConditions());
                 if (ImGui::Button("Copy condition set", ImVec2(xButtonSize, 0))) {
                     ImGui::CloseCurrentPopup();
                     _conditionSetCopy = DuplicateConditionSet(a_conditionSet);
                 }
+                ImGui::EndDisabled();
 
                 // Paste conditions button
                 ImGui::BeginDisabled(_conditionSetCopy == nullptr);
@@ -1187,7 +1271,7 @@ namespace UI
                 if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) {
                     ImGui::SetNextWindowSize(ImVec2(tooltipWidth, 0));
                     ImGui::BeginTooltip();
-					DrawConditionSet(_conditionSetCopy.get(), ConditionEditMode::kNone, false, a_drawStartPos);
+                    DrawConditionSet(_conditionSetCopy.get(), ConditionEditMode::kNone, false, a_drawStartPos);
                     ImGui::EndTooltip();
                 }
 
@@ -1210,13 +1294,13 @@ namespace UI
         // Evaluate
         auto evalResult = ConditionEvaluateResult::kFailure;
         if (auto refrToEvaluate = UIManager::GetSingleton().GetRefrToEvaluate()) {
-			if (a_condition->Evaluate(refrToEvaluate, nullptr)) {
-				if (Utils::ConditionHasRandomResult(a_condition.get())) {
-					evalResult = ConditionEvaluateResult::kRandom;
-				} else {
-					evalResult = ConditionEvaluateResult::kSuccess;
-				}
-			}
+            if (a_condition->Evaluate(refrToEvaluate, nullptr)) {
+                if (Utils::ConditionHasRandomResult(a_condition.get())) {
+                    evalResult = ConditionEvaluateResult::kRandom;
+                } else {
+                    evalResult = ConditionEvaluateResult::kSuccess;
+                }
+            }
         }
 
         //ImGui::BeginGroup();
@@ -1260,15 +1344,17 @@ namespace UI
                     // copy button
                     auto& style = ImGui::GetStyle();
                     auto xButtonSize = ImGui::CalcTextSize("Paste condition below").x + style.FramePadding.x * 2 + style.ItemSpacing.x;
+                    ImGui::BeginDisabled(!a_condition->IsValid());
                     if (ImGui::Button("Copy condition", ImVec2(xButtonSize, 0))) {
                         _conditionCopy = DuplicateCondition(a_condition);
                         ImGui::CloseCurrentPopup();
                     }
+                    ImGui::EndDisabled();
 
                     // paste button
                     ImGui::BeginDisabled(!_conditionCopy);
                     if (ImGui::Button("Paste condition below", ImVec2(xButtonSize, 0))) {
-						auto duplicate = DuplicateCondition(_conditionCopy);
+                        auto duplicate = DuplicateCondition(_conditionCopy);
                         OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::InsertConditionJob>(duplicate, a_conditionSet, a_condition);
                         ImGui::CloseCurrentPopup();
                     }
@@ -1305,13 +1391,13 @@ namespace UI
                     ImGui::TextColored(UICommon::CUSTOM_CONDITION_COLOR, requiredPluginName.data());
                     ImGui::SameLine();
                     ImGui::TextDisabled(a_condition->GetRequiredVersion().string("."sv).data());
-					const auto requiredPluginAuthor = a_condition->GetRequiredPluginAuthor();
-					if (!requiredPluginAuthor.empty()) {
-					    ImGui::SameLine();
+                    const auto requiredPluginAuthor = a_condition->GetRequiredPluginAuthor();
+                    if (!requiredPluginAuthor.empty()) {
+                        ImGui::SameLine();
                         ImGui::TextUnformatted("by");
                         ImGui::SameLine();
                         ImGui::TextColored(UICommon::CUSTOM_CONDITION_COLOR, requiredPluginAuthor.data());
-					}
+                    }
                 }
                 ImGui::PopTextWrapPos();
                 ImGui::EndTooltip();
@@ -1321,7 +1407,7 @@ namespace UI
             nodeRect = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
 
             // Drag & Drop source
-            if (a_editMode > ConditionEditMode::kNone) {
+            if (a_editMode > ConditionEditMode::kNone && a_condition->IsValid()) {
                 if (BeginDragDropSourceEx(ImGuiDragDropFlags_SourceNoHoldToOpenOthers, ImVec2(tooltipWidth, 0))) {
                     DragConditionPayload payload(a_condition, a_conditionSet);
                     ImGui::SetDragDropPayload("DND_CONDITION", &payload, sizeof(DragConditionPayload));
@@ -1572,7 +1658,7 @@ namespace UI
                     // paste button
                     ImGui::BeginDisabled(!_conditionCopy);
                     if (ImGui::Button("Paste condition below")) {
-						auto duplicate = DuplicateCondition(_conditionCopy);
+                        auto duplicate = DuplicateCondition(_conditionCopy);
                         OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::InsertConditionJob>(duplicate, a_conditionSet, nullptr);
                         ImGui::CloseCurrentPopup();
                     }

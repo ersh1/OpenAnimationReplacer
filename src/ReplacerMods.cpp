@@ -13,15 +13,15 @@ void SubMod::AddReplacementAnimations(RE::hkbCharacterStringData* a_stringData, 
     for (auto& replacementAnimToAdd : a_animationsToAdd) {
         if (uint16_t newIndex = replacerProjectData->TryAddAnimationToAnimationBundleNames(replacementAnimToAdd); newIndex != static_cast<uint16_t>(-1)) {
             auto newReplacementAnimation = std::make_unique<ReplacementAnimation>(newIndex, replacementAnimToAdd.originalBindingIndex, _priority, replacementAnimToAdd.animationPath, a_stringData->name.data(), _conditionSet.get());
-			newReplacementAnimation->_parentSubMod = this;
+            newReplacementAnimation->_parentSubMod = this;
             {
                 WriteLocker locker(_dataLock);
-				_replacementAnimations.emplace_back(newReplacementAnimation.get());
+                _replacementAnimations.emplace_back(newReplacementAnimation.get());
 
                 // sort replacement animations by path
-				std::ranges::sort(_replacementAnimations, [](const auto& a_lhs, const auto& a_rhs) {
-					return a_lhs->_path < a_rhs->_path;
-				});
+                std::ranges::sort(_replacementAnimations, [](const auto& a_lhs, const auto& a_rhs) {
+                    return a_lhs->_path < a_rhs->_path;
+                });
             }
 
             replacerProjectData->AddReplacementAnimation(a_stringData, replacementAnimToAdd.originalBindingIndex, newReplacementAnimation);
@@ -102,71 +102,102 @@ bool SubMod::ReloadConfig()
 
     std::filesystem::path directoryPath(_path);
 
-    auto configPath = directoryPath / "user.json"sv;
-    if (is_regular_file(configPath)) {
-        parseResult.configSource = Parsing::ConfigSource::kUser;
-    } else {
-        configPath = directoryPath / "config.json"sv;
-        parseResult.configSource = Parsing::ConfigSource::kAuthor;
-    }
+    bool bDeserializeSuccess = false;
 
-    if (is_regular_file(configPath)) {
-        if (DeserializeSubMod(configPath, parseResult)) {
+    // check if this was originally a legacy mod
+    auto directoryPathStr = directoryPath.string();
+    bool bOriginallyLegacy = directoryPathStr.find("DynamicAnimationReplacer"sv) != std::string::npos;
+
+    auto configPath = directoryPath / "config.json"sv;
+    auto userPath = directoryPath / "user.json"sv;
+    bool bConfigJsonFound = is_regular_file(configPath);
+    bool bUserJsonFound = is_regular_file(userPath);
+    if (bConfigJsonFound || bUserJsonFound) {
+        if (bOriginallyLegacy) {
+            // only read user.json if it was originally a legacy mod
+            if (bUserJsonFound) {
+                ResetToLegacy();
+                parseResult.name = _name;
+                parseResult.description = _description;
+                parseResult.configSource = Parsing::ConfigSource::kUser;
+                bDeserializeSuccess = DeserializeSubMod(userPath, Parsing::DeserializeMode::kWithoutNameDescription, parseResult);
+            }
+        } else {
+            if (bUserJsonFound) {
+                parseResult.configSource = Parsing::ConfigSource::kUser;
+                if (!DeserializeSubMod(configPath, Parsing::DeserializeMode::kNameDescriptionOnly, parseResult)) {
+                    return false;
+                }
+                bDeserializeSuccess = DeserializeSubMod(userPath, Parsing::DeserializeMode::kWithoutNameDescription, parseResult);
+            } else {
+                parseResult.configSource = Parsing::ConfigSource::kAuthor;
+                bDeserializeSuccess = DeserializeSubMod(configPath, Parsing::DeserializeMode::kFull, parseResult);
+            }
+        }
+
+        if (bDeserializeSuccess) {
             LoadParseResult(parseResult);
-            DetectedProblems::GetSingleton().CheckForSubModsSharingPriority();
+            auto& detectedProblems = DetectedProblems::GetSingleton();
+            detectedProblems.CheckForSubModsSharingPriority();
+            detectedProblems.CheckForSubModsWithInvalidConditions();
             UpdateAnimations();
             return true;
         }
-    } else {
-        // check if this was originally a legacy mod
-        if (auto directoryPathStr = directoryPath.string(); directoryPathStr.find("DynamicAnimationReplacer"sv) != std::string::npos) {
-            ResetToLegacy();
-            if (directoryPathStr.find("_CustomConditions"sv) != std::string::npos) {
-                if (auto txtPath = directoryPath / "_conditions.txt"sv; exists(txtPath)) {
-                    auto newConditionSet = Parsing::ParseConditionsTxt(txtPath);
-                    _conditionSet->MoveConditions(newConditionSet.get());
+    }
 
-                    SetDirtyRecursive(false);
-
-                    DetectedProblems::GetSingleton().CheckForSubModsSharingPriority();
-
-                    return true;
-                }
-            } else {
-                // no conditions.txt, so this is a legacy mod with plugin name and formid
-                auto formIDString = directoryPath.stem().string();
-                auto fileString = directoryPath.parent_path().stem().string();
-                auto extensionString = directoryPath.parent_path().extension().string();
-                auto modName = fileString + extensionString;
-
-                RE::FormID formID;
-                auto newConditionSet = std::make_shared<Conditions::ConditionSet>();
-                std::from_chars(formIDString.data(), formIDString.data() + formIDString.size(), formID, 16);
-                if (auto form = Utils::LookupForm(formID, modName)) {
-                    std::string argument = modName + "|" + formIDString;
-					auto condition = OpenAnimationReplacer::GetSingleton().CreateCondition("IsActorBase");
-					static_cast<Conditions::IsActorBaseCondition*>(condition.get())->formComponent->SetTESFormValue(form);
-                    newConditionSet->AddCondition(condition);
-                }
+    if (!bDeserializeSuccess && bOriginallyLegacy) {
+        ResetToLegacy();
+        if (directoryPathStr.find("_CustomConditions"sv) != std::string::npos) {
+            if (auto txtPath = directoryPath / "_conditions.txt"sv; exists(txtPath)) {
+                auto newConditionSet = Parsing::ParseConditionsTxt(txtPath);
                 _conditionSet->MoveConditions(newConditionSet.get());
 
                 SetDirtyRecursive(false);
 
-                DetectedProblems::GetSingleton().CheckForSubModsSharingPriority();
+                auto& detectedProblems = DetectedProblems::GetSingleton();
+                detectedProblems.CheckForSubModsSharingPriority();
+                detectedProblems.CheckForSubModsWithInvalidConditions();
 
                 return true;
             }
+        } else {
+            // no conditions.txt, so this is a legacy mod with plugin name and formid
+            auto formIDString = directoryPath.stem().string();
+            auto fileString = directoryPath.parent_path().stem().string();
+            auto extensionString = directoryPath.parent_path().extension().string();
+            auto modName = fileString + extensionString;
+
+            RE::FormID formID;
+            auto newConditionSet = std::make_shared<Conditions::ConditionSet>();
+            std::from_chars(formIDString.data(), formIDString.data() + formIDString.size(), formID, 16);
+            if (auto form = Utils::LookupForm(formID, modName)) {
+                std::string argument = modName + "|" + formIDString;
+                auto condition = OpenAnimationReplacer::GetSingleton().CreateCondition("IsActorBase");
+                static_cast<Conditions::IsActorBaseCondition*>(condition.get())->formComponent->SetTESFormValue(form);
+                newConditionSet->AddCondition(condition);
+            }
+            _conditionSet->MoveConditions(newConditionSet.get());
+
+            SetDirtyRecursive(false);
+
+            auto& detectedProblems = DetectedProblems::GetSingleton();
+            detectedProblems.CheckForSubModsSharingPriority();
+            detectedProblems.CheckForSubModsWithInvalidConditions();
+
+            return true;
         }
     }
 
     return false;
 }
 
-void SubMod::SaveConfig(ConditionEditMode a_editMode)
+void SubMod::SaveConfig(ConditionEditMode a_editMode, bool a_bResetDirty/* = true*/)
 {
     if (a_editMode == ConditionEditMode::kNone) {
         return;
     }
+
+    const auto prevSource = _configSource;
 
     std::filesystem::path jsonPath(_path);
 
@@ -183,25 +214,31 @@ void SubMod::SaveConfig(ConditionEditMode a_editMode)
 
     rapidjson::Document doc(rapidjson::kObjectType);
 
-    Serialize(doc);
+    Serialize(doc, a_editMode);
 
     Parsing::SerializeJson(jsonPath, doc);
 
-    SetDirtyRecursive(false);
+    if (a_bResetDirty) {
+        SetDirtyRecursive(false);
+    } else {
+        _configSource = prevSource;
+    }
 }
 
-void SubMod::Serialize(rapidjson::Document& a_doc) const
+void SubMod::Serialize(rapidjson::Document& a_doc, ConditionEditMode a_editMode) const
 {
     rapidjson::Value::AllocatorType& allocator = a_doc.GetAllocator();
 
-    // write submod name
-    rapidjson::Value nameValue(rapidjson::StringRef(_name.data(), _name.length()));
-    a_doc.AddMember("name", nameValue, allocator);
+    if (a_editMode == ConditionEditMode::kAuthor) {
+        // write submod name
+        rapidjson::Value nameValue(rapidjson::StringRef(_name.data(), _name.length()));
+        a_doc.AddMember("name", nameValue, allocator);
 
-    // write submod description
-    if (!_description.empty()) {
-        rapidjson::Value descriptionValue(rapidjson::StringRef(_description.data(), _description.length()));
-        a_doc.AddMember("description", descriptionValue, allocator);
+        // write submod description
+        if (!_description.empty()) {
+            rapidjson::Value descriptionValue(rapidjson::StringRef(_description.data(), _description.length()));
+            a_doc.AddMember("description", descriptionValue, allocator);
+        }
     }
 
     // write submod priority
@@ -268,7 +305,7 @@ std::string SubMod::SerializeToString() const
 {
     rapidjson::Document doc(rapidjson::kObjectType);
 
-    Serialize(doc);
+    Serialize(doc, ConditionEditMode::kAuthor);
 
     return Parsing::SerializeJsonToString(doc);
 }
@@ -293,8 +330,8 @@ void SubMod::ResetToLegacy()
         const std::string modName = fileString + extensionString;
         const std::string formIDString = directoryPath.stem().string();
         _name = modName;
-		_name += '|';
-		_name += formIDString;
+        _name += '|';
+        _name += formIDString;
         _priority = 0;
         _configSource = Parsing::ConfigSource::kLegacyActorBase;
     }
@@ -360,10 +397,10 @@ void SubMod::RemoveDisabledAnimation(ReplacementAnimation* a_replacementAnimatio
 
 void ReplacerMod::SetName(std::string_view a_name)
 {
-	auto previousName = _name;
+    const auto previousName = _name;
     _name = a_name;
 
-	OpenAnimationReplacer::GetSingleton().OnReplacerModNameChanged(previousName, this);
+    OpenAnimationReplacer::GetSingleton().OnReplacerModNameChanged(previousName, this);
 }
 
 void ReplacerMod::SaveConfig(ConditionEditMode a_editMode)
@@ -415,9 +452,9 @@ void ReplacerMod::AddSubMod(std::unique_ptr<SubMod>& a_subMod)
 
     a_subMod->_parentMod = this;
 
-	const auto insertPos = std::ranges::upper_bound(_subMods, a_subMod, [](const auto& a_lhs, const auto& a_rhs) {
-		return a_lhs->GetPriority() > a_rhs->GetPriority();
-	});
+    const auto insertPos = std::ranges::upper_bound(_subMods, a_subMod, [](const auto& a_lhs, const auto& a_rhs) {
+        return a_lhs->GetPriority() > a_rhs->GetPriority();
+    });
 
     _subMods.insert(insertPos, std::move(a_subMod));
 }
@@ -465,7 +502,7 @@ void ReplacerMod::SortSubMods()
     WriteLocker locker(_dataLock);
 
     std::ranges::sort(_subMods, [](const auto& a_lhs, const auto& a_rhs) {
-		return a_lhs->GetPriority() > a_rhs->GetPriority();
+        return a_lhs->GetPriority() > a_rhs->GetPriority();
     });
 }
 
@@ -508,7 +545,7 @@ void AnimationReplacements::ForEachReplacementAnimation(const std::function<void
 
     if (a_bReverse) {
         for (const auto& replacementAnimation : std::ranges::reverse_view(_replacements)) {
-			a_func(replacementAnimation.get());
+            a_func(replacementAnimation.get());
         }
     } else {
         for (auto& replacementAnimation : _replacements) {
@@ -583,14 +620,14 @@ uint16_t ReplacerProjectData::TryAddAnimationToAnimationBundleNames(const Parsin
     }
 
     // Check if the animation is already in the list and return the index if it is
-	for (uint16_t i = 0; i < stringData->animationNames.size(); i++) {
-		if (stringData->animationNames[i].data() == a_anim.animationPath) {
+    for (uint16_t i = 0; i < stringData->animationNames.size(); i++) {
+        if (stringData->animationNames[i].data() == a_anim.animationPath) {
             return i;
         }
     }
 
     // Check if the animation can be added to the list
-	const auto newIndex = static_cast<uint16_t>(stringData->animationNames.size());
+    const auto newIndex = static_cast<uint16_t>(stringData->animationNames.size());
     if (newIndex >= Settings::uAnimationLimit) {
         logger::error("array filled to the max! not adding");
         Utils::ErrorTooManyAnimations();
@@ -598,7 +635,7 @@ uint16_t ReplacerProjectData::TryAddAnimationToAnimationBundleNames(const Parsin
     }
 
     // Add the animation to the list
-	stringData->animationNames.push_back(a_anim.animationPath.data());
+    stringData->animationNames.push_back(a_anim.animationPath.data());
 
     if (Settings::bFilterOutDuplicateAnimations && hash) {
         _fileHashToIndexMap[*hash] = newIndex;
@@ -614,10 +651,10 @@ void ReplacerProjectData::AddReplacementAnimation(RE::hkbCharacterStringData* a_
         it->second->AddReplacementAnimation(a_replacementAnimation);
     } else {
         auto newReplacementAnimations = std::make_unique<AnimationReplacements>(Utils::GetOriginalAnimationName(a_stringData, a_originalIndex));
-		newReplacementAnimations->AddReplacementAnimation(a_replacementAnimation);
-		originalIndexToAnimationReplacementsMap.emplace(a_originalIndex, std::move(newReplacementAnimations));
+        newReplacementAnimations->AddReplacementAnimation(a_replacementAnimation);
+        originalIndexToAnimationReplacementsMap.emplace(a_originalIndex, std::move(newReplacementAnimations));
     }
-	
+
     replacementIndexToOriginalIndexMap.emplace(replacementIndex, a_originalIndex);
     animationsToQueue.emplace_back(replacementIndex);
 }

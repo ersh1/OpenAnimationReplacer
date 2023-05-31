@@ -25,40 +25,40 @@ public:
 
     void UpdateAnimations() const;
 
-	Conditions::ConditionSet* GetConditionSet() const { return _conditionSet.get(); }
+    Conditions::ConditionSet* GetConditionSet() const { return _conditionSet.get(); }
 
-	std::string_view GetName() const { return _name; }
-	void SetName(std::string_view a_name) { _name = a_name; }
+    std::string_view GetName() const { return _name; }
+    void SetName(std::string_view a_name) { _name = a_name; }
 
-	std::string_view GetDescription() const { return _description; }
-	void SetDescription(std::string_view a_description) { _description = a_description; }
+    std::string_view GetDescription() const { return _description; }
+    void SetDescription(std::string_view a_description) { _description = a_description; }
 
-	int32_t GetPriority() const { return _priority; }
-	void SetPriority(int32_t a_priority) { _priority = a_priority; }
+    int32_t GetPriority() const { return _priority; }
+    void SetPriority(int32_t a_priority) { _priority = a_priority; }
 
-	std::string_view GetPath() const { return _path; }
-	Parsing::ConfigSource GetConfigSource() const { return _configSource; }
-	//void SetConfigSource(Parsing::ConfigSource a_configSource) { _configSource = a_configSource; }
+    std::string_view GetPath() const { return _path; }
+    Parsing::ConfigSource GetConfigSource() const { return _configSource; }
+    //void SetConfigSource(Parsing::ConfigSource a_configSource) { _configSource = a_configSource; }
 
-	bool IsDisabled() const { return _bDisabled; }
-	void SetDisabled(bool a_bDisabled) { _bDisabled = a_bDisabled; }
+    bool IsDisabled() const { return _bDisabled; }
+    void SetDisabled(bool a_bDisabled) { _bDisabled = a_bDisabled; }
 
-	std::set<DisabledAnimation>& GetDisabledAnimations() { return _disabledAnimations; }
+    std::set<DisabledAnimation>& GetDisabledAnimations() { return _disabledAnimations; }
 
-	std::string_view GetOverrideAnimationsFolder() const { return _overrideAnimationsFolder; }
-	void SetOverrideAnimationsFolder(std::string_view a_overrideAnimationsFolder) { _overrideAnimationsFolder = a_overrideAnimationsFolder; }
+    std::string_view GetOverrideAnimationsFolder() const { return _overrideAnimationsFolder; }
+    void SetOverrideAnimationsFolder(std::string_view a_overrideAnimationsFolder) { _overrideAnimationsFolder = a_overrideAnimationsFolder; }
 
-	std::string_view GetRequiredProjectName() const { return _requiredProjectName; }
-	void SetRequiredProjectName(std::string_view a_requiredProjectName) { _requiredProjectName = a_requiredProjectName; }
+    std::string_view GetRequiredProjectName() const { return _requiredProjectName; }
+    void SetRequiredProjectName(std::string_view a_requiredProjectName) { _requiredProjectName = a_requiredProjectName; }
 
-	bool IsIgnoringNoTriggersFlag() const { return _bIgnoreNoTriggersFlag; }
-	void SetIgnoringNoTriggersFlag(bool a_bIgnoreNoTriggersFlag) { _bIgnoreNoTriggersFlag = a_bIgnoreNoTriggersFlag; }
+    bool IsIgnoringNoTriggersFlag() const { return _bIgnoreNoTriggersFlag; }
+    void SetIgnoringNoTriggersFlag(bool a_bIgnoreNoTriggersFlag) { _bIgnoreNoTriggersFlag = a_bIgnoreNoTriggersFlag; }
 
-	bool IsInterruptible() const { return _bInterruptible; }
-	void SetInterruptible(bool a_bInterruptible) { _bInterruptible = a_bInterruptible; }
+    bool IsInterruptible() const { return _bInterruptible; }
+    void SetInterruptible(bool a_bInterruptible) { _bInterruptible = a_bInterruptible; }
 
-	bool IsKeepingRandomResultsOnLoop() const { return _bKeepRandomResultsOnLoop; }
-	void SetKeepRandomResultsOnLoop(bool a_bKeepRandomResultsOnLoop) { _bKeepRandomResultsOnLoop = a_bKeepRandomResultsOnLoop; }
+    bool IsKeepingRandomResultsOnLoop() const { return _bKeepRandomResultsOnLoop; }
+    void SetKeepRandomResultsOnLoop(bool a_bKeepRandomResultsOnLoop) { _bKeepRandomResultsOnLoop = a_bKeepRandomResultsOnLoop; }
 
     bool IsDirty() const { return _bDirty || _conditionSet->IsDirtyRecursive(); }
     bool IsFromUserConfig() const { return _configSource == Parsing::ConfigSource::kUser; }
@@ -75,12 +75,12 @@ public:
     }
 
     bool ReloadConfig();
-    void SaveConfig(ConditionEditMode a_editMode);
-    void Serialize(rapidjson::Document& a_doc) const;
+    void SaveConfig(ConditionEditMode a_editMode, bool a_bResetDirty = true);
+    void Serialize(rapidjson::Document& a_doc, ConditionEditMode a_editMode) const;
     std::string SerializeToString() const;
 
     class ReplacerMod* GetParentMod() const;
-	
+
     void ResetToLegacy();
 
     void AddReplacerProject(class ReplacerProjectData* a_replacerProject);
@@ -95,25 +95,25 @@ private:
     friend class ReplacerMod;
     ReplacerMod* _parentMod = nullptr;
 
-	std::string _name;
-	std::string _description;
-	int32_t _priority = 0;
-	std::string _path;
-	Parsing::ConfigSource _configSource = Parsing::ConfigSource::kAuthor;
-	bool _bDisabled = false;
-	std::set<DisabledAnimation> _disabledAnimations{};
-	std::string _overrideAnimationsFolder{};
-	std::string _requiredProjectName{};
-	bool _bIgnoreNoTriggersFlag = false;
-	bool _bInterruptible = false;
-	bool _bKeepRandomResultsOnLoop = false;
+    std::string _name;
+    std::string _description;
+    int32_t _priority = 0;
+    std::string _path;
+    Parsing::ConfigSource _configSource = Parsing::ConfigSource::kAuthor;
+    bool _bDisabled = false;
+    std::set<DisabledAnimation> _disabledAnimations{};
+    std::string _overrideAnimationsFolder{};
+    std::string _requiredProjectName{};
+    bool _bIgnoreNoTriggersFlag = false;
+    bool _bInterruptible = false;
+    bool _bKeepRandomResultsOnLoop = false;
 
     std::unique_ptr<Conditions::ConditionSet> _conditionSet;
-	bool _bDirty = false;
+    bool _bDirty = false;
 
     mutable SharedLock _dataLock;
     std::vector<ReplacerProjectData*> _replacerProjects;
-    std::vector<ReplacementAnimation*> _replacementAnimations;	
+    std::vector<ReplacementAnimation*> _replacementAnimations;
 };
 
 // this is a replacer mod, contains submods
@@ -128,14 +128,14 @@ public:
         _path(a_path) {}
 
     std::string_view GetName() const { return _name; }
-	void SetName(std::string_view a_name);
-	std::string_view GetAuthor() const { return _author; }
-	void SetAuthor(std::string_view a_author) { _author = a_author; }
-	std::string_view GetDescription() const { return _description; }
-	void SetDescription(std::string_view a_description) { _description = a_description; }
+    void SetName(std::string_view a_name);
+    std::string_view GetAuthor() const { return _author; }
+    void SetAuthor(std::string_view a_author) { _author = a_author; }
+    std::string_view GetDescription() const { return _description; }
+    void SetDescription(std::string_view a_description) { _description = a_description; }
 
     std::string_view GetPath() const { return _path; }
-	bool IsLegacy() const { return _bIsLegacy; }
+    bool IsLegacy() const { return _bIsLegacy; }
 
     bool IsDirty() const { return _bDirty; }
     void SetDirty(bool a_bDirty) { _bDirty = a_bDirty; }
@@ -152,15 +152,15 @@ public:
     void SortSubMods();
 
 private:
-	std::string _name;
-	std::string _author;
-	std::string _description;
-	bool _bIsLegacy = false;
-	std::string _path;
+    std::string _name;
+    std::string _author;
+    std::string _description;
+    bool _bIsLegacy = false;
+    std::string _path;
 
-	mutable SharedLock _dataLock;
+    mutable SharedLock _dataLock;
     std::vector<std::unique_ptr<SubMod>> _subMods;
-    
+
     bool _bDirty = false;
 };
 

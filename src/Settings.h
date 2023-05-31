@@ -29,6 +29,11 @@ struct Settings
     static inline uint16_t uAnimationLimit = 0x7FFF;
     static inline uint32_t uHavokHeapSize = 0x40000000;
     static inline bool bAsyncParsing = true;
+    static inline bool bLoadDefaultBehaviorsInMainMenu = true;
+
+    // Duplicate filtering
+    static inline bool bFilterOutDuplicateAnimations = true;
+    static inline bool bCacheAnimationFileHashes = true;
 
     // UI
     static inline bool bEnableUI = true;
@@ -49,11 +54,7 @@ struct Settings
 
     // Experimental
     static inline bool bDisablePreloading = false;
-    static inline bool bLoadDefaultBehaviorsInMainMenu = true;
-    static inline bool bFilterOutDuplicateAnimations = true;
-    static inline bool bCacheAnimationFileHashes = true;
     static inline bool bIncreaseAnimationLimit = false;
-
 
     // Internal
     static inline float fBlendTimeOnInterrupt = 0.3f;
@@ -67,7 +68,7 @@ struct Settings
     static uint16_t GetMaxAnimLimit();
     static void ClampAnimLimit();
 
-    constexpr static inline std::string_view iniPath = "Data/SKSE/Plugins/OpenAnimationReplacer_beta.ini";
-    constexpr static inline std::string_view imguiIni = "Data/SKSE/Plugins/OpenAnimationReplacer_ImGui_beta.ini";
-    constexpr static inline std::string_view animationFileHashCachePath = "Data/SKSE/Plugins/OpenAnimationReplacer_animationHashCache.bin";
+    constexpr static inline std::string_view iniPath = "Data/SKSE/Plugins/OpenAnimationReplacer.ini";
+    constexpr static inline std::string_view imguiIni = "Data/SKSE/Plugins/OpenAnimationReplacer_ImGui.ini";
+    constexpr static inline std::string_view animationFileHashCachePath = "Data/SKSE/Plugins/OpenAnimationReplacer_animFileHashCache.bin";
 };

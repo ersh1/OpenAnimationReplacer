@@ -72,14 +72,14 @@ namespace Conditions
             return std::move(condition);
         }
 
-        return nullptr;
+        return std::make_unique<InvalidCondition>();
     }
 
     std::unique_ptr<ICondition> CreateConditionFromJson(rapidjson::Value& a_value)
     {
         if (!a_value.IsObject()) {
             logger::error("Missing condition value!");
-            return nullptr;
+            return std::make_unique<InvalidCondition>();
         }
 
         const auto object = a_value.GetObj();
@@ -104,15 +104,14 @@ namespace Conditions
                 if (!OpenAnimationReplacer::GetSingleton().IsPluginLoaded(requiredPluginName, requiredVersion)) {
                     DetectedProblems::GetSingleton().AddMissingPluginName(requiredPluginName, requiredVersion);
                     logger::error("Missing required plugin {} version {}!", requiredPluginName, requiredVersion);
-                    return nullptr;
+                    return std::make_unique<InvalidCondition>();
                 }
             } else {
                 // no required plugin, compare required version with OAR conditions version
-                if (requiredVersion > REL::Version(1, 0, 0)) {
-                    // TODO ON RELEASE: change to Plugin::VERSION
+                if (requiredVersion > Plugin::VERSION) {
                     DetectedProblems::GetSingleton().MarkOutdatedVersion();
                     logger::error("Condition {} requires a newer version of OAR! ({})", conditionName, requiredVersion);
-                    return nullptr;
+                    return std::make_unique<InvalidCondition>();
                 }
             }
 
@@ -121,10 +120,11 @@ namespace Conditions
                 condition->Initialize(&a_value);
                 condition->PostInitialize();
                 return std::move(condition);
-            } else if (bHasRequiredPlugin) {
-				DetectedProblems::GetSingleton().AddMissingPluginName(requiredPluginName, requiredVersion);
+            }
+            if (bHasRequiredPlugin) {
+                DetectedProblems::GetSingleton().AddMissingPluginName(requiredPluginName, requiredVersion);
                 logger::error("Condition {} not found in plugin {}!", conditionName, requiredPluginName);
-				return nullptr;
+                return std::make_unique<InvalidCondition>();
             }
 
             logger::error("Condition {} not found!", conditionName);
@@ -132,7 +132,7 @@ namespace Conditions
             logger::error("Condition name not found!");
         }
 
-        return nullptr;
+        return std::make_unique<InvalidCondition>();
     }
 
     std::unique_ptr<ICondition> CreateCondition(std::string_view a_conditionName)
@@ -143,7 +143,7 @@ namespace Conditions
             return std::move(condition);
         }
 
-        return nullptr;
+        return std::make_unique<InvalidCondition>();
     }
 
     std::unique_ptr<ICondition> DuplicateCondition(const std::unique_ptr<ICondition>& a_conditionToDuplicate)
@@ -175,31 +175,6 @@ namespace Conditions
         }
 
         return newConditionSet;
-    }
-
-    RE::BSString MultiConditionBase::GetArgument() const
-    {
-        return conditionsComponent->GetArgument();
-    }
-
-    void FormConditionBase::InitializeLegacy(const char* a_argument)
-    {
-        formComponent->form.ParseLegacy(a_argument);
-    }
-
-    RE::BSString FormConditionBase::GetArgument() const
-    {
-        return formComponent->GetArgument();
-    }
-
-    void KeywordConditionBase::InitializeLegacy(const char* a_argument)
-    {
-        keywordComponent->keyword.ParseLegacy(a_argument);
-    }
-
-    RE::BSString KeywordConditionBase::GetArgument() const
-    {
-        return keywordComponent->GetArgument();
     }
 
     bool ORCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
@@ -722,7 +697,7 @@ namespace Conditions
         return false;
     }
 
-    void CompareValue::InitializeLegacy(const char* a_argument)
+    void CompareValues::InitializeLegacy(const char* a_argument)
     {
         std::string_view argument(a_argument);
         if (const size_t splitPos = argument.find(','); splitPos != std::string_view::npos) {
@@ -737,19 +712,19 @@ namespace Conditions
         }
     }
 
-    RE::BSString CompareValue::GetArgument() const
+    RE::BSString CompareValues::GetArgument() const
     {
         const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
 
         return std::format("{} {} {}", numericComponentA->value.GetArgument(), separator, numericComponentB->value.GetArgument()).data();
     }
 
-    RE::BSString CompareValue::GetCurrent(RE::TESObjectREFR* a_refr) const
+    RE::BSString CompareValues::GetCurrent(RE::TESObjectREFR* a_refr) const
     {
         return std::format("{}, {}", numericComponentA->GetNumericValue(a_refr), numericComponentB->GetNumericValue(a_refr)).data();
     }
 
-    bool CompareValue::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    bool CompareValues::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
     {
         return comparisonComponent->GetComparisonResult(numericComponentA->GetNumericValue(a_refr), numericComponentB->GetNumericValue(a_refr));
     }
@@ -924,11 +899,11 @@ namespace Conditions
         const float v = numericComponent->GetNumericValue(a_refr);
 
         float randomFloat;
-		if (!randomComponent->GetRandomFloat(a_clipGenerator, randomFloat)) {
-			return true;
-		}
+        if (!randomComponent->GetRandomFloat(a_clipGenerator, randomFloat)) {
+            return true;
+        }
 
-		return comparisonComponent->GetComparisonResult(randomFloat, v);
+        return comparisonComponent->GetComparisonResult(randomFloat, v);
     }
 
     bool IsUniqueCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
@@ -1231,7 +1206,7 @@ namespace Conditions
             const std::string_view secondArg = Utils::TrimWhitespace(argument.substr(splitPos + 1));
 
             numericComponent->value.ParseLegacy(firstArg);
-			factionComponent->form.ParseLegacy(secondArg);
+            factionComponent->form.ParseLegacy(secondArg);
         }
 
         logger::error("Invalid argument: {}", argument);
@@ -1251,7 +1226,7 @@ namespace Conditions
 
     bool FactionRankCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
     {
-		if (factionComponent->IsValid() && a_refr) {
+        if (factionComponent->IsValid() && a_refr) {
             const int32_t rank = GetFactionRank(a_refr);
             const float v = numericComponent->GetNumericValue(a_refr);
             return comparisonComponent->GetComparisonResult(static_cast<float>(rank), v);
@@ -1265,7 +1240,7 @@ namespace Conditions
         int32_t rank = -2;
 
         if (factionComponent->IsValid() && a_refr) {
-			if (auto faction = factionComponent->GetTESFormValue()->As<RE::TESFaction>()) {
+            if (auto faction = factionComponent->GetTESFormValue()->As<RE::TESFaction>()) {
                 if (auto actor = a_refr->As<RE::Actor>()) {
                     bool bIsPlayer = actor->IsPlayerRef();
 
@@ -1435,10 +1410,10 @@ namespace Conditions
     bool IsReplacerEnabledCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
     {
         if (const auto replacerMod = OpenAnimationReplacer::GetSingleton().GetReplacerModByName(textComponentMod->text.GetValue())) {
-			const auto submodName = textComponentSubmod->text.GetValue();
+            const auto submodName = textComponentSubmod->text.GetValue();
             const auto result = replacerMod->ForEachSubMod([&](const SubMod* a_submod) {
                 if (!a_submod->IsDisabled()) {
-					if (submodName.empty() || a_submod->GetName() == submodName) {
+                    if (submodName.empty() || a_submod->GetName() == submodName) {
                         return RE::BSVisit::BSVisitControl::kStop;
                     }
                 }
@@ -1446,415 +1421,411 @@ namespace Conditions
                 return RE::BSVisit::BSVisitControl::kContinue;
             });
 
-			if (result == RE::BSVisit::BSVisitControl::kStop) {
-				return true;
+            if (result == RE::BSVisit::BSVisitControl::kStop) {
+                return true;
             }
         }
 
         return false;
     }
 
-	RE::BSString IsCurrentPackageCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
-	{
-		return Utils::GetFormNameString(GetCurrentPackage(a_refr)).data();
-	}
+    RE::BSString IsCurrentPackageCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+        return Utils::GetFormNameString(GetCurrentPackage(a_refr)).data();
+    }
 
-	bool IsCurrentPackageCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
-	{
-		if (formComponent->IsValid()) {
-			if (const auto currentPackage = GetCurrentPackage(a_refr)) {
-				return currentPackage == formComponent->GetTESFormValue();
-			}
-		}
+    bool IsCurrentPackageCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+        if (formComponent->IsValid()) {
+            if (const auto currentPackage = GetCurrentPackage(a_refr)) {
+                return currentPackage == formComponent->GetTESFormValue();
+            }
+        }
 
-		return false;
-	}
+        return false;
+    }
 
-	RE::TESPackage* IsCurrentPackageCondition::GetCurrentPackage(RE::TESObjectREFR* a_refr)
-	{
-		if (a_refr) {
-			if (const auto actor = a_refr->As<RE::Actor>()) {
-				return actor->GetCurrentPackage();
-			}
-		}
+    RE::TESPackage* IsCurrentPackageCondition::GetCurrentPackage(RE::TESObjectREFR* a_refr)
+    {
+        if (a_refr) {
+            if (const auto actor = a_refr->As<RE::Actor>()) {
+                return actor->GetCurrentPackage();
+            }
+        }
 
-		return nullptr;
-	}
+        return nullptr;
+    }
 
     void IsWornInSlotHasKeywordCondition::PostInitialize()
-	{
-		ConditionBase::PostInitialize();
-		slotComponent->value.getEnumMap = &IsWornInSlotHasKeywordCondition::GetEnumMap;
-	}
+    {
+        ConditionBase::PostInitialize();
+        slotComponent->value.getEnumMap = &IsWornInSlotHasKeywordCondition::GetEnumMap;
+    }
 
-	RE::BSString IsWornInSlotHasKeywordCondition::GetArgument() const
-	{
-		std::string slotName = "(Invalid)";
-		const auto slot = static_cast<uint32_t>(slotComponent->GetNumericValue(nullptr));
+    RE::BSString IsWornInSlotHasKeywordCondition::GetArgument() const
+    {
+        std::string slotName = "(Invalid)";
+        const auto slot = static_cast<uint32_t>(slotComponent->GetNumericValue(nullptr));
 
         static auto map = GetEnumMap();
-		if (const auto it = map.find(slot); it != map.end()) {
-			slotName = it->second;
-		}
-		
-		return std::format("{}, {}", slotName, keywordComponent->keyword.GetArgument()).data();
-	}
+        if (const auto it = map.find(slot); it != map.end()) {
+            slotName = it->second;
+        }
 
-	bool IsWornInSlotHasKeywordCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
-	{
-		if (a_refr) {
-			if (const auto actor = a_refr->As<RE::Actor>()) {
-				const auto slot = static_cast<RE::BIPED_MODEL::BipedObjectSlot>(1 << static_cast<uint32_t>(slotComponent->GetNumericValue(a_refr)));
-				if (const auto armor = actor->GetWornArmor(slot, true)) {
-					return keywordComponent->HasKeyword(armor);
-				}
-			}
-		}
+        return std::format("{}, {}", slotName, keywordComponent->keyword.GetArgument()).data();
+    }
 
-		return false;
-	}
+    bool IsWornInSlotHasKeywordCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+        if (a_refr) {
+            if (const auto actor = a_refr->As<RE::Actor>()) {
+                const auto slot = static_cast<RE::BIPED_MODEL::BipedObjectSlot>(1 << static_cast<uint32_t>(slotComponent->GetNumericValue(a_refr)));
+                if (const auto armor = actor->GetWornArmor(slot, true)) {
+                    return keywordComponent->HasKeyword(armor);
+                }
+            }
+        }
 
-	std::map<int32_t, std::string_view> IsWornInSlotHasKeywordCondition::GetEnumMap()
-	{
-		std::map<int32_t, std::string_view> enumMap;
+        return false;
+    }
 
-		enumMap[0] = "Head"sv;
-		enumMap[1] = "Hair"sv;
-		enumMap[2] = "Body"sv;
-		enumMap[3] = "Hands"sv;
-		enumMap[4] = "Forearms"sv;
-		enumMap[5] = "Amulet"sv;
-		enumMap[6] = "Ring"sv;
-		enumMap[7] = "Feet"sv;
-		enumMap[8] = "Calves"sv;
-		enumMap[9] = "Shield"sv;
-		enumMap[10] = "Tail"sv;
-		enumMap[11] = "LongHair"sv;
-		enumMap[12] = "Circlet"sv;
-		enumMap[13] = "Ears"sv;
-		enumMap[14] = "ModMouth"sv;
-		enumMap[15] = "ModNeck"sv;
-		enumMap[16] = "ModChestPrimary"sv;
-		enumMap[17] = "ModBack"sv;
-		enumMap[18] = "ModMisc1"sv;
-		enumMap[19] = "ModPelvisPrimary"sv;
-		enumMap[20] = "DecapitateHead"sv;
-		enumMap[21] = "Decapitate"sv;
-		enumMap[22] = "ModPelvisSecondary"sv;
-		enumMap[23] = "ModLegRight"sv;
-		enumMap[24] = "ModLegLeft"sv;
-		enumMap[25] = "ModFaceJewelry"sv;
-		enumMap[26] = "ModChestSecondary"sv;
-		enumMap[27] = "ModShoulder"sv;
-		enumMap[28] = "ModArmLeft"sv;
-		enumMap[29] = "ModArmRight"sv;
-		enumMap[30] = "ModMisc2"sv;
-		enumMap[31] = "FX01"sv;
+    std::map<int32_t, std::string_view> IsWornInSlotHasKeywordCondition::GetEnumMap()
+    {
+        std::map<int32_t, std::string_view> enumMap;
 
-		return enumMap;
-	}
+        enumMap[0] = "Head"sv;
+        enumMap[1] = "Hair"sv;
+        enumMap[2] = "Body"sv;
+        enumMap[3] = "Hands"sv;
+        enumMap[4] = "Forearms"sv;
+        enumMap[5] = "Amulet"sv;
+        enumMap[6] = "Ring"sv;
+        enumMap[7] = "Feet"sv;
+        enumMap[8] = "Calves"sv;
+        enumMap[9] = "Shield"sv;
+        enumMap[10] = "Tail"sv;
+        enumMap[11] = "LongHair"sv;
+        enumMap[12] = "Circlet"sv;
+        enumMap[13] = "Ears"sv;
+        enumMap[14] = "ModMouth"sv;
+        enumMap[15] = "ModNeck"sv;
+        enumMap[16] = "ModChestPrimary"sv;
+        enumMap[17] = "ModBack"sv;
+        enumMap[18] = "ModMisc1"sv;
+        enumMap[19] = "ModPelvisPrimary"sv;
+        enumMap[20] = "DecapitateHead"sv;
+        enumMap[21] = "Decapitate"sv;
+        enumMap[22] = "ModPelvisSecondary"sv;
+        enumMap[23] = "ModLegRight"sv;
+        enumMap[24] = "ModLegLeft"sv;
+        enumMap[25] = "ModFaceJewelry"sv;
+        enumMap[26] = "ModChestSecondary"sv;
+        enumMap[27] = "ModShoulder"sv;
+        enumMap[28] = "ModArmLeft"sv;
+        enumMap[29] = "ModArmRight"sv;
+        enumMap[30] = "ModMisc2"sv;
+        enumMap[31] = "FX01"sv;
+
+        return enumMap;
+    }
 
     std::map<int32_t, std::string_view> MovementSpeedCondition::GetEnumMap()
-	{
-		std::map<int32_t, std::string_view> enumMap;
-		enumMap[0] = "Run"sv;
-		enumMap[1] = "Jog"sv;
-		enumMap[2] = "Fast walk"sv;
-		enumMap[3] = "Walk"sv;
-		return enumMap;
-	}
-	
+    {
+        std::map<int32_t, std::string_view> enumMap;
+        enumMap[0] = "Run"sv;
+        enumMap[1] = "Jog"sv;
+        enumMap[2] = "Fast walk"sv;
+        enumMap[3] = "Walk"sv;
+        return enumMap;
+    }
+
     RE::BSString ScaleCondition::GetArgument() const
     {
-		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+        const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
 
-		return std::format("Scale {} {}", separator, numericComponent->value.GetArgument()).data();
+        return std::format("Scale {} {}", separator, numericComponent->value.GetArgument()).data();
     }
 
     RE::BSString ScaleCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
     {
-		if (a_refr) {
-			return std::to_string(a_refr->GetScale()).data();
-		}
+        if (a_refr) {
+            return std::to_string(a_refr->GetScale()).data();
+        }
 
-		return ConditionBase::GetCurrent(a_refr);
+        return ConditionBase::GetCurrent(a_refr);
     }
 
     bool ScaleCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
     {
-		if (a_refr) {
-		    const float scale = a_refr->GetScale();
+        if (a_refr) {
+            const float scale = a_refr->GetScale();
             return comparisonComponent->GetComparisonResult(scale, numericComponent->GetNumericValue(a_refr));
-		}
+        }
 
-		return false;
+        return false;
     }
 
     RE::BSString HeightCondition::GetArgument() const
     {
-		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
-		return std::format("Height {} {}", separator, numericComponent->value.GetArgument()).data();
+        const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+        return std::format("Height {} {}", separator, numericComponent->value.GetArgument()).data();
     }
 
     RE::BSString HeightCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
     {
-		if (a_refr) {
-			if (const auto actor = a_refr->As<RE::Actor>()) {
-				return std::to_string(actor->GetHeight()).data();
-			}
+        if (a_refr) {
+            if (const auto actor = a_refr->As<RE::Actor>()) {
+                return std::to_string(actor->GetHeight()).data();
+            }
 
-			return std::to_string(a_refr->GetHeight()).data();
-		}
+            return std::to_string(a_refr->GetHeight()).data();
+        }
 
-		return ConditionBase::GetCurrent(a_refr);
+        return ConditionBase::GetCurrent(a_refr);
     }
 
     bool HeightCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
     {
-		if (a_refr) {
-			if (const auto actor = a_refr->As<RE::Actor>()) {
-				return comparisonComponent->GetComparisonResult(actor->GetHeight(), numericComponent->GetNumericValue(actor));
-			}
+        if (a_refr) {
+            if (const auto actor = a_refr->As<RE::Actor>()) {
+                return comparisonComponent->GetComparisonResult(actor->GetHeight(), numericComponent->GetNumericValue(actor));
+            }
 
-			return comparisonComponent->GetComparisonResult(a_refr->GetHeight(), numericComponent->GetNumericValue(a_refr));
-		}
+            return comparisonComponent->GetComparisonResult(a_refr->GetHeight(), numericComponent->GetNumericValue(a_refr));
+        }
 
-		return false;
+        return false;
     }
 
     RE::BSString WeightCondition::GetArgument() const
-	{
-		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
-		return std::format("Weight {} {}", separator, numericComponent->value.GetArgument()).data();
-	}
+    {
+        const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+        return std::format("Weight {} {}", separator, numericComponent->value.GetArgument()).data();
+    }
 
-	RE::BSString WeightCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
-	{
-		if (a_refr) {
-			if (const auto actor = a_refr->As<RE::Actor>()) {
-				return std::to_string(actor->GetWeight()).data();
-			}
+    RE::BSString WeightCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+        if (a_refr) {
+            if (const auto actor = a_refr->As<RE::Actor>()) {
+                return std::to_string(actor->GetWeight()).data();
+            }
 
-			return std::to_string(a_refr->GetWeight()).data();
-		}
+            return std::to_string(a_refr->GetWeight()).data();
+        }
 
-		return ConditionBase::GetCurrent(a_refr);
-	}
+        return ConditionBase::GetCurrent(a_refr);
+    }
 
-	bool WeightCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
-	{
-		if (a_refr) {
-			if (const auto actor = a_refr->As<RE::Actor>()) {
-				return comparisonComponent->GetComparisonResult(actor->GetWeight(), numericComponent->GetNumericValue(actor));
-			}
+    bool WeightCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+        if (a_refr) {
+            if (const auto actor = a_refr->As<RE::Actor>()) {
+                return comparisonComponent->GetComparisonResult(actor->GetWeight(), numericComponent->GetNumericValue(actor));
+            }
 
-			return comparisonComponent->GetComparisonResult(a_refr->GetWeight(), numericComponent->GetNumericValue(a_refr));
-		}
+            return comparisonComponent->GetComparisonResult(a_refr->GetWeight(), numericComponent->GetNumericValue(a_refr));
+        }
 
-		return false;
-	}
-	
+        return false;
+    }
+
     void MovementSpeedCondition::PostInitialize()
     {
-		ConditionBase::PostInitialize();
-		movementTypeComponent->value.getEnumMap = &MovementSpeedCondition::GetEnumMap;
+        ConditionBase::PostInitialize();
+        movementTypeComponent->value.getEnumMap = &MovementSpeedCondition::GetEnumMap;
     }
 
     RE::BSString MovementSpeedCondition::GetArgument() const
     {
-		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+        const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
 
-		std::string movementSpeedTypeName = "(Invalid)";
-		const auto movementType = static_cast<uint32_t>(movementTypeComponent->GetNumericValue(nullptr));
+        std::string movementSpeedTypeName = "(Invalid)";
+        const auto movementType = static_cast<uint32_t>(movementTypeComponent->GetNumericValue(nullptr));
 
-		static auto map = GetEnumMap();
-		if (const auto it = map.find(movementType); it != map.end()) {
-			movementSpeedTypeName = it->second;
-		}
+        static auto map = GetEnumMap();
+        if (const auto it = map.find(movementType); it != map.end()) {
+            movementSpeedTypeName = it->second;
+        }
 
-
-		return std::format("{} speed {} {}", movementSpeedTypeName, separator, numericComponent->value.GetArgument()).data();
+        return std::format("{} speed {} {}", movementSpeedTypeName, separator, numericComponent->value.GetArgument()).data();
     }
 
     RE::BSString MovementSpeedCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
     {
-		if (a_refr) {
-			if (const auto actor = a_refr->As<RE::Actor>()) {
-				return std::to_string(GetMovementSpeed(actor)).data();
-			}
-			
-		}
+        if (a_refr) {
+            if (const auto actor = a_refr->As<RE::Actor>()) {
+                return std::to_string(GetMovementSpeed(actor)).data();
+            }
+        }
 
-		return ConditionBase::GetCurrent(a_refr);
+        return ConditionBase::GetCurrent(a_refr);
     }
 
     bool MovementSpeedCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
     {
-		if (a_refr) {
-			if (const auto actor = a_refr->As<RE::Actor>()) {
-				const float movementSpeed = GetMovementSpeed(actor);
-				return comparisonComponent->GetComparisonResult(movementSpeed, numericComponent->GetNumericValue(a_refr));
-			}
-		}
+        if (a_refr) {
+            if (const auto actor = a_refr->As<RE::Actor>()) {
+                const float movementSpeed = GetMovementSpeed(actor);
+                return comparisonComponent->GetComparisonResult(movementSpeed, numericComponent->GetNumericValue(a_refr));
+            }
+        }
 
-		return false;
+        return false;
     }
 
     float MovementSpeedCondition::GetMovementSpeed(RE::Actor* a_actor) const
     {
-		if (a_actor) {
-			const auto movementType = static_cast<int8_t>(movementTypeComponent->GetNumericValue(a_actor));
-			switch (movementType) {
-			case 0:
-				return a_actor->GetRunSpeed();
-			case 1:
-				return a_actor->GetJogSpeed();
-			case 2:
-				return a_actor->GetFastWalkSpeed();
-			case 3:
-				return a_actor->GetWalkSpeed();
-			}
-		}
+        if (a_actor) {
+            const auto movementType = static_cast<int8_t>(movementTypeComponent->GetNumericValue(a_actor));
+            switch (movementType) {
+            case 0:
+                return a_actor->GetRunSpeed();
+            case 1:
+                return a_actor->GetJogSpeed();
+            case 2:
+                return a_actor->GetFastWalkSpeed();
+            case 3:
+                return a_actor->GetWalkSpeed();
+            }
+        }
 
-		return 0.f;
+        return 0.f;
     }
 
     RE::BSString CurrentMovementSpeedCondition::GetArgument() const
-	{
-		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+    {
+        const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
 
-		return std::format("Movement speed {} {}", separator, numericComponent->value.GetArgument()).data();
-	}
+        return std::format("Movement speed {} {}", separator, numericComponent->value.GetArgument()).data();
+    }
 
-	RE::BSString CurrentMovementSpeedCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
-	{
-		if (a_refr) {
-			if (const auto actor = a_refr->As<RE::Actor>()) {
-				return std::to_string(actor->AsActorState()->DoGetMovementSpeed()).data();
-			}
-		}
+    RE::BSString CurrentMovementSpeedCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+        if (a_refr) {
+            if (const auto actor = a_refr->As<RE::Actor>()) {
+                return std::to_string(actor->AsActorState()->DoGetMovementSpeed()).data();
+            }
+        }
 
-		return ConditionBase::GetCurrent(a_refr);
-	}
+        return ConditionBase::GetCurrent(a_refr);
+    }
 
     bool CurrentMovementSpeedCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
     {
-		if (a_refr) {
-			if (const auto actor = a_refr->As<RE::Actor>()) {
-				const float movementSpeed = actor->AsActorState()->DoGetMovementSpeed();
-				return comparisonComponent->GetComparisonResult(movementSpeed, numericComponent->GetNumericValue(a_refr));
-			}
-		}
+        if (a_refr) {
+            if (const auto actor = a_refr->As<RE::Actor>()) {
+                const float movementSpeed = actor->AsActorState()->DoGetMovementSpeed();
+                return comparisonComponent->GetComparisonResult(movementSpeed, numericComponent->GetNumericValue(a_refr));
+            }
+        }
 
-		return false;
+        return false;
     }
 
     RE::BSString WindSpeedCondition::GetArgument() const
     {
-		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+        const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
 
-		return std::format("Wind speed {} {}", separator, numericComponent->value.GetArgument()).data();
+        return std::format("Wind speed {} {}", separator, numericComponent->value.GetArgument()).data();
     }
 
     RE::BSString WindSpeedCondition::GetCurrent([[maybe_unused]] RE::TESObjectREFR* a_refr) const
     {
-		return std::to_string(GetWindSpeed()).data();
+        return std::to_string(GetWindSpeed()).data();
     }
 
     bool WindSpeedCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
     {
-		return comparisonComponent->GetComparisonResult(GetWindSpeed(), numericComponent->GetNumericValue(a_refr));
+        return comparisonComponent->GetComparisonResult(GetWindSpeed(), numericComponent->GetNumericValue(a_refr));
     }
 
     float WindSpeedCondition::GetWindSpeed()
     {
-		if (const auto tes = RE::TES::GetSingleton()) {
-			if (const auto sky = tes->sky) {
-			    return sky->windSpeed;
-			}
-		}
+        if (const auto tes = RE::TES::GetSingleton()) {
+            if (const auto sky = tes->sky) {
+                return sky->windSpeed;
+            }
+        }
 
-		return 0.f;
+        return 0.f;
     }
 
     RE::BSString WindAngleDifferenceCondition::GetArgument() const
     {
-		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+        const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
 
-		return std::format("Angles difference {} {}", separator, numericComponent->value.GetArgument()).data();
+        return std::format("Angles difference {} {}", separator, numericComponent->value.GetArgument()).data();
     }
 
     RE::BSString WindAngleDifferenceCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
     {
-		if (a_refr) {
-			return std::to_string(GetWindAngleDifference(a_refr)).data();
-		}
+        if (a_refr) {
+            return std::to_string(GetWindAngleDifference(a_refr)).data();
+        }
 
-		return ConditionBase::GetCurrent(a_refr);
+        return ConditionBase::GetCurrent(a_refr);
     }
 
     bool WindAngleDifferenceCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
     {
-		return comparisonComponent->GetComparisonResult(GetWindAngleDifference(a_refr), numericComponent->GetNumericValue(a_refr));
+        return comparisonComponent->GetComparisonResult(GetWindAngleDifference(a_refr), numericComponent->GetNumericValue(a_refr));
     }
 
     float WindAngleDifferenceCondition::GetWindAngleDifference(RE::TESObjectREFR* a_refr) const
     {
-		if (a_refr) {
-			if (const auto tes = RE::TES::GetSingleton()) {
-				if (const auto sky = tes->sky) {
-					const auto windAngle = sky->windAngle;
-					const auto refAngle = a_refr->GetAngleZ();
+        if (a_refr) {
+            if (const auto tes = RE::TES::GetSingleton()) {
+                if (const auto sky = tes->sky) {
+                    const auto windAngle = sky->windAngle;
+                    const auto refAngle = a_refr->GetAngleZ();
 
-					auto ret = Utils::NormalRelativeAngle(refAngle - windAngle);
-					if (degreesComponent->GetBoolValue()) {
-						ret = RE::rad_to_deg(ret);
-					}
-					if (absoluteComponent->GetBoolValue()) {
-						ret = std::fabs(ret);
-					}
+                    auto ret = Utils::NormalRelativeAngle(refAngle - windAngle);
+                    if (degreesComponent->GetBoolValue()) {
+                        ret = RE::rad_to_deg(ret);
+                    }
+                    if (absoluteComponent->GetBoolValue()) {
+                        ret = std::fabs(ret);
+                    }
 
-					return ret;
-				}
-			}
-		}
+                    return ret;
+                }
+            }
+        }
 
         return 0.f;
     }
-	
+
     RE::BSString CrimeGoldCondition::GetArgument() const
     {
         const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
-		const auto factionArgument = factionComponent->form.GetArgument();
-		return std::format("Crime gold in {} {} {}", factionArgument, separator, numericComponent->value.GetArgument()).data();
+        const auto factionArgument = factionComponent->form.GetArgument();
+        return std::format("Crime gold in {} {} {}", factionArgument, separator, numericComponent->value.GetArgument()).data();
     }
 
     RE::BSString CrimeGoldCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
     {
-		if (a_refr && factionComponent->IsValid()) {
-			if (const auto faction = factionComponent->GetTESFormValue()->As<RE::TESFaction>()) {
-				if (const auto actor = a_refr->As<RE::Actor>()) {
-					return std::to_string(actor->GetCrimeGoldValue(faction)).data();
-				}
-			}
-			
-		}
+        if (a_refr && factionComponent->IsValid()) {
+            if (const auto faction = factionComponent->GetTESFormValue()->As<RE::TESFaction>()) {
+                if (const auto actor = a_refr->As<RE::Actor>()) {
+                    return std::to_string(actor->GetCrimeGoldValue(faction)).data();
+                }
+            }
+        }
 
-		return ConditionBase::GetCurrent(a_refr);
+        return ConditionBase::GetCurrent(a_refr);
     }
 
     bool CrimeGoldCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
     {
-		if (a_refr && factionComponent->IsValid()) {
-			if (const auto actor = a_refr->As<RE::Actor>()) {
-				if (const auto faction = factionComponent->GetTESFormValue()->As<RE::TESFaction>()) {
-					const auto crimeGold = actor->GetCrimeGoldValue(faction);
-					return comparisonComponent->GetComparisonResult(static_cast<float>(crimeGold), numericComponent->GetNumericValue(a_refr));
-				}
-				
-			}
-		}
+        if (a_refr && factionComponent->IsValid()) {
+            if (const auto actor = a_refr->As<RE::Actor>()) {
+                if (const auto faction = factionComponent->GetTESFormValue()->As<RE::TESFaction>()) {
+                    const auto crimeGold = actor->GetCrimeGoldValue(faction);
+                    return comparisonComponent->GetComparisonResult(static_cast<float>(crimeGold), numericComponent->GetNumericValue(a_refr));
+                }
+            }
+        }
 
-		return false;
+        return false;
     }
 }

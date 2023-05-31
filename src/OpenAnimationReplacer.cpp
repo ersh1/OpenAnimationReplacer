@@ -81,7 +81,7 @@ ReplacerMod* OpenAnimationReplacer::GetReplacerMod(std::string_view a_path) cons
 
 ReplacerMod* OpenAnimationReplacer::GetReplacerModByName(std::string_view a_name) const
 {
-	ReadLocker locker(_replacerModNameLock);
+    ReadLocker locker(_replacerModNameLock);
 
     const auto it = _replacerModNameMap.find(a_name.data());
     if (it != _replacerModNameMap.end()) {
@@ -95,17 +95,17 @@ void OpenAnimationReplacer::AddReplacerMod(std::string_view a_path, std::unique_
 {
     auto ptr = a_replacerMod.get();
 
-	{
-		WriteLocker locker(_modLock);
+    {
+        WriteLocker locker(_modLock);
 
-		_replacerMods.emplace(a_path, std::move(a_replacerMod));
-	}
+        _replacerMods.emplace(a_path, std::move(a_replacerMod));
+    }
 
-	{
-	    WriteLocker locker(_replacerModNameLock);
+    {
+        WriteLocker locker(_replacerModNameLock);
 
-		_replacerModNameMap.emplace(ptr->GetName(), ptr);
-	}
+        _replacerModNameMap.emplace(ptr->GetName(), ptr);
+    }
 }
 
 ReplacerMod* OpenAnimationReplacer::GetOrCreateLegacyReplacerMod()
@@ -122,8 +122,8 @@ void OpenAnimationReplacer::OnReplacerModNameChanged(std::string_view a_previous
     WriteLocker locker(_replacerModNameLock);
 
     auto handle = _replacerModNameMap.extract(a_previousName.data());
-	handle.key() = a_replacerMod->GetName();
-	_replacerModNameMap.insert(std::move(handle));
+    handle.key() = a_replacerMod->GetName();
+    _replacerModNameMap.insert(std::move(handle));
 }
 
 void OpenAnimationReplacer::InitializeReplacementAnimations(RE::hkbCharacterStringData* a_stringData) const
@@ -333,13 +333,15 @@ void OpenAnimationReplacer::CreateReplacementAnimations(const char* a_path, RE::
         }
 
         // Save synchronized clip offset
-		SetSynchronizedClipsIDOffset(a_stringData, static_cast<uint16_t>(a_stringData->animationNames.size()));
+        SetSynchronizedClipsIDOffset(a_stringData, static_cast<uint16_t>(a_stringData->animationNames.size()));
 
         // If we just added any replacement anims, do stuff
         if (HasReplacementData(a_stringData)) {
             InitializeReplacementAnimations(a_stringData);
 
-            DetectedProblems::GetSingleton().CheckForSubModsSharingPriority();
+            auto& detectedProblems = DetectedProblems::GetSingleton();
+            detectedProblems.CheckForSubModsSharingPriority();
+            detectedProblems.CheckForSubModsWithInvalidConditions();
 
             if (Settings::bFilterOutDuplicateAnimations) {
                 if (auto projectData = GetReplacerProjectData(a_stringData)) {
@@ -499,7 +501,7 @@ void OpenAnimationReplacer::InitFactories()
     _conditionFactories.emplace("HasMagicEffectWithKeyword", []() { return std::make_unique<HasMagicEffectWithKeywordCondition>(); });
     _conditionFactories.emplace("HasPerk", []() { return std::make_unique<HasPerkCondition>(); });
     _conditionFactories.emplace("HasSpell", []() { return std::make_unique<HasSpellCondition>(); });
-    _conditionFactories.emplace("CompareValue", []() { return std::make_unique<CompareValue>(); });
+    _conditionFactories.emplace("CompareValues", []() { return std::make_unique<CompareValues>(); });
     _conditionFactories.emplace("Level", []() { return std::make_unique<LevelCondition>(); });
     _conditionFactories.emplace("IsActorBase", []() { return std::make_unique<IsActorBaseCondition>(); });
     _conditionFactories.emplace("IsRace", []() { return std::make_unique<IsRaceCondition>(); });
@@ -528,16 +530,16 @@ void OpenAnimationReplacer::InitFactories()
     _conditionFactories.emplace("HasGraphVariable", []() { return std::make_unique<HasGraphVariableCondition>(); });
     _conditionFactories.emplace("SubmergeLevel", []() { return std::make_unique<SubmergeLevelCondition>(); });
     _conditionFactories.emplace("IsReplacerEnabled", []() { return std::make_unique<IsReplacerEnabledCondition>(); });
-	_conditionFactories.emplace("IsCurrentPackage", []() { return std::make_unique<IsCurrentPackageCondition>(); });
-	_conditionFactories.emplace("IsWornInSlotHasKeyword", []() { return std::make_unique<IsWornInSlotHasKeywordCondition>(); });
+    _conditionFactories.emplace("IsCurrentPackage", []() { return std::make_unique<IsCurrentPackageCondition>(); });
+    _conditionFactories.emplace("IsWornInSlotHasKeyword", []() { return std::make_unique<IsWornInSlotHasKeywordCondition>(); });
     _conditionFactories.emplace("Scale", []() { return std::make_unique<ScaleCondition>(); });
-	_conditionFactories.emplace("Height", []() { return std::make_unique<HeightCondition>(); });
-	_conditionFactories.emplace("Weight", []() { return std::make_unique<WeightCondition>(); });
-	_conditionFactories.emplace("MovementSpeed", []() { return std::make_unique<MovementSpeedCondition>(); });
-	_conditionFactories.emplace("CurrentMovementSpeed", []() { return std::make_unique<CurrentMovementSpeedCondition>(); });
-	_conditionFactories.emplace("WindSpeed", []() { return std::make_unique<WindSpeedCondition>(); });
-	_conditionFactories.emplace("WindAngleDifference", []() { return std::make_unique<WindAngleDifferenceCondition>(); });
-	_conditionFactories.emplace("CrimeGold", []() { return std::make_unique<CrimeGoldCondition>(); });
+    _conditionFactories.emplace("Height", []() { return std::make_unique<HeightCondition>(); });
+    _conditionFactories.emplace("Weight", []() { return std::make_unique<WeightCondition>(); });
+    _conditionFactories.emplace("MovementSpeed", []() { return std::make_unique<MovementSpeedCondition>(); });
+    _conditionFactories.emplace("CurrentMovementSpeed", []() { return std::make_unique<CurrentMovementSpeedCondition>(); });
+    _conditionFactories.emplace("WindSpeed", []() { return std::make_unique<WindSpeedCondition>(); });
+    _conditionFactories.emplace("WindAngleDifference", []() { return std::make_unique<WindAngleDifferenceCondition>(); });
+    _conditionFactories.emplace("CrimeGold", []() { return std::make_unique<CrimeGoldCondition>(); });
 
     // Hidden factories - not visible for selection in the UI, used only for mapping legacy names to new conditions
     _hiddenConditionFactories.emplace("IsEquippedRight", []() { return std::make_unique<IsEquippedCondition>(false); });
@@ -546,16 +548,16 @@ void OpenAnimationReplacer::InitFactories()
     _hiddenConditionFactories.emplace("IsEquippedLeftType", []() { return std::make_unique<IsEquippedTypeCondition>(true); });
     _hiddenConditionFactories.emplace("IsEquippedRightHasKeyword", []() { return std::make_unique<IsEquippedHasKeywordCondition>(false); });
     _hiddenConditionFactories.emplace("IsEquippedLeftHasKeyword", []() { return std::make_unique<IsEquippedHasKeywordCondition>(true); });
-    _hiddenConditionFactories.emplace("ValueEqualTo", []() { return std::make_unique<CompareValue>(ComparisonOperator::kEqual); });
-    _hiddenConditionFactories.emplace("ValueLessThan", []() { return std::make_unique<CompareValue>(ComparisonOperator::kLess); });
-    _hiddenConditionFactories.emplace("IsActorValueEqualTo", []() { return std::make_unique<CompareValue>(ActorValueType::kActorValue, ComparisonOperator::kEqual); });
-    _hiddenConditionFactories.emplace("IsActorValueLessThan", []() { return std::make_unique<CompareValue>(ActorValueType::kActorValue, ComparisonOperator::kLess); });
-    _hiddenConditionFactories.emplace("IsActorValueBaseEqualTo", []() { return std::make_unique<CompareValue>(ActorValueType::kBase, ComparisonOperator::kEqual); });
-    _hiddenConditionFactories.emplace("IsActorValueBaseLessThan", []() { return std::make_unique<CompareValue>(ActorValueType::kBase, ComparisonOperator::kLess); });
-    _hiddenConditionFactories.emplace("IsActorValueMaxEqualTo", []() { return std::make_unique<CompareValue>(ActorValueType::kMax, ComparisonOperator::kEqual); });
-    _hiddenConditionFactories.emplace("IsActorValueMaxLessThan", []() { return std::make_unique<CompareValue>(ActorValueType::kMax, ComparisonOperator::kLess); });
-    _hiddenConditionFactories.emplace("IsActorValuePercentageEqualTo", []() { return std::make_unique<CompareValue>(ActorValueType::kPercentage, ComparisonOperator::kEqual); });
-    _hiddenConditionFactories.emplace("IsActorValuePercentageLessThan", []() { return std::make_unique<CompareValue>(ActorValueType::kPercentage, ComparisonOperator::kLess); });
+    _hiddenConditionFactories.emplace("ValueEqualTo", []() { return std::make_unique<CompareValues>(ComparisonOperator::kEqual); });
+    _hiddenConditionFactories.emplace("ValueLessThan", []() { return std::make_unique<CompareValues>(ComparisonOperator::kLess); });
+    _hiddenConditionFactories.emplace("IsActorValueEqualTo", []() { return std::make_unique<CompareValues>(ActorValueType::kActorValue, ComparisonOperator::kEqual); });
+    _hiddenConditionFactories.emplace("IsActorValueLessThan", []() { return std::make_unique<CompareValues>(ActorValueType::kActorValue, ComparisonOperator::kLess); });
+    _hiddenConditionFactories.emplace("IsActorValueBaseEqualTo", []() { return std::make_unique<CompareValues>(ActorValueType::kBase, ComparisonOperator::kEqual); });
+    _hiddenConditionFactories.emplace("IsActorValueBaseLessThan", []() { return std::make_unique<CompareValues>(ActorValueType::kBase, ComparisonOperator::kLess); });
+    _hiddenConditionFactories.emplace("IsActorValueMaxEqualTo", []() { return std::make_unique<CompareValues>(ActorValueType::kMax, ComparisonOperator::kEqual); });
+    _hiddenConditionFactories.emplace("IsActorValueMaxLessThan", []() { return std::make_unique<CompareValues>(ActorValueType::kMax, ComparisonOperator::kLess); });
+    _hiddenConditionFactories.emplace("IsActorValuePercentageEqualTo", []() { return std::make_unique<CompareValues>(ActorValueType::kPercentage, ComparisonOperator::kEqual); });
+    _hiddenConditionFactories.emplace("IsActorValuePercentageLessThan", []() { return std::make_unique<CompareValues>(ActorValueType::kPercentage, ComparisonOperator::kLess); });
     _hiddenConditionFactories.emplace("IsFactionRankEqualTo", []() { return std::make_unique<FactionRankCondition>(ComparisonOperator::kEqual); });
     _hiddenConditionFactories.emplace("IsFactionRankLessThan", []() { return std::make_unique<FactionRankCondition>(ComparisonOperator::kLess); });
     _hiddenConditionFactories.emplace("IsLevelLessThan", []() { return std::make_unique<LevelCondition>(ComparisonOperator::kLess); });
@@ -632,10 +634,10 @@ OAR_API::Conditions::APIResult OpenAnimationReplacer::AddCustomCondition(std::st
         return Result::AlreadyRegistered;
     }
 
-	// too late, factories already initialized
-	if (_bFactoriesInitialized) {
-	    return Result::Failed;
-	}
+    // too late, factories already initialized
+    if (_bFactoriesInitialized) {
+        return Result::Failed;
+    }
 
     WriteLocker locker(_customConditionsLock);
 
@@ -718,9 +720,8 @@ void OpenAnimationReplacer::AddModParseResult(Parsing::ModParseResult& a_parseRe
     auto replacerMod = GetReplacerMod(a_parseResult.path);
     if (!replacerMod) {
         auto newReplacerMod = std::make_unique<ReplacerMod>(a_parseResult.path, a_parseResult.name, a_parseResult.author, a_parseResult.description, false);
-		replacerMod = newReplacerMod.get();
+        replacerMod = newReplacerMod.get();
         AddReplacerMod(a_parseResult.path, newReplacerMod);
-		
     }
 
     for (auto& subModParseResult : a_parseResult.subModParseResults) {
@@ -734,9 +735,9 @@ void OpenAnimationReplacer::AddSubModParseResult(ReplacerMod* a_replacerMod, Par
     auto subMod = a_replacerMod->GetSubMod(a_parseResult.path);
     if (!subMod) {
         auto newSubMod = std::make_unique<SubMod>();
-		newSubMod->LoadParseResult(a_parseResult);
-		subMod = newSubMod.get();
-		a_replacerMod->AddSubMod(newSubMod);
+        newSubMod->LoadParseResult(a_parseResult);
+        subMod = newSubMod.get();
+        a_replacerMod->AddSubMod(newSubMod);
     }
 
     // add new replacement anims

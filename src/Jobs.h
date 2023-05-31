@@ -14,13 +14,13 @@ namespace Jobs
 
     struct InsertConditionJob : GenericJob
     {
-		InsertConditionJob(std::unique_ptr<Conditions::ICondition>& a_conditionToInsert, Conditions::ConditionSet* a_conditionSet, const std::unique_ptr<Conditions::ICondition>& a_insertAfterThisCondition) :
+        InsertConditionJob(std::unique_ptr<Conditions::ICondition>& a_conditionToInsert, Conditions::ConditionSet* a_conditionSet, const std::unique_ptr<Conditions::ICondition>& a_insertAfterThisCondition) :
             conditionToInsert(std::move(a_conditionToInsert)),
             conditionSet(a_conditionSet),
             insertAfterThisCondition(a_insertAfterThisCondition) {}
 
         std::unique_ptr<Conditions::ICondition> conditionToInsert;
-		Conditions::ConditionSet* conditionSet;
+        Conditions::ConditionSet* conditionSet;
         const std::unique_ptr<Conditions::ICondition>& insertAfterThisCondition;
 
         void Run() override
@@ -31,12 +31,12 @@ namespace Jobs
 
     struct RemoveConditionJob : GenericJob
     {
-		RemoveConditionJob(std::unique_ptr<Conditions::ICondition>& a_conditionToRemove, Conditions::ConditionSet* a_conditionSet) :
+        RemoveConditionJob(std::unique_ptr<Conditions::ICondition>& a_conditionToRemove, Conditions::ConditionSet* a_conditionSet) :
             conditionToRemove(a_conditionToRemove),
             conditionSet(a_conditionSet) {}
 
         std::unique_ptr<Conditions::ICondition>& conditionToRemove;
-		Conditions::ConditionSet* conditionSet;
+        Conditions::ConditionSet* conditionSet;
 
         void Run() override
         {
@@ -46,25 +46,25 @@ namespace Jobs
 
     struct ReplaceConditionJob : GenericJob
     {
-		ReplaceConditionJob(std::unique_ptr<Conditions::ICondition>& a_conditionToReplace, std::string_view a_newConditionName, Conditions::ConditionSet* a_conditionSet) :
+        ReplaceConditionJob(std::unique_ptr<Conditions::ICondition>& a_conditionToReplace, std::string_view a_newConditionName, Conditions::ConditionSet* a_conditionSet) :
             conditionToReplace(a_conditionToReplace),
             newConditionName(a_newConditionName),
             conditionSet(a_conditionSet) {}
 
         std::unique_ptr<Conditions::ICondition>& conditionToReplace;
         std::string newConditionName;
-		Conditions::ConditionSet* conditionSet;
+        Conditions::ConditionSet* conditionSet;
 
         void Run() override
         {
-			auto newCondition = Conditions::CreateCondition(newConditionName);
+            auto newCondition = Conditions::CreateCondition(newConditionName);
             conditionSet->ReplaceCondition(conditionToReplace, newCondition);
         }
     };
 
     struct MoveConditionJob : GenericJob
     {
-		MoveConditionJob(std::unique_ptr<Conditions::ICondition>& a_sourceCondition, Conditions::ConditionSet* a_sourceSet, const std::unique_ptr<Conditions::ICondition>& a_targetCondition, Conditions::ConditionSet* a_targetSet, bool a_bInsertAfter) :
+        MoveConditionJob(std::unique_ptr<Conditions::ICondition>& a_sourceCondition, Conditions::ConditionSet* a_sourceSet, const std::unique_ptr<Conditions::ICondition>& a_targetCondition, Conditions::ConditionSet* a_targetSet, bool a_bInsertAfter) :
             sourceCondition(a_sourceCondition),
             sourceSet(a_sourceSet),
             targetCondition(a_targetCondition),
@@ -72,9 +72,9 @@ namespace Jobs
             bInsertAfter(a_bInsertAfter) {}
 
         std::unique_ptr<Conditions::ICondition>& sourceCondition;
-		Conditions::ConditionSet* sourceSet;
-		const std::unique_ptr<Conditions::ICondition>& targetCondition;
-		Conditions::ConditionSet* targetSet;
+        Conditions::ConditionSet* sourceSet;
+        const std::unique_ptr<Conditions::ICondition>& targetCondition;
+        Conditions::ConditionSet* targetSet;
         bool bInsertAfter;
 
         void Run() override
@@ -85,7 +85,7 @@ namespace Jobs
 
     struct ClearConditionSetJob : GenericJob
     {
-		ClearConditionSetJob(Conditions::ConditionSet* a_conditionSet) :
+        ClearConditionSetJob(Conditions::ConditionSet* a_conditionSet) :
             conditionSet(a_conditionSet) {}
 
         Conditions::ConditionSet* conditionSet;
@@ -98,7 +98,7 @@ namespace Jobs
 
     struct UpdateSubModJob : GenericJob
     {
-		UpdateSubModJob(SubMod* a_subMod, bool a_bCheckProblems) :
+        UpdateSubModJob(SubMod* a_subMod, bool a_bCheckProblems) :
             subMod(a_subMod),
             bCheckProblems(a_bCheckProblems) {}
 
@@ -109,14 +109,16 @@ namespace Jobs
         {
             subMod->UpdateAnimations();
             if (bCheckProblems) {
-                DetectedProblems::GetSingleton().CheckForSubModsSharingPriority();
+                auto& detectedProblems = DetectedProblems::GetSingleton();
+                detectedProblems.CheckForSubModsSharingPriority();
+                detectedProblems.CheckForSubModsWithInvalidConditions();
             }
         }
     };
 
     struct ReloadSubModConfigJob : GenericJob
     {
-		ReloadSubModConfigJob(SubMod* a_subMod) :
+        ReloadSubModConfigJob(SubMod* a_subMod) :
             subMod(a_subMod) {}
 
         SubMod* subMod;

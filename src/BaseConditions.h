@@ -108,11 +108,11 @@ namespace Conditions
             if (const auto pluginNameIt = formObject.FindMember("pluginName"); pluginNameIt != formObject.MemberEnd() && pluginNameIt->value.IsString()) {
                 if (const auto formIDIt = formObject.FindMember("formID"); formIDIt != formObject.MemberEnd() && formIDIt->value.IsString()) {
                     _pluginNameString = Utils::TrimWhitespace(pluginNameIt->value.GetString());
-					_formIdString = Utils::TrimHexPrefix(Utils::TrimWhitespace(formIDIt->value.GetString()));
+                    _formIdString = Utils::TrimHexPrefix(Utils::TrimWhitespace(formIDIt->value.GetString()));
                     RE::FormID formID;
-					auto [ptr, ec] = std::from_chars(_formIdString.data(), _formIdString.data() + _formIdString.size(), formID, 16);
+                    auto [ptr, ec] = std::from_chars(_formIdString.data(), _formIdString.data() + _formIdString.size(), formID, 16);
                     if (ec == std::errc()) {
-					_formIdString = std::format("{:X}", formID);
+                        _formIdString = std::format("{:X}", formID);
 
                         auto form = Utils::LookupForm<T>(formID, _pluginNameString);
                         SetValue(form);
@@ -125,11 +125,11 @@ namespace Conditions
         {
             if (const size_t splitPos = a_argument.find('|'); splitPos != std::string_view::npos) {
                 _pluginNameString = Utils::TrimQuotes(Utils::TrimWhitespace(a_argument.substr(0, splitPos)));
-				_formIdString = std::string(Utils::TrimHexPrefix(Utils::TrimWhitespace(a_argument.substr(splitPos + 1))));
+                _formIdString = std::string(Utils::TrimHexPrefix(Utils::TrimWhitespace(a_argument.substr(splitPos + 1))));
                 RE::FormID formID;
-				auto [ptr, ec] = std::from_chars(_formIdString.data(), _formIdString.data() + _formIdString.size(), formID, 16);
+                auto [ptr, ec] = std::from_chars(_formIdString.data(), _formIdString.data() + _formIdString.size(), formID, 16);
                 if (ec == std::errc()) {
-					_formIdString = std::format("{:X}", formID);
+                    _formIdString = std::format("{:X}", formID);
 
                     auto form = Utils::LookupForm<T>(formID, _pluginNameString);
                     SetValue(form);
@@ -182,11 +182,11 @@ namespace Conditions
 
         rapidjson::Value Serialize([[maybe_unused]] rapidjson::Document::AllocatorType& a_allocator) const;
 
-		void SetAllowSpaces(bool a_bAllowSpaces) { _bAllowSpaces = a_bAllowSpaces; }
+        void SetAllowSpaces(bool a_bAllowSpaces) { _bAllowSpaces = a_bAllowSpaces; }
 
     protected:
         std::string _text{};
-		bool _bAllowSpaces = true;
+        bool _bAllowSpaces = true;
     };
 
     class NumericValue
@@ -377,9 +377,9 @@ namespace Conditions
         KeywordValue& operator=(KeywordValue&& a_rhs) noexcept
         {
             _type = a_rhs._type;
-			_keywordLiteral = a_rhs._keywordLiteral;
-			_keywordForm = a_rhs._keywordForm;
-			_keywordFormsMatchingLiteral = a_rhs._keywordFormsMatchingLiteral;
+            _keywordLiteral = a_rhs._keywordLiteral;
+            _keywordForm = a_rhs._keywordForm;
+            _keywordFormsMatchingLiteral = a_rhs._keywordFormsMatchingLiteral;
 
             return *this;
         }
@@ -535,8 +535,8 @@ namespace Conditions
             const auto object = a_value.GetObj();
 
             if (const auto keywordIt = object.FindMember("editorID"); keywordIt != object.MemberEnd() && keywordIt->value.IsString()) {
-                std::string_view editorID = keywordIt->value.GetString();
-				_keywordLiteral = editorID;
+                const std::string_view editorID = keywordIt->value.GetString();
+                _keywordLiteral = editorID;
 
                 LookupFromLiteral();
 
@@ -544,15 +544,15 @@ namespace Conditions
             }
 
             if (const auto formIt = object.FindMember("form"); formIt != object.MemberEnd() && formIt->value.IsObject()) {
-				_type = Type::kForm;
-				_keywordForm.Parse(formIt->value);
+                _type = Type::kForm;
+                _keywordForm.Parse(formIt->value);
             }
         }
 
         void ParseLegacy(std::string_view a_argument)
         {
-			_type = Type::kForm;
-			_keywordForm.ParseLegacy(a_argument);
+            _type = Type::kForm;
+            _keywordForm.ParseLegacy(a_argument);
         }
 
         rapidjson::Value Serialize(rapidjson::Document::AllocatorType& a_allocator)
@@ -640,27 +640,27 @@ namespace Conditions
         void PostInitialize() override;
 
         [[nodiscard]] RE::BSString GetArgument() const override { return ""sv; }
-		[[nodiscard]] RE::BSString GetCurrent([[maybe_unused]] RE::TESObjectREFR* a_refr) const override { return ""sv.data(); }
+        [[nodiscard]] RE::BSString GetCurrent([[maybe_unused]] RE::TESObjectREFR* a_refr) const override { return ""sv.data(); }
 
         [[nodiscard]] RE::BSString GetRequiredPluginName() const override { return ""sv.data(); }
         [[nodiscard]] RE::BSString GetRequiredPluginAuthor() const override { return ""sv.data(); }
 
         [[nodiscard]] bool IsDisabled() const override { return _bDisabled; }
         void SetDisabled(bool a_bDisabled) override { _bDisabled = a_bDisabled; }
-		[[nodiscard]] bool IsNegated() const override { return _bNegated; }
+        [[nodiscard]] bool IsNegated() const override { return _bNegated; }
         void SetNegated(bool a_bNegated) override { _bNegated = a_bNegated; }
 
         [[nodiscard]] uint32_t GetNumComponents() const override { return static_cast<uint32_t>(_components.size()); }
-		[[nodiscard]] IConditionComponent* GetComponent(uint32_t a_index) const override;
-        IConditionComponent* AddComponent(ConditionComponentFactory a_factory, const char* a_name) override;
+        [[nodiscard]] IConditionComponent* GetComponent(uint32_t a_index) const override;
+        IConditionComponent* AddComponent(ConditionComponentFactory a_factory, const char* a_name, const char* a_description = "") override;
 
         [[nodiscard]] bool IsCustomCondition() const override { return false; }
-		[[nodiscard]] ICondition* GetWrappedCondition() const override { return nullptr; }
+        [[nodiscard]] ICondition* GetWrappedCondition() const override { return nullptr; }
 
         template <typename T>
-        T* AddComponent(std::string_view a_name)
+        T* AddComponent(std::string_view a_name, std::string_view a_description = ""sv)
         {
-            auto& component = _components.emplace_back(std::make_unique<T>(a_name.data()));
+            auto& component = _components.emplace_back(std::make_unique<T>(a_name.data(), a_description.data()));
             return static_cast<T*>(component.get());
         }
 
@@ -697,10 +697,11 @@ namespace Conditions
         bool IsEmpty() const { return _conditions.empty(); }
         bool IsDirty() const { return _bDirty; }
         void SetDirty(bool a_bDirty) { _bDirty = a_bDirty; }
+        bool HasInvalidConditions() const;
         RE::BSVisit::BSVisitControl ForEachCondition(const std::function<RE::BSVisit::BSVisitControl(std::unique_ptr<ICondition>&)>& a_func);
         void AddCondition(std::unique_ptr<ICondition>& a_condition, bool a_bSetDirty = false);
         void RemoveCondition(const std::unique_ptr<ICondition>& a_condition);
-		std::unique_ptr<ICondition> ExtractCondition(std::unique_ptr<ICondition>& a_condition);
+        std::unique_ptr<ICondition> ExtractCondition(std::unique_ptr<ICondition>& a_condition);
         void InsertCondition(std::unique_ptr<ICondition>& a_conditionToInsert, const std::unique_ptr<ICondition>& a_insertAfter, bool a_bSetDirty = false);
         void ReplaceCondition(std::unique_ptr<ICondition>& a_conditionToSubstitute, std::unique_ptr<ICondition>& a_newCondition);
         void MoveCondition(std::unique_ptr<ICondition>& a_sourceCondition, ConditionSet* a_sourceSet, const std::unique_ptr<ICondition>& a_targetCondition, bool a_bInsertAfter = false);
@@ -713,7 +714,7 @@ namespace Conditions
         bool IsDirtyRecursive() const;
         void SetDirtyRecursive(bool a_bDirty);
         bool IsChildOf(ICondition* a_condition);
-		size_t GetNumConditions() const { return _conditions.size(); }
+        size_t GetNumConditions() const { return _conditions.size(); }
 
     private:
         mutable std::shared_mutex _lock;
@@ -724,8 +725,8 @@ namespace Conditions
     class MultiConditionComponent : public IMultiConditionComponent
     {
     public:
-        MultiConditionComponent(const char* a_name) :
-            IMultiConditionComponent(a_name)
+        MultiConditionComponent(const char* a_name, const char* a_description = "") :
+            IMultiConditionComponent(a_name, a_description)
         {
             conditionSet = std::make_unique<ConditionSet>();
         }
@@ -736,10 +737,8 @@ namespace Conditions
         bool DisplayInUI([[maybe_unused]] bool a_bEditable, [[maybe_unused]] float a_firstColumnWidthPercent) override { return false; }
 
         [[nodiscard]] RE::BSString GetArgument() const override;
-        [[nodiscard]] RE::BSString GetName() const override { return name.data(); }
-        [[nodiscard]] RE::BSString GetDescription() const override { return "A list of child conditions."sv.data(); }
 
-        [[nodiscard]] bool IsValid() const override { return !conditionSet->IsEmpty(); }
+        [[nodiscard]] bool IsValid() const override { return !conditionSet->IsEmpty() && !conditionSet->HasInvalidConditions(); }
 
         [[nodiscard]] ConditionSet* GetConditions() const override { return conditionSet.get(); }
 
@@ -749,8 +748,8 @@ namespace Conditions
     class FormConditionComponent : public IFormConditionComponent
     {
     public:
-        FormConditionComponent(const char* a_name) :
-            IFormConditionComponent(a_name) {}
+        FormConditionComponent(const char* a_name, const char* a_description = "") :
+            IFormConditionComponent(a_name, a_description) {}
 
         void InitializeComponent(void* a_value) override;
         void SerializeComponent(void* a_value, void* a_allocator) override;
@@ -758,13 +757,11 @@ namespace Conditions
         bool DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent) override { return form.DisplayInUI(a_bEditable, a_firstColumnWidthPercent); }
 
         [[nodiscard]] RE::BSString GetArgument() const override { return form.GetArgument().data(); }
-        [[nodiscard]] RE::BSString GetName() const override { return name.data(); }
-        [[nodiscard]] RE::BSString GetDescription() const override { return "A reference to a form."sv.data(); }
 
         [[nodiscard]] bool IsValid() const override { return form.IsValid(); }
 
         [[nodiscard]] RE::TESForm* GetTESFormValue() const override { return form.GetValue(); }
-		void SetTESFormValue(RE::TESForm* a_form) override { form.SetValue(a_form); }
+        void SetTESFormValue(RE::TESForm* a_form) override { form.SetValue(a_form); }
 
         TESFormValue<RE::TESForm> form;
     };
@@ -772,8 +769,8 @@ namespace Conditions
     class NumericConditionComponent : public INumericConditionComponent
     {
     public:
-        NumericConditionComponent(const char* a_name) :
-            INumericConditionComponent(a_name) {}
+        NumericConditionComponent(const char* a_name, const char* a_description = "") :
+            INumericConditionComponent(a_name, a_description) {}
 
         void InitializeComponent(void* a_value) override;
         void SerializeComponent(void* a_value, void* a_allocator) override;
@@ -781,17 +778,15 @@ namespace Conditions
         bool DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent) override { return value.DisplayInUI(a_bEditable, a_firstColumnWidthPercent); }
 
         [[nodiscard]] RE::BSString GetArgument() const override { return value.GetArgument().data(); }
-        [[nodiscard]] RE::BSString GetName() const override { return name.data(); }
-        [[nodiscard]] RE::BSString GetDescription() const override { return "A numeric value - a static value, a reference to a global variable, an Actor Value, or a behavior graph variable."sv.data(); }
 
         [[nodiscard]] bool IsValid() const override { return value.IsValid(); }
 
         [[nodiscard]] float GetNumericValue(RE::TESObjectREFR* a_refr) const override { return value.GetValue(a_refr); }
 
         void SetStaticValue(float a_value) override { value.SetStaticValue(a_value); }
-		void SetGlobalVariable(RE::TESGlobal* a_global) override { value.SetGlobalVariable(a_global); }
-		void SetActorValue(RE::ActorValue a_actorValue, ActorValueType a_valueType) override { value.SetActorValue(a_actorValue, a_valueType); }
-		void SetGraphVariable(const char* a_graphVariableName, GraphVariableType a_valueType) override { value.SetGraphVariable(a_graphVariableName, a_valueType); }
+        void SetGlobalVariable(RE::TESGlobal* a_global) override { value.SetGlobalVariable(a_global); }
+        void SetActorValue(RE::ActorValue a_actorValue, ActorValueType a_valueType) override { value.SetActorValue(a_actorValue, a_valueType); }
+        void SetGraphVariable(const char* a_graphVariableName, GraphVariableType a_valueType) override { value.SetGraphVariable(a_graphVariableName, a_valueType); }
 
         NumericValue value;
     };
@@ -799,8 +794,8 @@ namespace Conditions
     class NiPoint3ConditionComponent : public INiPoint3ConditionComponent
     {
     public:
-        NiPoint3ConditionComponent(const char* a_name) :
-            INiPoint3ConditionComponent(a_name) {}
+        NiPoint3ConditionComponent(const char* a_name, const char* a_description = "") :
+            INiPoint3ConditionComponent(a_name, a_description) {}
 
         void InitializeComponent(void* a_value) override;
         void SerializeComponent(void* a_value, void* a_allocator) override;
@@ -808,13 +803,11 @@ namespace Conditions
         bool DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent) override { return value.DisplayInUI(a_bEditable, a_firstColumnWidthPercent); }
 
         [[nodiscard]] RE::BSString GetArgument() const override { return value.GetArgument().data(); }
-		[[nodiscard]] RE::BSString GetName() const override { return name.data(); }
-		[[nodiscard]] RE::BSString GetDescription() const override { return "A user defined static NiPoint3 value (x, y, z vector)."sv.data(); }
 
         [[nodiscard]] bool IsValid() const override { return value.IsValid(); }
 
         [[nodiscard]] const RE::NiPoint3& GetNiPoint3Value() const override { return value.GetValue(); }
-		void SetNiPoint3Value(const RE::NiPoint3& a_point) override { value.SetValue(a_point); }
+        void SetNiPoint3Value(const RE::NiPoint3& a_point) override { value.SetValue(a_point); }
 
         NiPoint3Value value;
     };
@@ -822,8 +815,8 @@ namespace Conditions
     class KeywordConditionComponent : public IKeywordConditionComponent
     {
     public:
-        KeywordConditionComponent(const char* a_name) :
-            IKeywordConditionComponent(a_name) {}
+        KeywordConditionComponent(const char* a_name, const char* a_description = "") :
+            IKeywordConditionComponent(a_name, a_description) {}
 
         void InitializeComponent(void* a_value) override;
         void SerializeComponent(void* a_value, void* a_allocator) override;
@@ -831,14 +824,12 @@ namespace Conditions
         bool DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent) override { return keyword.DisplayInUI(a_bEditable, a_firstColumnWidthPercent); }
 
         [[nodiscard]] RE::BSString GetArgument() const override { return keyword.GetArgument().data(); }
-		[[nodiscard]] RE::BSString GetName() const override { return name.data(); }
-		[[nodiscard]] RE::BSString GetDescription() const override { return "A keyword value - a reference to a BGSKeyword form, or a literal EditorID of the keyword."sv.data(); }
 
         [[nodiscard]] bool IsValid() const override { return keyword.IsValid(); }
 
         [[nodiscard]] bool HasKeyword(RE::BGSKeywordForm* a_form) const override { return keyword.HasKeyword(a_form); }
-		void SetKeyword(RE::BGSKeyword* a_keyword) override { keyword.SetKeyword(a_keyword); }
-		void SetLiteral(const char* a_literal) override { keyword.SetLiteral(a_literal); }
+        void SetKeyword(RE::BGSKeyword* a_keyword) override { keyword.SetKeyword(a_keyword); }
+        void SetLiteral(const char* a_literal) override { keyword.SetLiteral(a_literal); }
 
         KeywordValue<RE::BGSKeyword> keyword;
     };
@@ -846,8 +837,8 @@ namespace Conditions
     class LocRefTypeConditionComponent : public IKeywordConditionComponent
     {
     public:
-        LocRefTypeConditionComponent(const char* a_name) :
-            IKeywordConditionComponent(a_name) {}
+        LocRefTypeConditionComponent(const char* a_name, const char* a_description = "") :
+            IKeywordConditionComponent(a_name, a_description) {}
 
         void InitializeComponent(void* a_value) override;
         void SerializeComponent(void* a_value, void* a_allocator) override;
@@ -855,14 +846,12 @@ namespace Conditions
         bool DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent) override { return locRefType.DisplayInUI(a_bEditable, a_firstColumnWidthPercent); }
 
         [[nodiscard]] RE::BSString GetArgument() const override { return locRefType.GetArgument().data(); }
-		[[nodiscard]] RE::BSString GetName() const override { return name.data(); }
-		[[nodiscard]] RE::BSString GetDescription() const override { return "A location ref type value - a reference to a BGSLocationRefType form, or a literal EditorID."sv.data(); }
 
         [[nodiscard]] bool IsValid() const override { return locRefType.IsValid(); }
 
         [[nodiscard]] bool HasKeyword(RE::BGSKeywordForm* a_form) const override { return locRefType.HasKeyword(a_form); }
-		void SetKeyword(RE::BGSKeyword* a_keyword) override { locRefType.SetKeyword(static_cast<RE::BGSLocationRefType*>(a_keyword)); }
-		void SetLiteral(const char* a_literal) override { locRefType.SetLiteral(a_literal); }
+        void SetKeyword(RE::BGSKeyword* a_keyword) override { locRefType.SetKeyword(static_cast<RE::BGSLocationRefType*>(a_keyword)); }
+        void SetLiteral(const char* a_literal) override { locRefType.SetLiteral(a_literal); }
 
         KeywordValue<RE::BGSLocationRefType> locRefType;
     };
@@ -870,8 +859,8 @@ namespace Conditions
     class TextConditionComponent : public ITextConditionComponent
     {
     public:
-        TextConditionComponent(const char* a_name) :
-            ITextConditionComponent(a_name) {}
+        TextConditionComponent(const char* a_name, const char* a_description = "") :
+            ITextConditionComponent(a_name, a_description) {}
 
         void InitializeComponent(void* a_value) override;
         void SerializeComponent(void* a_value, void* a_allocator) override;
@@ -879,14 +868,12 @@ namespace Conditions
         bool DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent) override { return text.DisplayInUI(a_bEditable, a_firstColumnWidthPercent); }
 
         [[nodiscard]] RE::BSString GetArgument() const override { return text.GetValue(); }
-		[[nodiscard]] RE::BSString GetName() const override { return name.data(); }
-		[[nodiscard]] RE::BSString GetDescription() const override { return "A text value."sv.data(); }
 
         [[nodiscard]] bool IsValid() const override { return true; }
 
         [[nodiscard]] RE::BSString GetTextValue() const override { return text.GetValue(); }
-		void SetTextValue(const char* a_text) override { text.SetValue(a_text); }
-		void SetAllowSpaces(bool a_bAllowSpaces) override { text.SetAllowSpaces(a_bAllowSpaces); }
+        void SetTextValue(const char* a_text) override { text.SetValue(a_text); }
+        void SetAllowSpaces(bool a_bAllowSpaces) override { text.SetAllowSpaces(a_bAllowSpaces); }
 
         TextValue text;
     };
@@ -894,8 +881,8 @@ namespace Conditions
     class BoolConditionComponent : public IBoolConditionComponent
     {
     public:
-        BoolConditionComponent(const char* a_name) :
-            IBoolConditionComponent(a_name) {}
+        BoolConditionComponent(const char* a_name, const char* a_description = "") :
+            IBoolConditionComponent(a_name, a_description) {}
 
         void InitializeComponent(void* a_value) override;
         void SerializeComponent(void* a_value, void* a_allocator) override;
@@ -903,13 +890,11 @@ namespace Conditions
         bool DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent) override;
 
         [[nodiscard]] RE::BSString GetArgument() const override { return bValue ? "true"sv : "false"sv; }
-		[[nodiscard]] RE::BSString GetName() const override { return name.data(); }
-		[[nodiscard]] RE::BSString GetDescription() const override { return "A boolean value."sv.data(); }
 
         [[nodiscard]] bool IsValid() const override { return true; }
 
         [[nodiscard]] bool GetBoolValue() const override { return bValue; }
-		void SetBoolValue(bool a_value) override { bValue = a_value; }
+        void SetBoolValue(bool a_value) override { bValue = a_value; }
 
         bool bValue = false;
     };
@@ -917,8 +902,8 @@ namespace Conditions
     class ComparisonConditionComponent : public IComparisonConditionComponent
     {
     public:
-        ComparisonConditionComponent(const char* a_name) :
-            IComparisonConditionComponent(a_name) {}
+        ComparisonConditionComponent(const char* a_name, const char* a_description = "") :
+            IComparisonConditionComponent(a_name, a_description) {}
 
         void InitializeComponent(void* a_value) override;
         void SerializeComponent(void* a_value, void* a_allocator) override;
@@ -926,14 +911,12 @@ namespace Conditions
         bool DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent) override;
 
         [[nodiscard]] RE::BSString GetArgument() const override { return GetOperatorString(comparisonOperator); }
-		[[nodiscard]] RE::BSString GetName() const override { return name.data(); }
-		[[nodiscard]] RE::BSString GetDescription() const override { return "A comparison operator."sv.data(); }
 
         [[nodiscard]] bool IsValid() const override { return true; }
 
         [[nodiscard]] bool GetComparisonResult(float a_valueA, float a_valueB) const override;
-		[[nodiscard]] ComparisonOperator GetComparisonOperator() const override { return comparisonOperator; }
-		void SetComparisonOperator(ComparisonOperator a_operator) override { comparisonOperator = a_operator; }
+        [[nodiscard]] ComparisonOperator GetComparisonOperator() const override { return comparisonOperator; }
+        void SetComparisonOperator(ComparisonOperator a_operator) override { comparisonOperator = a_operator; }
 
         [[nodiscard]] RE::BSString GetComparisonOperatorFullName() const override { return GetOperatorFullName(comparisonOperator); }
 
@@ -983,8 +966,8 @@ namespace Conditions
     class RandomConditionComponent : public IRandomConditionComponent
     {
     public:
-        RandomConditionComponent(const char* a_name) :
-            IRandomConditionComponent(a_name) {}
+        RandomConditionComponent(const char* a_name, const char* a_description = "") :
+            IRandomConditionComponent(a_name, a_description) {}
 
         void InitializeComponent(void* a_value) override;
         void SerializeComponent(void* a_value, void* a_allocator) override;
@@ -992,14 +975,12 @@ namespace Conditions
         bool DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent) override;
 
         [[nodiscard]] RE::BSString GetArgument() const override;
-		[[nodiscard]] RE::BSString GetName() const override { return name.data(); }
-		[[nodiscard]] RE::BSString GetDescription() const override { return "A random value."sv.data(); }
 
         [[nodiscard]] bool IsValid() const override { return true; }
 
         bool GetRandomFloat(RE::hkbClipGenerator* a_clipGenerator, float& a_outFloat) const override;
-		[[nodiscard]] float GetMinValue() const override { return minValue; }
-		[[nodiscard]] float GetMaxValue() const override { return maxValue; }
+        [[nodiscard]] float GetMinValue() const override { return minValue; }
+        [[nodiscard]] float GetMaxValue() const override { return maxValue; }
         void SetMinValue(float a_min) override { minValue = a_min; }
         void SetMaxValue(float a_max) override { maxValue = a_max; }
 

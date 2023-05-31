@@ -304,7 +304,6 @@ namespace Conditions
                 }
 
                 SetGraphVariable(graphVariableIt->value.GetString(), valueType);
-                return;
             }
         }
     }
@@ -466,10 +465,10 @@ namespace Conditions
         if (a_bEditable) {
             ImGui::PushID(&_text);
             ImGui::SetNextItemWidth(UI::UICommon::FirstColumnWidth(a_firstColumnWidthPercent));
-			ImGuiInputTextFlags flags = ImGuiInputTextFlags_None;
-			if (!_bAllowSpaces) {
-			    flags |= ImGuiInputTextFlags_CharsNoBlank;
-			}
+            ImGuiInputTextFlags flags = ImGuiInputTextFlags_None;
+            if (!_bAllowSpaces) {
+                flags |= ImGuiInputTextFlags_CharsNoBlank;
+            }
             if (ImGui::InputTextWithHint("##Text", "Text...", &_text, flags)) {
                 bEdited = true;
             }
@@ -544,14 +543,21 @@ namespace Conditions
     {
         ReadLocker locker(_lock);
 
-		return std::ranges::all_of(_conditions, [&](auto& a_condition) { return a_condition->Evaluate(a_refr, a_clipGenerator); });
+        return std::ranges::all_of(_conditions, [&](auto& a_condition) { return a_condition->Evaluate(a_refr, a_clipGenerator); });
     }
 
     bool ConditionSet::EvaluateAny(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const
     {
         ReadLocker locker(_lock);
 
-		return std::ranges::any_of(_conditions, [&](auto& a_condition) { return a_condition->Evaluate(a_refr, a_clipGenerator); });
+        return std::ranges::any_of(_conditions, [&](auto& a_condition) { return a_condition->Evaluate(a_refr, a_clipGenerator); });
+    }
+
+    bool ConditionSet::HasInvalidConditions() const
+    {
+        ReadLocker locker(_lock);
+
+        return std::ranges::any_of(_conditions, [&](auto& a_condition) { return !a_condition->IsValid(); });
     }
 
     RE::BSVisit::BSVisitControl ConditionSet::ForEachCondition(const std::function<RE::BSVisit::BSVisitControl(std::unique_ptr<ICondition>&)>& a_func)
@@ -589,23 +595,30 @@ namespace Conditions
 
     void ConditionSet::RemoveCondition(const std::unique_ptr<ICondition>& a_condition)
     {
-		if (!a_condition) {
-		    return;
-		}
+        if (!a_condition) {
+            return;
+        }
 
-        WriteLocker locker(_lock);
+        {
+            WriteLocker locker(_lock);
 
-        std::erase(_conditions, a_condition);
+            std::erase(_conditions, a_condition);
+        }
 
         SetDirty(true);
+
+        auto& detectedProblems = DetectedProblems::GetSingleton();
+        if (detectedProblems.HasSubModsWithInvalidConditions()) {
+            detectedProblems.CheckForSubModsWithInvalidConditions();
+        }
     }
 
     std::unique_ptr<ICondition> ConditionSet::ExtractCondition(std::unique_ptr<ICondition>& a_condition)
     {
         WriteLocker locker(_lock);
 
-		auto extracted = std::move(a_condition);
-		std::erase(_conditions, a_condition);
+        auto extracted = std::move(a_condition);
+        std::erase(_conditions, a_condition);
 
         return extracted;
     }
@@ -634,9 +647,9 @@ namespace Conditions
 
     void ConditionSet::ReplaceCondition(std::unique_ptr<ICondition>& a_conditionToSubstitute, std::unique_ptr<ICondition>& a_newCondition)
     {
-		if (a_conditionToSubstitute == nullptr || a_newCondition == nullptr) {
-			return;
-		}
+        if (a_conditionToSubstitute == nullptr || a_newCondition == nullptr) {
+            return;
+        }
 
         if (a_conditionToSubstitute == a_newCondition) {
             return; // same condition - nothing to do
@@ -672,11 +685,18 @@ namespace Conditions
             }
         }
 
-        WriteLocker locker(_lock);
+        {
+            WriteLocker locker(_lock);
 
-		a_conditionToSubstitute = std::move(a_newCondition);
+            a_conditionToSubstitute = std::move(a_newCondition);
+        }
 
         SetDirty(true);
+
+        auto& detectedProblems = DetectedProblems::GetSingleton();
+        if (detectedProblems.HasSubModsWithInvalidConditions()) {
+            detectedProblems.CheckForSubModsWithInvalidConditions();
+        }
     }
 
     void ConditionSet::MoveCondition(std::unique_ptr<ICondition>& a_sourceCondition, ConditionSet* a_sourceSet, const std::unique_ptr<ICondition>& a_targetCondition, bool a_bInsertAfter /*= true*/)
@@ -704,9 +724,9 @@ namespace Conditions
                 return;
             }
 
-			auto extractedCondition = std::move(a_sourceCondition);
+            auto extractedCondition = std::move(a_sourceCondition);
             _conditions.erase(_conditions.begin() + sourceIndex);
-			_conditions.insert(_conditions.begin() + targetIndex, std::move(extractedCondition));
+            _conditions.insert(_conditions.begin() + targetIndex, std::move(extractedCondition));
 
             SetDirty(true);
         } else {
@@ -719,15 +739,15 @@ namespace Conditions
 
             WriteLocker locker(_lock);
             const auto targetIt = std::ranges::find(_conditions, a_targetCondition);
-			auto extractedCondition = a_sourceSet->ExtractCondition(a_sourceCondition);
+            auto extractedCondition = a_sourceSet->ExtractCondition(a_sourceCondition);
             if (targetIt != _conditions.end()) {
                 if (a_bInsertAfter) {
-					_conditions.insert(targetIt + 1, std::move(extractedCondition));
+                    _conditions.insert(targetIt + 1, std::move(extractedCondition));
                 } else {
-					_conditions.insert(targetIt, std::move(extractedCondition));
+                    _conditions.insert(targetIt, std::move(extractedCondition));
                 }
             } else {
-				_conditions.emplace_back(std::move(extractedCondition));
+                _conditions.emplace_back(std::move(extractedCondition));
             }
 
             SetDirty(true);
@@ -755,11 +775,18 @@ namespace Conditions
 
     void ConditionSet::ClearConditions()
     {
-        WriteLocker locker(_lock);
+        {
+            WriteLocker locker(_lock);
 
-        _conditions.clear();
+            _conditions.clear();
+        }
 
         SetDirty(true);
+
+        auto& detectedProblems = DetectedProblems::GetSingleton();
+        if (detectedProblems.HasSubModsWithInvalidConditions()) {
+            detectedProblems.CheckForSubModsWithInvalidConditions();
+        }
     }
 
     rapidjson::Value ConditionSet::Serialize(rapidjson::Document::AllocatorType& a_allocator)
@@ -786,8 +813,8 @@ namespace Conditions
         }
 
         for (auto& condition : _conditions) {
-            if (const auto multiCondition = dynamic_cast<MultiConditionBase*>(condition.get())) {
-                if (multiCondition->conditionsComponent->conditionSet->IsDirtyRecursive()) {
+            if (const auto multiCondition = dynamic_cast<IMultiConditionComponent*>(condition.get())) {
+                if (multiCondition->GetConditions()->IsDirtyRecursive()) {
                     return true;
                 }
             }
@@ -801,8 +828,8 @@ namespace Conditions
         ReadLocker locker(_lock);
 
         for (auto& condition : _conditions) {
-            if (const auto multiCondition = dynamic_cast<MultiConditionBase*>(condition.get())) {
-                multiCondition->conditionsComponent->conditionSet->SetDirtyRecursive(a_bDirty);
+            if (const auto multiCondition = dynamic_cast<IMultiConditionComponent*>(condition.get())) {
+                multiCondition->GetConditions()->SetDirtyRecursive(a_bDirty);
             }
         }
 
@@ -811,13 +838,13 @@ namespace Conditions
 
     bool ConditionSet::IsChildOf(ICondition* a_condition)
     {
-        if (const auto multiCondition = dynamic_cast<MultiConditionBase*>(a_condition)) {
-            const auto& conditionSet = multiCondition->conditionsComponent->conditionSet;
-            if (conditionSet.get() == this) {
+        if (const auto multiCondition = dynamic_cast<IMultiConditionComponent*>(a_condition)) {
+            const auto& conditionSet = multiCondition->GetConditions();
+            if (conditionSet == this) {
                 return true;
             }
 
-            for (const auto& condition : multiCondition->conditionsComponent->conditionSet->_conditions) {
+            for (const auto& condition : multiCondition->GetConditions()->_conditions) {
                 if (IsChildOf(condition.get())) {
                     return true;
                 }
@@ -906,9 +933,9 @@ namespace Conditions
         return nullptr;
     }
 
-    IConditionComponent* ConditionBase::AddComponent(ConditionComponentFactory a_factory, const char* a_name)
+    IConditionComponent* ConditionBase::AddComponent(ConditionComponentFactory a_factory, const char* a_name, const char* a_description/* = ""*/)
     {
-        const auto& result = _components.emplace_back(std::unique_ptr<IConditionComponent>(a_factory(a_name)));
+        const auto& result = _components.emplace_back(std::unique_ptr<IConditionComponent>(a_factory(a_name, a_description)));
         return result.get();
     }
 
@@ -916,7 +943,7 @@ namespace Conditions
     {
         auto& value = *static_cast<rapidjson::Value*>(a_value);
         const auto object = value.GetObj();
-        if (const auto conditionsIt = object.FindMember(rapidjson::StringRef(name.data(), name.length())); conditionsIt != object.MemberEnd() && conditionsIt->value.IsArray()) {
+        if (const auto conditionsIt = object.FindMember(rapidjson::StringRef(_name.data(), _name.length())); conditionsIt != object.MemberEnd() && conditionsIt->value.IsArray()) {
             for (const auto conditionsArray = conditionsIt->value.GetArray(); auto& conditionValue : conditionsArray) {
                 if (auto condition = CreateConditionFromJson(conditionValue)) {
                     conditionSet->AddCondition(condition);
@@ -932,7 +959,7 @@ namespace Conditions
 
         rapidjson::Value conditionArrayValue = conditionSet->Serialize(allocator);
 
-        value.AddMember(rapidjson::StringRef(name.data(), name.length()), conditionArrayValue, allocator);
+        value.AddMember(rapidjson::StringRef(_name.data(), _name.length()), conditionArrayValue, allocator);
     }
 
     RE::BSString MultiConditionComponent::GetArgument() const
@@ -948,7 +975,7 @@ namespace Conditions
         auto& value = *static_cast<rapidjson::Value*>(a_value);
 
         const auto object = value.GetObj();
-        if (const auto formIt = object.FindMember(rapidjson::StringRef(name.data(), name.length())); formIt != object.MemberEnd() && formIt->value.IsObject()) {
+        if (const auto formIt = object.FindMember(rapidjson::StringRef(_name.data(), _name.length())); formIt != object.MemberEnd() && formIt->value.IsObject()) {
             form.Parse(formIt->value);
         }
     }
@@ -958,7 +985,7 @@ namespace Conditions
         auto& value = *static_cast<rapidjson::Value*>(a_value);
         auto& allocator = *static_cast<rapidjson::Document::AllocatorType*>(a_allocator);
 
-        value.AddMember(rapidjson::StringRef(name.data(), name.length()), form.Serialize(allocator), allocator);
+        value.AddMember(rapidjson::StringRef(_name.data(), _name.length()), form.Serialize(allocator), allocator);
     }
 
     void NumericConditionComponent::InitializeComponent(void* a_value)
@@ -967,7 +994,7 @@ namespace Conditions
 
         const auto object = val.GetObj();
 
-        if (const auto valueIt = object.FindMember(rapidjson::StringRef(name.data(), name.length())); valueIt != object.MemberEnd() && valueIt->value.IsObject()) {
+        if (const auto valueIt = object.FindMember(rapidjson::StringRef(_name.data(), _name.length())); valueIt != object.MemberEnd() && valueIt->value.IsObject()) {
             value.Parse(valueIt->value);
         }
     }
@@ -977,7 +1004,7 @@ namespace Conditions
         auto& val = *static_cast<rapidjson::Value*>(a_value);
         auto& allocator = *static_cast<rapidjson::Document::AllocatorType*>(a_allocator);
 
-        val.AddMember(rapidjson::StringRef(name.data(), name.length()), value.Serialize(allocator), allocator);
+        val.AddMember(rapidjson::StringRef(_name.data(), _name.length()), value.Serialize(allocator), allocator);
     }
 
     void NiPoint3ConditionComponent::InitializeComponent(void* a_value)
@@ -986,7 +1013,7 @@ namespace Conditions
 
         const auto object = val.GetObj();
 
-        if (const auto valueIt = object.FindMember(rapidjson::StringRef(name.data(), name.length())); valueIt != object.MemberEnd() && valueIt->value.IsArray()) {
+        if (const auto valueIt = object.FindMember(rapidjson::StringRef(_name.data(), _name.length())); valueIt != object.MemberEnd() && valueIt->value.IsArray()) {
             value.Parse(valueIt->value);
         }
     }
@@ -996,7 +1023,7 @@ namespace Conditions
         auto& val = *static_cast<rapidjson::Value*>(a_value);
         auto& allocator = *static_cast<rapidjson::Document::AllocatorType*>(a_allocator);
 
-        val.AddMember(rapidjson::StringRef(name.data(), name.length()), value.Serialize(allocator), allocator);
+        val.AddMember(rapidjson::StringRef(_name.data(), _name.length()), value.Serialize(allocator), allocator);
     }
 
     void KeywordConditionComponent::InitializeComponent(void* a_value)
@@ -1005,7 +1032,7 @@ namespace Conditions
 
         const auto object = val.GetObj();
 
-        if (const auto keywordIt = object.FindMember(rapidjson::StringRef(name.data(), name.length())); keywordIt != object.MemberEnd() && keywordIt->value.IsObject()) {
+        if (const auto keywordIt = object.FindMember(rapidjson::StringRef(_name.data(), _name.length())); keywordIt != object.MemberEnd() && keywordIt->value.IsObject()) {
             keyword.Parse(keywordIt->value);
         }
     }
@@ -1015,7 +1042,7 @@ namespace Conditions
         auto& val = *static_cast<rapidjson::Value*>(a_value);
         auto& allocator = *static_cast<rapidjson::Document::AllocatorType*>(a_allocator);
 
-        val.AddMember(rapidjson::StringRef(name.data(), name.length()), keyword.Serialize(allocator), allocator);
+        val.AddMember(rapidjson::StringRef(_name.data(), _name.length()), keyword.Serialize(allocator), allocator);
     }
 
     void LocRefTypeConditionComponent::InitializeComponent(void* a_value)
@@ -1024,7 +1051,7 @@ namespace Conditions
 
         const auto object = val.GetObj();
 
-        if (const auto locRefTypeIt = object.FindMember(rapidjson::StringRef(name.data(), name.length())); locRefTypeIt != object.MemberEnd() && locRefTypeIt->value.IsObject()) {
+        if (const auto locRefTypeIt = object.FindMember(rapidjson::StringRef(_name.data(), _name.length())); locRefTypeIt != object.MemberEnd() && locRefTypeIt->value.IsObject()) {
             locRefType.Parse(locRefTypeIt->value);
         }
     }
@@ -1034,7 +1061,7 @@ namespace Conditions
         auto& val = *static_cast<rapidjson::Value*>(a_value);
         auto& allocator = *static_cast<rapidjson::Document::AllocatorType*>(a_allocator);
 
-        val.AddMember(rapidjson::StringRef(name.data(), name.length()), locRefType.Serialize(allocator), allocator);
+        val.AddMember(rapidjson::StringRef(_name.data(), _name.length()), locRefType.Serialize(allocator), allocator);
     }
 
     void TextConditionComponent::InitializeComponent(void* a_value)
@@ -1043,7 +1070,7 @@ namespace Conditions
 
         const auto object = val.GetObj();
 
-        if (const auto textIt = object.FindMember(rapidjson::StringRef(name.data(), name.length())); textIt != object.MemberEnd() && textIt->value.IsString()) {
+        if (const auto textIt = object.FindMember(rapidjson::StringRef(_name.data(), _name.length())); textIt != object.MemberEnd() && textIt->value.IsString()) {
             text.Parse(textIt->value);
         }
     }
@@ -1053,7 +1080,7 @@ namespace Conditions
         auto& val = *static_cast<rapidjson::Value*>(a_value);
         auto& allocator = *static_cast<rapidjson::Document::AllocatorType*>(a_allocator);
 
-        val.AddMember(rapidjson::StringRef(name.data(), name.length()), text.Serialize(allocator), allocator);
+        val.AddMember(rapidjson::StringRef(_name.data(), _name.length()), text.Serialize(allocator), allocator);
     }
 
     void BoolConditionComponent::InitializeComponent(void* a_value)
@@ -1062,7 +1089,7 @@ namespace Conditions
 
         const auto object = val.GetObj();
 
-        if (const auto boolIt = object.FindMember(rapidjson::StringRef(name.data(), name.length())); boolIt != object.MemberEnd() && boolIt->value.IsBool()) {
+        if (const auto boolIt = object.FindMember(rapidjson::StringRef(_name.data(), _name.length())); boolIt != object.MemberEnd() && boolIt->value.IsBool()) {
             bValue = boolIt->value.GetBool();
         }
     }
@@ -1072,7 +1099,7 @@ namespace Conditions
         auto& val = *static_cast<rapidjson::Value*>(a_value);
         auto& allocator = *static_cast<rapidjson::Document::AllocatorType*>(a_allocator);
 
-        val.AddMember(rapidjson::StringRef(name.data(), name.length()), bValue, allocator);
+        val.AddMember(rapidjson::StringRef(_name.data(), _name.length()), bValue, allocator);
     }
 
     bool BoolConditionComponent::DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent)
@@ -1097,7 +1124,7 @@ namespace Conditions
 
         const auto object = val.GetObj();
 
-        if (const auto comparisonIt = object.FindMember(rapidjson::StringRef(name.data(), name.length())); comparisonIt != object.MemberEnd() && comparisonIt->value.IsString()) {
+        if (const auto comparisonIt = object.FindMember(rapidjson::StringRef(_name.data(), _name.length())); comparisonIt != object.MemberEnd() && comparisonIt->value.IsString()) {
             const std::string comparisonString = comparisonIt->value.GetString();
             if (comparisonString == GetOperatorString(ComparisonOperator::kEqual)) {
                 comparisonOperator = ComparisonOperator::kEqual;
@@ -1120,7 +1147,7 @@ namespace Conditions
         auto& val = *static_cast<rapidjson::Value*>(a_value);
         auto& allocator = *static_cast<rapidjson::Document::AllocatorType*>(a_allocator);
 
-        val.AddMember(rapidjson::StringRef(name.data(), name.length()), rapidjson::StringRef(GetOperatorString(comparisonOperator).data(), GetOperatorString(comparisonOperator).length()), allocator);
+        val.AddMember(rapidjson::StringRef(_name.data(), _name.length()), rapidjson::StringRef(GetOperatorString(comparisonOperator).data(), GetOperatorString(comparisonOperator).length()), allocator);
     }
 
     bool ComparisonConditionComponent::DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent)
@@ -1188,7 +1215,7 @@ namespace Conditions
 
         const auto object = val.GetObj();
 
-        if (const auto randomIt = object.FindMember(rapidjson::StringRef(name.data(), name.length())); randomIt != object.MemberEnd() && randomIt->value.IsObject()) {
+        if (const auto randomIt = object.FindMember(rapidjson::StringRef(_name.data(), _name.length())); randomIt != object.MemberEnd() && randomIt->value.IsObject()) {
             const auto randomObj = randomIt->value.GetObject();
 
             if (const auto minIt = randomObj.FindMember("min"); minIt != randomObj.MemberEnd() && minIt->value.IsNumber()) {
@@ -1210,7 +1237,7 @@ namespace Conditions
         object.AddMember("min", minValue, allocator);
         object.AddMember("max", maxValue, allocator);
 
-        val.AddMember(rapidjson::StringRef(name.data(), name.length()), object, allocator);
+        val.AddMember(rapidjson::StringRef(_name.data(), _name.length()), object, allocator);
     }
 
     bool RandomConditionComponent::DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent)
@@ -1246,12 +1273,12 @@ namespace Conditions
 
     bool RandomConditionComponent::GetRandomFloat(RE::hkbClipGenerator* a_clipGenerator, float& a_outFloat) const
     {
-		if (const auto activeClip = OpenAnimationReplacer::GetSingleton().GetActiveClip(a_clipGenerator)) {
-			a_outFloat = activeClip->GetRandomFloat(this);
-			return true;
-		}
+        if (const auto activeClip = OpenAnimationReplacer::GetSingleton().GetActiveClip(a_clipGenerator)) {
+            a_outFloat = activeClip->GetRandomFloat(this);
+            return true;
+        }
 
-		a_outFloat = effolkronium::random_static::get<float>(minValue, maxValue);;
-		return false;
+        a_outFloat = effolkronium::random_static::get<float>(minValue, maxValue);
+        return false;
     }
 }

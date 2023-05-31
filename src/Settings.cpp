@@ -19,8 +19,13 @@ void Settings::ReadSettings()
             ReadUInt16Setting(ini, "General", "uAnimationLimit", uAnimationLimit);
             ReadUInt32Setting(ini, "General", "uHavokHeapSize", uHavokHeapSize);
             ReadBoolSetting(ini, "General", "bAsyncParsing", bAsyncParsing);
+            ReadBoolSetting(ini, "General", "bLoadDefaultBehaviorsInMainMenu", bLoadDefaultBehaviorsInMainMenu);
 
-            // UI
+            // Duplicate filtering
+            ReadBoolSetting(ini, "Filtering", "bFilterOutDuplicateAnimations", bFilterOutDuplicateAnimations);
+            ReadBoolSetting(ini, "Filtering", "bCacheAnimationFileHashes", bCacheAnimationFileHashes);
+
+            // UIo
             ReadBoolSetting(ini, "UI", "bEnableUI", bEnableUI);
             ReadBoolSetting(ini, "UI", "bShowWelcomeBanner", bShowWelcomeBanner);
             ReadUInt32Setting(ini, "UI", "uToggleUIKey", uToggleUIKeyData[0]);
@@ -42,9 +47,6 @@ void Settings::ReadSettings()
 
             // Experimental
             ReadBoolSetting(ini, "Experimental", "bDisablePreloading", bDisablePreloading);
-            ReadBoolSetting(ini, "Experimental", "bLoadDefaultBehaviorsInMainMenu", bLoadDefaultBehaviorsInMainMenu);
-            ReadBoolSetting(ini, "Experimental", "bFilterOutDuplicateAnimations", bFilterOutDuplicateAnimations);
-            ReadBoolSetting(ini, "Experimental", "bCacheAnimationFileHashes", bCacheAnimationFileHashes);
             ReadBoolSetting(ini, "Experimental", "bIncreaseAnimationLimit", bIncreaseAnimationLimit);
 
             return true;
@@ -76,6 +78,11 @@ void Settings::WriteSettings()
     ini.SetLongValue("General", "uAnimationLimit", uAnimationLimit);
     ini.SetLongValue("General", "uHavokHeapSize", uHavokHeapSize);
     ini.SetBoolValue("General", "bAsyncParsing", bAsyncParsing);
+    ini.SetBoolValue("General", "bLoadDefaultBehaviorsInMainMenu", bLoadDefaultBehaviorsInMainMenu);
+
+    // Duplicate filtering
+    ini.SetBoolValue("Filtering", "bFilterOutDuplicateAnimations", bFilterOutDuplicateAnimations);
+    ini.SetBoolValue("Filtering", "bCacheAnimationFileHashes", bCacheAnimationFileHashes);
 
     // UI
     ini.SetBoolValue("UI", "bEnableUI", bEnableUI);
@@ -99,9 +106,6 @@ void Settings::WriteSettings()
 
     // Experimental
     ini.SetBoolValue("Experimental", "bDisablePreloading", bDisablePreloading);
-    ini.SetBoolValue("Experimental", "bLoadDefaultBehaviorsInMainMenu", bLoadDefaultBehaviorsInMainMenu);
-    ini.SetBoolValue("Experimental", "bFilterOutDuplicateAnimations", bFilterOutDuplicateAnimations);
-    ini.SetBoolValue("Experimental", "bCacheAnimationFileHashes", bCacheAnimationFileHashes);
     ini.SetBoolValue("Experimental", "bIncreaseAnimationLimit", bIncreaseAnimationLimit);
 
     ini.SaveFile(iniPath.data());

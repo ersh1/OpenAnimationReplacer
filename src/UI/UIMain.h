@@ -35,6 +35,7 @@ namespace UI
         void DrawSettings(const ImVec2& a_pos);
         void DrawMissingPlugins();
         void DrawConflictingSubMods() const;
+        void DrawSubModsWithInvalidConditions() const;
         void DrawReplacerMods();
         void DrawReplacerMod(ReplacerMod* a_replacerMod, std::unordered_map<std::string, SubModNameFilterResult>& a_filterResults);
         void DrawSubMod(ReplacerMod* a_replacerMod, SubMod* a_subMod, bool a_bAddPathToName = false);

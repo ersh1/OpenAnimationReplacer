@@ -27,7 +27,7 @@ namespace Parsing
 
     ConditionsTxtFile::ConditionsTxtFile(const std::filesystem::path& a_fileName) :
         file(a_fileName),
-		filename(a_fileName.string())
+        filename(a_fileName.string())
     {
         if (!file.is_open()) {
             //util::report_and_fail("Error opening _conditions.txt file");
@@ -50,7 +50,7 @@ namespace Parsing
                     break;
                 }
                 //util::report_and_fail("Error reading from _conditions.txt file");
-				logger::error("Error reading from {} file", filename);
+                logger::error("Error reading from {} file", filename);
                 return std::move(conditions);
             }
 
@@ -59,8 +59,8 @@ namespace Parsing
                 const bool bEndsWithOR = a_currentLine.ends_with("OR"sv);
                 if (bEndsWithOR && !a_bInOrBlock) {
                     // start an OR block - create an OR condition and add all conditions to it until we reach AND
-					auto orCondition = OpenAnimationReplacer::GetSingleton().CreateCondition("OR");
-					static_cast<Conditions::ORCondition*>(orCondition.get())->conditionsComponent->conditionSet = GetConditions(a_currentLine, true);
+                    auto orCondition = OpenAnimationReplacer::GetSingleton().CreateCondition("OR");
+                    static_cast<Conditions::ORCondition*>(orCondition.get())->conditionsComponent->conditionSet = GetConditions(a_currentLine, true);
                     conditions->AddCondition(orCondition);
                 } else {
                     // create and add a new condition
@@ -131,7 +131,7 @@ namespace Parsing
         return false;
     }
 
-    bool DeserializeSubMod(std::filesystem::path a_jsonPath, SubModParseResult& a_outParseResult)
+    bool DeserializeSubMod(std::filesystem::path a_jsonPath, DeserializeMode a_deserializeMode, SubModParseResult& a_outParseResult)
     {
         mmio::mapped_file_source file;
         if (file.open(a_jsonPath)) {
@@ -145,17 +145,24 @@ namespace Parsing
                 return false;
             }
 
-            // read submod name (required)
-            if (auto nameIt = doc.FindMember("name"); nameIt != doc.MemberEnd() && nameIt->value.IsString()) {
-                a_outParseResult.name = nameIt->value.GetString();
-            } else {
-                logger::error("Failed to find mod name in file: {}", a_jsonPath.string());
-                return false;
+            if (a_deserializeMode != DeserializeMode::kWithoutNameDescription) {
+                // read submod name (required)
+                if (auto nameIt = doc.FindMember("name"); nameIt != doc.MemberEnd() && nameIt->value.IsString()) {
+                    a_outParseResult.name = nameIt->value.GetString();
+                } else {
+                    logger::error("Failed to find mod name in file: {}", a_jsonPath.string());
+                    return false;
+                }
+
+                // read submod description (optional)
+                if (auto descriptionIt = doc.FindMember("description"); descriptionIt != doc.MemberEnd() && descriptionIt->value.IsString()) {
+                    a_outParseResult.description = descriptionIt->value.GetString();
+                }
             }
 
-            // read submod description (optional)
-            if (auto descriptionIt = doc.FindMember("description"); descriptionIt != doc.MemberEnd() && descriptionIt->value.IsString()) {
-                a_outParseResult.description = descriptionIt->value.GetString();
+            if (a_deserializeMode == DeserializeMode::kNameDescriptionOnly) {
+                // we're only here to get the name and description, so we're done
+                return true;
             }
 
             // read submod priority (required)
@@ -211,9 +218,8 @@ namespace Parsing
             // read conditions
             if (auto conditionsIt = doc.FindMember("conditions"); conditionsIt != doc.MemberEnd() && conditionsIt->value.IsArray()) {
                 for (auto& conditionValue : conditionsIt->value.GetArray()) {
-                    if (auto condition = Conditions::CreateConditionFromJson(conditionValue)) {
-                        a_outParseResult.conditionSet->AddCondition(condition);
-                    } else {
+                    auto condition = Conditions::CreateConditionFromJson(conditionValue);
+                    if (!condition->IsValid()) {
                         logger::error("Failed to parse condition in file: {}", a_jsonPath.string());
 
                         rapidjson::StringBuffer buffer;
@@ -221,9 +227,9 @@ namespace Parsing
                         doc.Accept(writer);
 
                         logger::error("Dumping entire json file from memory: {}", buffer.GetString());
-
-                        return false;
                     }
+
+                    a_outParseResult.conditionSet->AddCondition(condition);
                 }
             }
 
@@ -327,7 +333,7 @@ namespace Parsing
     uint16_t GetOriginalAnimationBindingIndex(RE::hkbCharacterStringData* a_stringData, std::string_view a_animationName)
     {
         if (a_stringData) {
-			auto& animationBundleNames = a_stringData->animationNames;
+            auto& animationBundleNames = a_stringData->animationNames;
             if (!animationBundleNames.empty()) {
                 for (uint16_t id = 0; id < animationBundleNames.size(); ++id) {
                     if (Utils::CompareStringsIgnoreCase(animationBundleNames[id].data(), a_animationName)) {
@@ -356,7 +362,7 @@ namespace Parsing
                     for (const auto& entry : std::filesystem::directory_iterator(a_directory)) {
                         if (is_directory(entry)) {
                             // we're in a mod subfolder. we have the animations here and a json.
-                            futures.emplace_back(std::async(std::launch::async, ParseModSubdirectory, entry, a_stringData));
+                            futures.emplace_back(std::async(std::launch::async, ParseModSubdirectory, entry, a_stringData, false));
                         }
                     }
 
@@ -374,7 +380,7 @@ namespace Parsing
                             // we're in a mod subfolder. we have the animations here and a json.
                             auto subModParseResult = ParseModSubdirectory(entry, a_stringData);
                             if (subModParseResult.bSuccess) {
-								result.subModParseResults.emplace_back(std::move(subModParseResult));
+                                result.subModParseResults.emplace_back(std::move(subModParseResult));
                             }
                         }
                     }
@@ -385,47 +391,66 @@ namespace Parsing
         return result;
     }
 
-    SubModParseResult ParseModSubdirectory(const std::filesystem::directory_entry& a_subDirectory, RE::hkbCharacterStringData* a_stringData)
+    SubModParseResult ParseModSubdirectory(const std::filesystem::directory_entry& a_subDirectory, RE::hkbCharacterStringData* a_stringData, bool a_bUserOnly/* = false*/)
     {
         SubModParseResult result;
 
-        // check whether the user json file exists first
-        auto jsonPath = a_subDirectory.path() / "user.json"sv;
-        if (is_regular_file(jsonPath)) {
-            // check whether there's any other file there (except for the user.json file), so we know it's not just a remnant of an uninstalled mod
-            // not perfect but eh, haven't got a better idea
-            const auto fileCount = std::distance(std::filesystem::directory_iterator(a_subDirectory), std::filesystem::directory_iterator{});
-            if (fileCount <= 1) {
-                result.bSuccess = false;
+        bool bDeserializeSuccess = false;
+
+        if (a_bUserOnly) {
+            const auto userJsonPath = a_subDirectory.path() / "user.json"sv;
+            if (is_regular_file(userJsonPath)) {
+                result.configSource = ConfigSource::kUser;
+
+                // parse json
+                bDeserializeSuccess = DeserializeSubMod(userJsonPath, DeserializeMode::kWithoutNameDescription, result);
+            } else {
                 return result;
             }
-
-            result.configSource = ConfigSource::kUser;
         } else {
-            // try the config.json file instead
-            jsonPath = a_subDirectory.path() / "config.json"sv;
-            result.configSource = ConfigSource::kAuthor;
+            // check whether the config json file exists first
+            const auto configJsonPath = a_subDirectory.path() / "config.json"sv;
+            if (is_regular_file(configJsonPath)) {
+                result.configSource = ConfigSource::kAuthor;
+
+                // check whether user json exists
+                const auto userJsonPath = a_subDirectory.path() / "user.json"sv;
+                if (is_regular_file(userJsonPath)) {
+                    result.configSource = ConfigSource::kUser;
+
+                    // read name and description from the author json
+                    if (!DeserializeSubMod(configJsonPath, DeserializeMode::kNameDescriptionOnly, result)) {
+                        return result;
+                    }
+                }
+
+                // parse json
+                if (result.configSource == ConfigSource::kUser) {
+                    bDeserializeSuccess = DeserializeSubMod(userJsonPath, DeserializeMode::kWithoutNameDescription, result);
+                } else {
+                    bDeserializeSuccess = DeserializeSubMod(configJsonPath, DeserializeMode::kFull, result);
+                }
+            } else {
+                return result;
+            }
         }
 
-        if (is_regular_file(jsonPath)) {
-            // parse the config json file
-            if (DeserializeSubMod(jsonPath, result)) {
-                // check required project name
-                if (result.requiredProjectName.empty() || result.requiredProjectName == a_stringData->name.data()) {
-                    if (!result.overrideAnimationsFolder.empty()) {
-                        const auto overridePath = a_subDirectory.path().parent_path() / result.overrideAnimationsFolder;
-                        const auto overrideDirectory = std::filesystem::directory_entry(overridePath);
-                        if (is_directory(overrideDirectory)) {
-                            result.animationsToAdd = ParseAnimationsInDirectory(overrideDirectory, a_stringData);
-                        } else {
-                            result.bSuccess = false;
-                        }
+        if (bDeserializeSuccess) {
+            // check required project name
+            if (result.requiredProjectName.empty() || result.requiredProjectName == a_stringData->name.data()) {
+                if (!result.overrideAnimationsFolder.empty()) {
+                    const auto overridePath = a_subDirectory.path().parent_path() / result.overrideAnimationsFolder;
+                    const auto overrideDirectory = std::filesystem::directory_entry(overridePath);
+                    if (is_directory(overrideDirectory)) {
+                        result.animationsToAdd = ParseAnimationsInDirectory(overrideDirectory, a_stringData);
                     } else {
-                        result.animationsToAdd = ParseAnimationsInDirectory(a_subDirectory, a_stringData);
+                        result.bSuccess = false;
                     }
                 } else {
-                    result.bSuccess = false;
+                    result.animationsToAdd = ParseAnimationsInDirectory(a_subDirectory, a_stringData);
                 }
+            } else {
+                result.bSuccess = false;
             }
         }
 
@@ -442,7 +467,9 @@ namespace Parsing
             // check whether the user json file exists, if yes, treat it as a OAR submod
             const auto jsonPath = a_directory.path() / "user.json"sv;
             if (is_regular_file(jsonPath)) {
-                return ParseModSubdirectory(a_directory, a_stringData);
+                result = ParseModSubdirectory(a_directory, a_stringData, true);
+                result.name = std::to_string(result.priority);
+                return result;
             }
         }
 
@@ -466,7 +493,7 @@ namespace Parsing
                 result.configSource = ConfigSource::kLegacy;
                 result.name = std::to_string(priority);
                 result.priority = priority;
-				result.conditionSet = ParseConditionsTxt(txtPath); // parse conditions.txt
+                result.conditionSet = ParseConditionsTxt(txtPath); // parse conditions.txt
                 result.animationsToAdd = ParseAnimationsInDirectory(a_directory, a_stringData);
                 result.bSuccess = true;
             } else {
@@ -499,7 +526,18 @@ namespace Parsing
                 // check whether the user json file exists, if yes, treat it as a OAR submod
                 auto jsonPath = subEntry.path() / "user.json"sv;
                 if (is_regular_file(jsonPath)) {
-                    results.emplace_back(ParseModSubdirectory(subEntry, a_stringData));
+                    auto result = ParseModSubdirectory(subEntry, a_stringData, true);
+
+                    const std::string fileString = a_directory.path().stem().string();
+                    const std::string extensionString = a_directory.path().extension().string();
+
+                    const std::string modName = fileString + extensionString;
+                    const std::string formIDString = subEntry.path().filename().string();
+                    result.name = modName;
+                    result.name += '|';
+                    result.name += formIDString;
+
+                    results.emplace_back(std::move(result));
                     continue;
                 }
 
@@ -529,11 +567,11 @@ namespace Parsing
                     std::string modName = fileString + extensionString;
                     if (auto form = Utils::LookupForm(formID, modName)) {
                         auto conditionSet = std::make_unique<Conditions::ConditionSet>();
-						std::string argument = modName;
-						argument += '|';
-						argument += directoryName;
-						auto condition = OpenAnimationReplacer::GetSingleton().CreateCondition("IsActorBase");
-						static_cast<Conditions::IsActorBaseCondition*>(condition.get())->formComponent->SetTESFormValue(form);
+                        std::string argument = modName;
+                        argument += '|';
+                        argument += directoryName;
+                        auto condition = OpenAnimationReplacer::GetSingleton().CreateCondition("IsActorBase");
+                        static_cast<Conditions::IsActorBaseCondition*>(condition.get())->formComponent->SetTESFormValue(form);
                         conditionSet->AddCondition(condition);
 
                         SubModParseResult result;

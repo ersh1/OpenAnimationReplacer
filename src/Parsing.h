@@ -40,6 +40,13 @@ namespace Parsing
         kLegacyActorBase
     };
 
+    enum class DeserializeMode : uint8_t
+    {
+        kFull = 0,
+        kNameDescriptionOnly,
+        kWithoutNameDescription
+    };
+
     struct ReplacementAnimationToAdd
     {
         ReplacementAnimationToAdd(std::string_view a_fullPath, std::string_view a_animationPath, uint16_t a_originalBindingIndex);
@@ -60,7 +67,7 @@ namespace Parsing
         std::unique_ptr<Conditions::ConditionSet> GetConditions(std::string& a_currentLine, bool a_bInOrBlock = false);
 
         std::ifstream file;
-		std::string filename;
+        std::string filename;
     };
 
     struct SubModParseResult
@@ -103,7 +110,7 @@ namespace Parsing
 
     [[nodiscard]] std::unique_ptr<Conditions::ConditionSet> ParseConditionsTxt(const std::filesystem::path& a_txtPath);
     [[nodiscard]] bool DeserializeMod(const std::filesystem::path& a_jsonPath, ModParseResult& a_outParseResult);
-    [[nodiscard]] bool DeserializeSubMod(std::filesystem::path a_jsonPath, SubModParseResult& a_outParseResult);
+    [[nodiscard]] bool DeserializeSubMod(std::filesystem::path a_jsonPath, DeserializeMode a_deserializeMode, SubModParseResult& a_outParseResult);
     bool SerializeJson(std::filesystem::path a_jsonPath, const rapidjson::Document& a_doc);
     [[nodiscard]] std::string SerializeJsonToString(const rapidjson::Document& a_doc);
 
@@ -114,7 +121,7 @@ namespace Parsing
     [[nodiscard]] uint16_t GetOriginalAnimationBindingIndex(RE::hkbCharacterStringData* a_stringData, std::string_view a_animationName);
 
     [[nodiscard]] ModParseResult ParseModDirectory(const std::filesystem::directory_entry& a_directory, RE::hkbCharacterStringData* a_stringData);
-    [[nodiscard]] SubModParseResult ParseModSubdirectory(const std::filesystem::directory_entry& a_subDirectory, RE::hkbCharacterStringData* a_stringData);
+    [[nodiscard]] SubModParseResult ParseModSubdirectory(const std::filesystem::directory_entry& a_subDirectory, RE::hkbCharacterStringData* a_stringData, bool a_bUserOnly = false);
     [[nodiscard]] SubModParseResult ParseLegacyCustomConditionsDirectory(const std::filesystem::directory_entry& a_directory, RE::hkbCharacterStringData* a_stringData);
     [[nodiscard]] std::vector<SubModParseResult> ParseLegacyPluginDirectory(const std::filesystem::directory_entry& a_directory, RE::hkbCharacterStringData* a_stringData);
     [[nodiscard]] std::optional<ReplacementAnimationToAdd> ParseReplacementAnimationEntry(RE::hkbCharacterStringData* a_stringData, std::string_view a_animationPath);

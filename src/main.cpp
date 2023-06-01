@@ -64,7 +64,7 @@ namespace
         log->flush_on(level);
 
 		spdlog::set_default_logger(std::move(log));
-        spdlog::set_pattern("%g(%#): [%^%l%$] %v"s);
+        spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] [%t] [%s:%#] %v"s);
     }
 }
 

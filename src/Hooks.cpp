@@ -476,9 +476,9 @@ namespace Hooks
             REL::safe_write<uint8_t>(funcB.address() + 0xAB, patchMovzx); // movsx -> movzx
 
             // FuncC
-            REL::safe_write<uint8_t>(funcC.address() + 0x125, patchMovzx); // movsx -> movzx
-            REL::safe_write<uint8_t>(funcC.address() + 0x135, patchMovzx); // movsx -> movzx
-        }
+			REL::safe_write<uint8_t>(funcC.address() + REL::VariantOffset(0x125, 0x125, 0x13b).offset(), patchMovzx);  // movsx -> movzx
+			REL::safe_write<uint8_t>(funcC.address() + REL::VariantOffset(0x135, 0x135, 0x14a).offset(), patchMovzx);  // movsx -> movzx
+		}
     }
 
     void UIHooks::InputFunc(RE::BSTEventSource<RE::InputEvent*>* a_dispatcher, RE::InputEvent* const* a_events)

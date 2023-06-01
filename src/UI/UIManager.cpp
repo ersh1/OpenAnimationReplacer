@@ -21,9 +21,9 @@ namespace UI
 
         const auto renderManager = RE::BSGraphics::Renderer::GetSingleton();
 
-		const auto device = renderManager->data.forwarder;
-		const auto context = renderManager->data.context;
-		const auto swapChain = renderManager->data.renderWindows[0].swapChain;
+		const auto device = renderManager->GetRuntimeData().forwarder;
+		const auto context = renderManager->GetRuntimeData().context;
+		const auto swapChain = renderManager->GetRuntimeData().renderWindows[0].swapChain;
 
         DXGI_SWAP_CHAIN_DESC sd{};
         swapChain->GetDesc(&sd);

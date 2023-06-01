@@ -23,13 +23,13 @@ void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
         }
         break;
     case SKSE::MessagingInterface::kPostPostLoad:
-        /*MergeMapperPluginAPI::GetMergeMapperInterface001();
+        MergeMapperPluginAPI::GetMergeMapperInterface001();
         if (g_mergeMapperInterface) {
             const auto version = g_mergeMapperInterface->GetBuildNumber();
             logger::info("Got MergeMapper interface buildnumber {}", version);
         } else {
             logger::info("MergeMapper not detected");
-        }*/
+        }
         if (!OpenAnimationReplacer::GetSingleton().AreFactoriesInitialized()) {
             OpenAnimationReplacer::GetSingleton().InitFactories();
         }

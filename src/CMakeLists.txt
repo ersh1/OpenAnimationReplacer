@@ -130,7 +130,51 @@ target_include_directories(
 
 set(SKSE_SUPPORT_XBYAK ON)
 
-add_subdirectory("$ENV{CommonLibSSEPath_NG}" CommonLibSSE EXCLUDE_FROM_ALL)
+# dependency macros
+macro(find_dependency_path DEPENDENCY FILE)
+	# searches extern for dependencies and if not checks the environment variable
+	if(NOT ${DEPENDENCY} STREQUAL "")
+		# Check extern
+		message(
+			STATUS
+			"Searching for ${DEPENDENCY} using file ${FILE}"
+		)
+		find_path("${DEPENDENCY}Path"
+			${FILE}
+			PATHS
+			"../extern/${DEPENDENCY}"
+			"extern/${DEPENDENCY}"
+			"../external/${DEPENDENCY}"
+			"external/${DEPENDENCY}")
+
+		if("${${DEPENDENCY}Path}" STREQUAL "${DEPENDENCY}Path-NOTFOUND")
+			# Check path
+			message(
+				STATUS
+				"Getting environment variable for ${DEPENDENCY}Path: $ENV{${DEPENDENCY}Path}"
+			)
+			set("${DEPENDENCY}Path" "$ENV{${DEPENDENCY}Path}")
+		endif()
+
+		message(
+			STATUS
+			"Found ${DEPENDENCY} in ${${DEPENDENCY}Path}; adding"
+		)
+		add_subdirectory("${${DEPENDENCY}Path}" ${DEPENDENCY})
+	endif()
+endmacro()
+
+# dependencies
+find_dependency_path(CommonLibSSE include/REL/Relocation.h)
+
+if(("${CommonLibSSEPath}" STREQUAL "CommonLibSSEPath-NOTFOUND") OR "${CommonLibSSEPath}" STREQUAL "")
+	# fallback to CommonLibSSEPath_NG from environment
+	message(
+		STATUS
+		"Found CommonLibSSE from CommonLibSSEPath_NG environment variable"
+	)
+	add_subdirectory("$ENV{CommonLibSSEPath_NG}" CommonLibSSE EXCLUDE_FROM_ALL)
+endif()
 
 find_package(binary_io REQUIRED CONFIG)
 find_package(CryptoPP REQUIRED CONFIG)

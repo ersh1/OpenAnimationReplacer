@@ -15,14 +15,23 @@ namespace Conditions
     class InvalidCondition : public ConditionBase
     {
     public:
+        InvalidCondition() = default;
+
+        InvalidCondition(std::string_view a_argument)
+        {
+            _argument = a_argument;
+        }
+
+        [[nodiscard]] RE::BSString GetArgument() const override { return _argument.data(); }
         [[nodiscard]] RE::BSString GetName() const override { return "! INVALID !"sv.data(); }
-        [[nodiscard]] RE::BSString GetDescription() const override { return "The condition failed to load!"sv.data(); }
+        [[nodiscard]] RE::BSString GetDescription() const override { return _argument.data(); }
         [[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 0, 0, 0 }; }
 
         [[nodiscard]] bool IsValid() const override { return false; }
 
     protected:
         bool EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const override { return false; }
+        std::string _argument;
     };
 
     class ORCondition : public ConditionBase

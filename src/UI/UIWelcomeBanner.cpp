@@ -46,7 +46,7 @@ namespace UI
 
             ImGui::TextUnformatted(textA.data());
             ImGui::SameLine();
-            ImGui::TextColored(UICommon::KEY_TEXT_COLOR, keyNameText.data());
+            UICommon::TextUnformattedColored(UICommon::KEY_TEXT_COLOR, keyNameText.data());
             ImGui::SameLine();
             ImGui::TextUnformatted(textB.data());
         }

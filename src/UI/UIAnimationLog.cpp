@@ -27,7 +27,7 @@ namespace UI
                         ImGui::EndTable();
                     }
                 } else {
-                    ImGui::TextDisabled("No animation log entries");
+                    UICommon::TextUnformattedDisabled("No animation log entries");
                 }
             } else {
                 ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyle().Colors[ImGuiCol_TextDisabled]);
@@ -66,65 +66,65 @@ namespace UI
 
         switch (a_logEntry.event) {
         case Event::kActivate:
-            ImGui::TextColored(UICommon::LOG_ACTIVATED_COLOR, "Activate");
+            UICommon::TextUnformattedColored(UICommon::LOG_ACTIVATED_COLOR, "Activate");
             break;
         case Event::kEcho:
-            ImGui::TextColored(UICommon::LOG_ECHO_COLOR, "Echo");
+            UICommon::TextUnformattedColored(UICommon::LOG_ECHO_COLOR, "Echo");
             break;
         case Event::kLoop:
-            ImGui::TextColored(UICommon::LOG_LOOP_COLOR, "Loop");
+            UICommon::TextUnformattedColored(UICommon::LOG_LOOP_COLOR, "Loop");
             break;
         case Event::kActivateReplace:
-            ImGui::TextColored(UICommon::LOG_ACTIVATED_COLOR, "Activate");
+            UICommon::TextUnformattedColored(UICommon::LOG_ACTIVATED_COLOR, "Activate");
             ImGui::SameLine();
-            ImGui::TextColored(UICommon::LOG_REPLACED_COLOR, "[Replaced]");
+            UICommon::TextUnformattedColored(UICommon::LOG_REPLACED_COLOR, "[Replaced]");
             break;
         case Event::kEchoReplace:
-            ImGui::TextColored(UICommon::LOG_ECHO_COLOR, "Echo");
+            UICommon::TextUnformattedColored(UICommon::LOG_ECHO_COLOR, "Echo");
             ImGui::SameLine();
-            ImGui::TextColored(UICommon::LOG_REPLACED_COLOR, "[Replaced]");
+            UICommon::TextUnformattedColored(UICommon::LOG_REPLACED_COLOR, "[Replaced]");
             break;
         case Event::kLoopReplace:
-            ImGui::TextColored(UICommon::LOG_LOOP_COLOR, "Loop");
+            UICommon::TextUnformattedColored(UICommon::LOG_LOOP_COLOR, "Loop");
             ImGui::SameLine();
-            ImGui::TextColored(UICommon::LOG_REPLACED_COLOR, "[Replaced]");
+            UICommon::TextUnformattedColored(UICommon::LOG_REPLACED_COLOR, "[Replaced]");
             break;
         case Event::kInterrupt:
-            ImGui::TextColored(UICommon::LOG_INTERRUPTED_COLOR, "Interrupted");
+            UICommon::TextUnformattedColored(UICommon::LOG_INTERRUPTED_COLOR, "Interrupted");
             break;
         }
 
         if (a_logEntry.event != Event::kInterrupt && a_logEntry.bInterruptible) {
             ImGui::SameLine();
-            ImGui::TextColored(UICommon::LOG_INTERRUPTED_COLOR, "(Interruptible)");
+            UICommon::TextUnformattedColored(UICommon::LOG_INTERRUPTED_COLOR, "(Interruptible)");
         }
 
         const std::string projectText = std::format("Project: {} ", a_logEntry.projectName);
         ImGui::SameLine(ImGui::GetContentRegionMax().x - ImGui::CalcTextSize(projectText.data()).x);
-        ImGui::TextDisabled(projectText.data());
+        UICommon::TextUnformattedDisabled(projectText.data());
 
-        ImGui::TextDisabled("Name:");
+        UICommon::TextUnformattedDisabled("Name:");
         ImGui::SameLine();
         ImGui::TextUnformatted(a_logEntry.animationName.data());
 
         const std::string clipText = std::format("Clip: {} ", a_logEntry.clipName);
         ImGui::SameLine(ImGui::GetContentRegionMax().x - ImGui::CalcTextSize(clipText.data()).x);
-        ImGui::TextDisabled(clipText.data());
+        UICommon::TextUnformattedDisabled(clipText.data());
 
         if (a_logEntry.bOriginal) {
-            ImGui::TextDisabled("Original animation");
+            UICommon::TextUnformattedDisabled("Original animation");
         } else {
-            ImGui::TextDisabled("Mod:");
+            UICommon::TextUnformattedDisabled("Mod:");
             ImGui::SameLine();
             ImGui::TextUnformatted(a_logEntry.modName.data());
             ImGui::SameLine();
-            ImGui::TextDisabled("Submod:");
+            UICommon::TextUnformattedDisabled("Submod:");
             ImGui::SameLine();
-			ImGui::TextUnformatted(a_logEntry.subModName.data());
+            ImGui::TextUnformatted(a_logEntry.subModName.data());
             //ImGui::Text(std::format("{} / {}", a_logEntry.modName, a_logEntry.subModName).data());
         }
-        ImGui::TextDisabled("Path:");
+        UICommon::TextUnformattedDisabled("Path:");
         ImGui::SameLine();
-		ImGui::TextUnformatted(a_logEntry.animPath.data());
+        ImGui::TextUnformatted(a_logEntry.animPath.data());
     }
 }

@@ -72,14 +72,15 @@ namespace Conditions
             return std::move(condition);
         }
 
-        return std::make_unique<InvalidCondition>();
+        auto errorStr = std::format("Invalid line: \"{}\"", a_line);
+        return std::make_unique<InvalidCondition>(errorStr);
     }
 
     std::unique_ptr<ICondition> CreateConditionFromJson(rapidjson::Value& a_value)
     {
         if (!a_value.IsObject()) {
             logger::error("Missing condition value!");
-            return std::make_unique<InvalidCondition>();
+            return std::make_unique<InvalidCondition>("Missing condition value");
         }
 
         const auto object = a_value.GetObj();
@@ -103,15 +104,17 @@ namespace Conditions
                 // check if required plugin is loaded and is the required version or higher
                 if (!OpenAnimationReplacer::GetSingleton().IsPluginLoaded(requiredPluginName, requiredVersion)) {
                     DetectedProblems::GetSingleton().AddMissingPluginName(requiredPluginName, requiredVersion);
-                    logger::error("Missing required plugin {} version {}!", requiredPluginName, requiredVersion);
-                    return std::make_unique<InvalidCondition>();
+                    auto errorStr = std::format("Missing required plugin {} version {}!", requiredPluginName, requiredVersion);
+                    logger::error("{}", errorStr);
+                    return std::make_unique<InvalidCondition>(errorStr);
                 }
             } else {
                 // no required plugin, compare required version with OAR conditions version
                 if (requiredVersion > Plugin::VERSION) {
                     DetectedProblems::GetSingleton().MarkOutdatedVersion();
-                    logger::error("Condition {} requires a newer version of OAR! ({})", conditionName, requiredVersion);
-                    return std::make_unique<InvalidCondition>();
+                    auto errorStr = std::format("Condition {} requires a newer version of OAR! ({})", conditionName, requiredVersion);
+                    logger::error("{}", errorStr);
+                    return std::make_unique<InvalidCondition>(errorStr);
                 }
             }
 
@@ -123,16 +126,19 @@ namespace Conditions
             }
             if (bHasRequiredPlugin) {
                 DetectedProblems::GetSingleton().AddMissingPluginName(requiredPluginName, requiredVersion);
-                logger::error("Condition {} not found in plugin {}!", conditionName, requiredPluginName);
-                return std::make_unique<InvalidCondition>();
+                auto errorStr = std::format("Condition {} not found in plugin {}!", conditionName, requiredPluginName);
+                logger::error("{}", errorStr);
+                return std::make_unique<InvalidCondition>(errorStr);
             }
 
-            logger::error("Condition {} not found!", conditionName);
-        } else {
-            logger::error("Condition name not found!");
+            auto errorStr = std::format("Condition {} not found!", conditionName);
+            logger::error("{}", errorStr);
+            return std::make_unique<InvalidCondition>(errorStr);
         }
 
-        return std::make_unique<InvalidCondition>();
+        auto errorStr = "Condition name not found!";
+        logger::error("{}", errorStr);;
+        return std::make_unique<InvalidCondition>(errorStr);
     }
 
     std::unique_ptr<ICondition> CreateCondition(std::string_view a_conditionName)
@@ -143,7 +149,7 @@ namespace Conditions
             return std::move(condition);
         }
 
-        return std::make_unique<InvalidCondition>();
+        return std::make_unique<InvalidCondition>(a_conditionName);
     }
 
     std::unique_ptr<ICondition> DuplicateCondition(const std::unique_ptr<ICondition>& a_conditionToDuplicate)

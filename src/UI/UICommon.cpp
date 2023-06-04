@@ -8,10 +8,24 @@
 
 namespace UI::UICommon
 {
+    void TextUnformattedColored(const ImVec4& a_col, const char* a_text, const char* a_textEnd)
+    {
+        ImGui::PushStyleColor(ImGuiCol_Text, a_col);
+        ImGui::TextUnformatted(a_text, a_textEnd);
+        ImGui::PopStyleColor();
+    }
+
+    void TextUnformattedDisabled(const char* a_text, const char* a_textEnd)
+    {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+        ImGui::TextUnformatted(a_text, a_textEnd);
+        ImGui::PopStyleColor();
+    }
+
     void DrawConditionEvaluateResult(ConditionEvaluateResult a_result)
     {
         ImGui::SameLine();
-		ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x - 15.f);
+        ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x - 15.f);
         ImVec2 indicatorCenter = ImGui::GetCursorScreenPos();
         const float offset = ImGui::GetTextLineHeightWithSpacing() * 0.25f;
         indicatorCenter.y += offset * 2;

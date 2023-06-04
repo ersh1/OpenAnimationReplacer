@@ -349,10 +349,12 @@ void OpenAnimationReplacer::CreateReplacementAnimations(const char* a_path, RE::
                 }
             }
 
-            auto& animationFileHashCache = AnimationFileHashCache::GetSingleton();
-            if (animationFileHashCache.IsDirty()) {
-                animationFileHashCache.WriteCacheToDisk();
-            }
+            /*if (Settings::bCacheAnimationFileHashes) {
+                auto& animationFileHashCache = AnimationFileHashCache::GetSingleton();
+                if (animationFileHashCache.IsDirty()) {
+                    animationFileHashCache.WriteCacheToDisk();
+                }
+            }*/
         }
     }
 }

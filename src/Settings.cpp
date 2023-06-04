@@ -2,9 +2,9 @@
 
 void Settings::Initialize()
 {
-    uToggleUIKeyData[0] = 0xD2;
+    uToggleUIKeyData[0] = 0x18;
     uToggleUIKeyData[1] = false;
-    uToggleUIKeyData[2] = false;
+    uToggleUIKeyData[2] = true;
     uToggleUIKeyData[3] = false;
 }
 
@@ -23,9 +23,9 @@ void Settings::ReadSettings()
 
             // Duplicate filtering
             ReadBoolSetting(ini, "Filtering", "bFilterOutDuplicateAnimations", bFilterOutDuplicateAnimations);
-            ReadBoolSetting(ini, "Filtering", "bCacheAnimationFileHashes", bCacheAnimationFileHashes);
+            //ReadBoolSetting(ini, "Filtering", "bCacheAnimationFileHashes", bCacheAnimationFileHashes);
 
-            // UIo
+            // UI
             ReadBoolSetting(ini, "UI", "bEnableUI", bEnableUI);
             ReadBoolSetting(ini, "UI", "bShowWelcomeBanner", bShowWelcomeBanner);
             ReadUInt32Setting(ini, "UI", "uToggleUIKey", uToggleUIKeyData[0]);
@@ -44,6 +44,9 @@ void Settings::ReadSettings()
             ReadUInt32Setting(ini, "UI", "uAnimationLoopLogMode", uAnimationLoopLogMode);
             ReadBoolSetting(ini, "UI", "bAnimationLogOnlyActiveGraph", bAnimationLogOnlyActiveGraph);
             ReadBoolSetting(ini, "UI", "bAnimationLogWriteToTextLog", bAnimationLogWriteToTextLog);
+
+            // Workarounds
+            ReadBoolSetting(ini, "Workarounds", "bLegacyKeepRandomResultsByDefault", bLegacyKeepRandomResultsByDefault);
 
             // Experimental
             ReadBoolSetting(ini, "Experimental", "bDisablePreloading", bDisablePreloading);
@@ -82,7 +85,7 @@ void Settings::WriteSettings()
 
     // Duplicate filtering
     ini.SetBoolValue("Filtering", "bFilterOutDuplicateAnimations", bFilterOutDuplicateAnimations);
-    ini.SetBoolValue("Filtering", "bCacheAnimationFileHashes", bCacheAnimationFileHashes);
+    //ini.SetBoolValue("Filtering", "bCacheAnimationFileHashes", bCacheAnimationFileHashes);
 
     // UI
     ini.SetBoolValue("UI", "bEnableUI", bEnableUI);
@@ -103,6 +106,9 @@ void Settings::WriteSettings()
     ini.SetLongValue("UI", "uAnimationLoopLogMode", uAnimationLoopLogMode);
     ini.SetBoolValue("UI", "bAnimationLogOnlyActiveGraph", bAnimationLogOnlyActiveGraph);
     ini.SetBoolValue("UI", "bAnimationLogWriteToTextLog", bAnimationLogWriteToTextLog);
+
+    // Workarounds
+    ini.SetBoolValue("UI", "bLegacyKeepRandomResultsByDefault", bLegacyKeepRandomResultsByDefault);
 
     // Experimental
     ini.SetBoolValue("Experimental", "bDisablePreloading", bDisablePreloading);

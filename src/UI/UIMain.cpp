@@ -317,7 +317,7 @@ namespace UI
             ImGui::SameLine();
             UICommon::HelpMarker("Enable to check for duplicates before adding an animation. Only one copy of an animation binding will be used in multiple replacer animations. This might massively cut down on the number of loaded animations as replacer mods tend to use multiple copies of the same animation with different condition.");
 
-            ImGui::BeginDisabled(!Settings::bFilterOutDuplicateAnimations);
+            /*ImGui::BeginDisabled(!Settings::bFilterOutDuplicateAnimations);
             if (ImGui::Checkbox("Cache animation file hashes", &Settings::bCacheAnimationFileHashes)) {
                 Settings::WriteSettings();
             }
@@ -328,7 +328,7 @@ namespace UI
                 AnimationFileHashCache::GetSingleton().DeleteCache();
             }
             UICommon::AddTooltip("Delete the animation file hash cache. This will cause the hashes to be recalculated on the next game launch.");
-            ImGui::EndDisabled();
+            ImGui::EndDisabled();*/
 
             ImGui::Spacing();
             ImGui::Separator();
@@ -429,6 +429,22 @@ namespace UI
             }
             ImGui::SameLine();
             UICommon::HelpMarker("Enable to also log the clips into the file at 'Documents\\My Games\\Skyrim Special Edition\\SKSE\\OpenAnimationReplacer.log'.");
+
+            ImGui::Spacing();
+            ImGui::Separator();
+
+            // Workarounds
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextUnformatted("Workarounds");
+            ImGui::SameLine();
+            UICommon::HelpMarker("These settings are workarounds for some issues with Legacy replacer mods.");
+            ImGui::Spacing();
+
+            if (ImGui::Checkbox("Keep random results on loop by default in Legacy mods", &Settings::bLegacyKeepRandomResultsByDefault)) {
+                Settings::WriteSettings();
+            }
+            ImGui::SameLine();
+            UICommon::HelpMarker("Set to enable the setting \"Keep random results on loop\" by default for Legacy replacer mods. This will make them behave as previously expected. Changing this setting takes effect after restarting the game.");
 
             ImGui::Spacing();
             ImGui::Separator();
@@ -737,31 +753,35 @@ namespace UI
 
         if (a_subMod->IsDirty()) {
             ImGui::SameLine();
-            ImGui::TextColored(UICommon::DIRTY_COLOR, "*");
+            UICommon::TextUnformattedColored(UICommon::DIRTY_COLOR, "*");
         }
 
         switch (a_subMod->GetConfigSource()) {
         case Parsing::ConfigSource::kUser:
             ImGui::SameLine();
-            ImGui::TextColored(UICommon::USER_MOD_COLOR, "(User)");
+            UICommon::TextUnformattedColored(UICommon::USER_MOD_COLOR, "(User)");
             break;
         case Parsing::ConfigSource::kLegacy:
             ImGui::SameLine();
-            ImGui::TextDisabled("(Legacy)");
+            UICommon::TextUnformattedDisabled("(Legacy)");
             break;
         case Parsing::ConfigSource::kLegacyActorBase:
             ImGui::SameLine();
-            ImGui::TextDisabled("(Legacy ActorBase)");
+            UICommon::TextUnformattedDisabled("(Legacy ActorBase)");
             break;
         }
 
         // node name
         ImGui::SameLine();
-        ImGui::TextUnformatted(a_subMod->GetName().data());
+        if (a_subMod->GetConditionSet()->HasInvalidConditions()) {
+            UICommon::TextUnformattedColored(UICommon::INVALID_CONDITION_COLOR, a_subMod->GetName().data());
+        } else {
+            ImGui::TextUnformatted(a_subMod->GetName().data());
+        }
         ImGui::SameLine();
 
         if (a_bAddPathToName) {
-            ImGui::TextDisabled(a_subMod->GetPath().data());
+            UICommon::TextUnformattedDisabled(a_subMod->GetPath().data());
             ImGui::SameLine();
         }
 
@@ -995,7 +1015,7 @@ namespace UI
                                 ImGui::SameLine();
                             }
 
-                            ImGui::TextDisabled(std::format("[{}]", a_replacementAnimation->GetProjectName()).data());
+                            UICommon::TextUnformattedDisabled(std::format("[{}]", a_replacementAnimation->GetProjectName()).data());
                             ImGui::SameLine();
                             if (a_replacementAnimation->GetDisabled()) {
                                 const ImGuiContext& ctx = *ImGui::GetCurrentContext();
@@ -1194,10 +1214,12 @@ namespace UI
         ImGui::PopID();
     }
 
-    void UIMain::DrawConditionSet(Conditions::ConditionSet* a_conditionSet, ConditionEditMode a_editMode, bool a_bDrawLines, const ImVec2& a_drawStartPos)
+    bool UIMain::DrawConditionSet(Conditions::ConditionSet* a_conditionSet, ConditionEditMode a_editMode, bool a_bDrawLines, const ImVec2& a_drawStartPos)
     {
         //ImGui::TableNextRow();
         //ImGui::TableSetColumnIndex(0);
+
+        bool bSetDirty = false;
 
         ImDrawList* drawList = ImGui::GetWindowDrawList();
         const ImGuiStyle& style = ImGui::GetStyle();
@@ -1211,7 +1233,7 @@ namespace UI
 
         if (!a_conditionSet->IsEmpty()) {
             a_conditionSet->ForEachCondition([&](std::unique_ptr<Conditions::ICondition>& a_condition) {
-                const ImRect nodeRect = DrawCondition(a_condition, a_conditionSet, a_editMode);
+                const ImRect nodeRect = DrawCondition(a_condition, a_conditionSet, a_editMode, bSetDirty);
                 if (a_bDrawLines) {
                     const float midPoint = (nodeRect.Min.y + nodeRect.Max.y) / 2.f;
                     constexpr float horLineLength = 10.f;
@@ -1285,9 +1307,11 @@ namespace UI
                 ImGui::EndPopup();
             }
         }
+
+        return bSetDirty;
     }
 
-    ImRect UIMain::DrawCondition(std::unique_ptr<Conditions::ICondition>& a_condition, Conditions::ConditionSet* a_conditionSet, ConditionEditMode a_editMode)
+    ImRect UIMain::DrawCondition(std::unique_ptr<Conditions::ICondition>& a_condition, Conditions::ConditionSet* a_conditionSet, ConditionEditMode a_editMode, bool& a_bOutSetDirty)
     {
         ImRect conditionRect;
 
@@ -1363,7 +1387,8 @@ namespace UI
                     if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) {
                         ImGui::SetNextWindowSize(ImVec2(tooltipWidth, 0));
                         ImGui::BeginTooltip();
-                        DrawCondition(_conditionCopy, a_conditionSet, ConditionEditMode::kNone);
+                        bool bDummy = false;
+                        DrawCondition(_conditionCopy, a_conditionSet, ConditionEditMode::kNone, bDummy);
                         ImGui::EndTooltip();
                     }
 
@@ -1388,15 +1413,15 @@ namespace UI
                 if (!requiredPluginName.empty()) {
                     ImGui::TextUnformatted("Source plugin:");
                     ImGui::SameLine();
-                    ImGui::TextColored(UICommon::CUSTOM_CONDITION_COLOR, requiredPluginName.data());
+                    UICommon::TextUnformattedColored(UICommon::CUSTOM_CONDITION_COLOR, requiredPluginName.data());
                     ImGui::SameLine();
-                    ImGui::TextDisabled(a_condition->GetRequiredVersion().string("."sv).data());
+                    UICommon::TextUnformattedDisabled(a_condition->GetRequiredVersion().string("."sv).data());
                     const auto requiredPluginAuthor = a_condition->GetRequiredPluginAuthor();
                     if (!requiredPluginAuthor.empty()) {
                         ImGui::SameLine();
                         ImGui::TextUnformatted("by");
                         ImGui::SameLine();
-                        ImGui::TextColored(UICommon::CUSTOM_CONDITION_COLOR, requiredPluginAuthor.data());
+                        UICommon::TextUnformattedColored(UICommon::CUSTOM_CONDITION_COLOR, requiredPluginAuthor.data());
                     }
                 }
                 ImGui::PopTextWrapPos();
@@ -1411,7 +1436,8 @@ namespace UI
                 if (BeginDragDropSourceEx(ImGuiDragDropFlags_SourceNoHoldToOpenOthers, ImVec2(tooltipWidth, 0))) {
                     DragConditionPayload payload(a_condition, a_conditionSet);
                     ImGui::SetDragDropPayload("DND_CONDITION", &payload, sizeof(DragConditionPayload));
-                    DrawCondition(a_condition, a_conditionSet, ConditionEditMode::kNone);
+                    bool bDummy = false;
+                    DrawCondition(a_condition, a_conditionSet, ConditionEditMode::kNone, bDummy);
                     ImGui::EndDragDropSource();
                 }
             }
@@ -1466,6 +1492,7 @@ namespace UI
                 if (ImGui::Checkbox("##toggleCondition", &bEnabled)) {
                     a_condition->SetDisabled(!bEnabled);
                     a_conditionSet->SetDirty(true);
+                    a_bOutSetDirty = true;
                 }
                 UICommon::AddTooltip("Toggles the condition on/off");
                 ImGui::PopID();
@@ -1473,11 +1500,15 @@ namespace UI
 
             // Condition name
             ImGui::SameLine();
-            auto requiredPluginName = a_condition->GetRequiredPluginName();
-            if (!requiredPluginName.empty()) {
-                ImGui::TextColored(UICommon::CUSTOM_CONDITION_COLOR, nodeName.data());
+            if (a_condition->IsValid()) {
+                auto requiredPluginName = a_condition->GetRequiredPluginName();
+                if (!requiredPluginName.empty()) {
+                    UICommon::TextUnformattedColored(UICommon::CUSTOM_CONDITION_COLOR, nodeName.data());
+                } else {
+                    ImGui::TextUnformatted(nodeName.data());
+                }
             } else {
-                ImGui::TextUnformatted(nodeName.data());
+                UICommon::TextUnformattedColored(UICommon::INVALID_CONDITION_COLOR, nodeName.data());
             }
 
             ImVec2 cursorPos = ImGui::GetCursorScreenPos();
@@ -1506,6 +1537,7 @@ namespace UI
                     if (ImGui::Checkbox("Negate", &bNOT)) {
                         a_condition->SetNegated(bNOT);
                         a_conditionSet->SetDirty(true);
+                        a_bOutSetDirty = true;
                     }
                     UICommon::AddTooltip("Negates the condition");
 
@@ -1559,7 +1591,10 @@ namespace UI
                         auto component = a_condition->GetComponent(i);
 
                         if (auto multiConditionComponent = dynamic_cast<Conditions::IMultiConditionComponent*>(component)) {
-                            DrawConditionSet(multiConditionComponent->GetConditions(), a_editMode, true, cursorPos);
+                            if (DrawConditionSet(multiConditionComponent->GetConditions(), a_editMode, true, cursorPos)) {
+                                a_conditionSet->SetDirty(true);
+                                a_bOutSetDirty = true;
+                            }
                         } else {
                             ImGui::Separator();
                             // write component name aligned to the right
@@ -1573,6 +1608,7 @@ namespace UI
                             // display component
                             if (component->DisplayInUI(a_editMode != ConditionEditMode::kNone, _firstColumnWidthPercent)) {
                                 a_conditionSet->SetDirty(true);
+                                a_bOutSetDirty = true;
                             }
                         }
                     }
@@ -1582,7 +1618,7 @@ namespace UI
                 const auto current = a_condition->GetCurrent(UIManager::GetSingleton().GetRefrToEvaluate());
                 if (!current.empty()) {
                     ImGui::Separator();
-                    ImGui::TextDisabled("Current:");
+                    UICommon::TextUnformattedDisabled("Current:");
                     ImGui::SameLine();
                     ImGui::TextUnformatted(current.data());
                 }
@@ -1667,7 +1703,8 @@ namespace UI
                     if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) {
                         ImGui::SetNextWindowSize(ImVec2(tooltipWidth, 0));
                         ImGui::BeginTooltip();
-                        DrawCondition(_conditionCopy, a_conditionSet, ConditionEditMode::kNone);
+                        bool bDummy = false;
+                        DrawCondition(_conditionCopy, a_conditionSet, ConditionEditMode::kNone, bDummy);
                         ImGui::EndTooltip();
                     }
 

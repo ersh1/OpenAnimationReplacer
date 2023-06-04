@@ -495,6 +495,7 @@ namespace Parsing
                 result.priority = priority;
                 result.conditionSet = ParseConditionsTxt(txtPath); // parse conditions.txt
                 result.animationsToAdd = ParseAnimationsInDirectory(a_directory, a_stringData);
+                result.bKeepRandomResultsOnLoop = Settings::bLegacyKeepRandomResultsByDefault;
                 result.bSuccess = true;
             } else {
                 const auto subEntryPath = a_directory.path().u8string();
@@ -581,6 +582,7 @@ namespace Parsing
                         result.priority = 0;
                         result.conditionSet = std::move(conditionSet);
                         result.animationsToAdd = ParseAnimationsInDirectory(subEntry, a_stringData);
+                        result.bKeepRandomResultsOnLoop = Settings::bLegacyKeepRandomResultsByDefault;
                         result.bSuccess = true;
                         result.path = subEntry.path().string();
 

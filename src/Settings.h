@@ -33,7 +33,7 @@ struct Settings
 
     // Duplicate filtering
     static inline bool bFilterOutDuplicateAnimations = true;
-    static inline bool bCacheAnimationFileHashes = true;
+    //static inline bool bCacheAnimationFileHashes = false;
 
     // UI
     static inline bool bEnableUI = true;
@@ -51,6 +51,9 @@ struct Settings
     static inline uint32_t uAnimationLoopLogMode = 0;
     static inline bool bAnimationLogOnlyActiveGraph = true;
     static inline bool bAnimationLogWriteToTextLog = false;
+
+    // Workarounds
+    static inline bool bLegacyKeepRandomResultsByDefault = true;
 
     // Experimental
     static inline bool bDisablePreloading = false;

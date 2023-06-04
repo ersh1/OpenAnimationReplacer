@@ -41,8 +41,8 @@ namespace UI
         void DrawSubMod(ReplacerMod* a_replacerMod, SubMod* a_subMod, bool a_bAddPathToName = false);
         void DrawReplacementAnimations();
         void DrawReplacementAnimation(const ReplacementAnimation* a_replacementAnimation);
-        void DrawConditionSet(Conditions::ConditionSet* a_conditionSet, ConditionEditMode a_editMode, bool a_bDrawLines, const ImVec2& a_drawStartPos);
-        ImRect DrawCondition(std::unique_ptr<Conditions::ICondition>& a_condition, Conditions::ConditionSet* a_conditionSet, ConditionEditMode a_editMode);
+        bool DrawConditionSet(Conditions::ConditionSet* a_conditionSet, ConditionEditMode a_editMode, bool a_bDrawLines, const ImVec2& a_drawStartPos);
+        ImRect DrawCondition(std::unique_ptr<Conditions::ICondition>& a_condition, Conditions::ConditionSet* a_conditionSet, ConditionEditMode a_editMode, bool& a_bOutSetDirty);
         ImRect DrawBlankCondition(Conditions::ConditionSet* a_conditionSet, ConditionEditMode a_editMode);
 
         static int ReferenceInputTextCallback(struct ImGuiInputTextCallbackData* a_data);

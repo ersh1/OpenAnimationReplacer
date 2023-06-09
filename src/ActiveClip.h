@@ -98,6 +98,8 @@ public:
     [[nodiscard]] bool IsInterruptible() const { return _currentReplacementAnimation ? _currentReplacementAnimation->GetInterruptible() : _bOriginalInterruptible; }
     [[nodiscard]] bool IsBlending() const { return _blendFromClipGenerator != nullptr; }
     [[nodiscard]] bool IsTransitioning() const { return _bTransitioning; }
+	[[nodiscard]] bool ShouldReplaceOnLoop() const { return _currentReplacementAnimation ? _currentReplacementAnimation->GetReplaceOnLoop() : true; }
+	[[nodiscard]] bool ShouldReplaceOnEcho() const { return _currentReplacementAnimation ? _currentReplacementAnimation->GetReplaceOnEcho() : _bOriginalReplaceOnEcho; }
     [[nodiscard]] bool ShouldKeepRandomResultsOnLoop() const { return _currentReplacementAnimation ? _currentReplacementAnimation->GetKeepRandomResultsOnLoop() : _bOriginalKeepRandomResultsOnLoop; }
     void SetTransitioning(bool a_bValue) { _bTransitioning = a_bValue; }
     void StartBlend(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context, float a_blendTime);
@@ -125,6 +127,7 @@ protected:
     const uint16_t _originalIndex;
     const uint8_t _originalFlags;
     const bool _bOriginalInterruptible;
+	const bool _bOriginalReplaceOnEcho;
     const bool _bOriginalKeepRandomResultsOnLoop;
 
     bool _bTransitioning = false;

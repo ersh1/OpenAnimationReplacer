@@ -57,6 +57,12 @@ public:
     bool IsInterruptible() const { return _bInterruptible; }
     void SetInterruptible(bool a_bInterruptible) { _bInterruptible = a_bInterruptible; }
 
+	bool IsReevaluatingOnLoop() const { return _bReplaceOnLoop; }
+	void SetReevaluatingOnLoop(bool a_bReplaceOnLoop) { _bReplaceOnLoop = a_bReplaceOnLoop; }
+
+	bool IsReevaluatingOnEcho() const { return _bReplaceOnEcho; }
+	void SetReevaluatingOnEcho(bool a_bReplaceOnEcho) { _bReplaceOnEcho = a_bReplaceOnEcho; }
+
     bool IsKeepingRandomResultsOnLoop() const { return _bKeepRandomResultsOnLoop; }
     void SetKeepRandomResultsOnLoop(bool a_bKeepRandomResultsOnLoop) { _bKeepRandomResultsOnLoop = a_bKeepRandomResultsOnLoop; }
 
@@ -106,6 +112,8 @@ private:
     std::string _requiredProjectName{};
     bool _bIgnoreNoTriggersFlag = false;
     bool _bInterruptible = false;
+	bool _bReplaceOnLoop = true;
+	bool _bReplaceOnEcho = false;
     bool _bKeepRandomResultsOnLoop = false;
 
     std::unique_ptr<Conditions::ConditionSet> _conditionSet;
@@ -174,6 +182,7 @@ public:
     bool IsEmpty() const { return _replacements.empty(); }
     std::string_view GetOriginalPath() const { return _originalPath; }
     bool IsOriginalInterruptible() const { return _bOriginalInterruptible; }
+	bool ShouldOriginalReplaceOnEcho() const { return _bOriginalReplaceOnEcho; }
     bool ShouldOriginalKeepRandomResultsOnLoop() const { return _bOriginalKeepRandomResultsOnLoop; }
 
     ReplacementAnimation* EvaluateConditionsAndGetReplacementAnimation(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const;
@@ -184,6 +193,7 @@ public:
     void ForEachReplacementAnimation(const std::function<void(ReplacementAnimation*)>& a_func, bool a_bReverse = false) const;
 
     void TestInterruptible();
+	void TestReplaceOnEcho();
     void TestKeepRandomResultsOnLoop();
 
 protected:
@@ -193,6 +203,7 @@ protected:
     std::vector<std::unique_ptr<ReplacementAnimation>> _replacements;
 
     bool _bOriginalInterruptible = false;
+    bool _bOriginalReplaceOnEcho = false;
     bool _bOriginalKeepRandomResultsOnLoop = false;
 };
 

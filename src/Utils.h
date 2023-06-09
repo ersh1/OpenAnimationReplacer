@@ -5,16 +5,26 @@
 
 namespace Utils
 {
+    enum class TargetType : int32_t
+    {
+        kTarget,
+        kCombatTarget,
+		kDialogueTarget,
+        kFollowTarget,
+        kHeadtrackTarget,
+        kPackageTarget
+    };
+
     [[nodiscard]] std::string_view TrimWhitespace(std::string_view a_s);
     [[nodiscard]] std::string_view TrimQuotes(std::string_view a_s);
     [[nodiscard]] std::string_view TrimSquareBrackets(std::string_view a_s);
     [[nodiscard]] std::string_view TrimHexPrefix(std::string_view a_s);
-	[[nodiscard]] std::string_view GetFileNameWithoutExtension(std::string_view a_s);
+    [[nodiscard]] std::string_view GetFileNameWithoutExtension(std::string_view a_s);
 
     [[nodiscard]] bool CompareStringsIgnoreCase(std::string_view a_lhs, std::string_view a_rhs);
     [[nodiscard]] bool ContainsStringIgnoreCase(std::string_view a_string, std::string_view a_substring);
 
-    [[nodiscard]] std::string GetFormNameString(RE::TESForm* a_form);
+    [[nodiscard]] std::string GetFormNameString(const RE::TESForm* a_form);
     [[nodiscard]] std::string GetFormKeywords(RE::TESForm* a_form);
     [[nodiscard]] std::string GetFormKeywords(RE::BGSKeywordForm* a_keywordForm);
 
@@ -70,13 +80,13 @@ namespace Utils
         return std::lerp(A, B, (a_alpha < 0.5f) ? InterpEaseIn(0.f, 1.f, a_alpha * 2.f, a_exp) * 0.5f : InterpEaseOut(0.f, 1.f, a_alpha * 2.f - 1.f, a_exp) * 0.5f + 0.5f);
     }
 
-	[[nodiscard]] inline float NormalRelativeAngle(float a_angle)
+    [[nodiscard]] inline float NormalRelativeAngle(float a_angle)
     {
-		while (a_angle > RE::NI_PI)
-			a_angle -= RE::NI_TWO_PI;
-		while (a_angle < -RE::NI_PI)
-			a_angle += RE::NI_TWO_PI;
-		return a_angle;
+        while (a_angle > RE::NI_PI)
+            a_angle -= RE::NI_TWO_PI;
+        while (a_angle < -RE::NI_PI)
+            a_angle += RE::NI_TWO_PI;
+        return a_angle;
     }
 
     [[nodiscard]] std::string_view GetActorValueName(RE::ActorValue a_actorValue);
@@ -88,6 +98,11 @@ namespace Utils
 
     bool ConditionHasRandomResult(Conditions::ICondition* a_condition);
     bool ConditionSetHasRandomResult(Conditions::ConditionSet* a_conditionSet);
+
+    bool GetCurrentTarget(RE::Actor* a_actor, TargetType a_targetType, RE::TESObjectREFRPtr& a_outPtr);
+	bool GetRelationshipRank(RE::TESNPC* a_npc1, RE::TESNPC* a_npc2, int32_t& a_outRank);
+
+    RE::TESForm* GetCurrentFurnitureForm(RE::TESObjectREFR* a_refr, bool a_bCheckBase);
 
     RE::TESForm* LookupForm(RE::FormID a_localFormID, std::string_view a_modName);
 

@@ -89,6 +89,8 @@ namespace Parsing
         std::string requiredProjectName;
         bool bIgnoreNoTriggersFlag = false;
         bool bInterruptible = false;
+		bool bReplaceOnLoop = true;
+		bool bReplaceOnEcho = false;
         bool bKeepRandomResultsOnLoop = false;
         std::unique_ptr<Conditions::ConditionSet> conditionSet;
         std::vector<ReplacementAnimationToAdd> animationsToAdd;

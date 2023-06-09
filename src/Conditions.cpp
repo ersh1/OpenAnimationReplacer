@@ -1834,4 +1834,839 @@ namespace Conditions
 
         return false;
     }
+
+    bool IsBlockingCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+        if (a_refr) {
+            if (const auto actor = a_refr->As<RE::Actor>()) {
+                return actor->IsBlocking();
+            }
+        }
+
+        return false;
+    }
+
+    void IsCombatStateCondition::PostInitialize()
+    {
+        ConditionBase::PostInitialize();
+        combatStateComponent->value.getEnumMap = &IsCombatStateCondition::GetEnumMap;
+    }
+
+    RE::BSString IsCombatStateCondition::GetArgument() const
+    {
+        const auto combatState = static_cast<RE::ACTOR_COMBAT_STATE>(combatStateComponent->GetNumericValue(nullptr));
+
+        return GetCombatStateName(combatState);
+    }
+
+    RE::BSString IsCombatStateCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+        if (a_refr) {
+            if (const auto actor = a_refr->As<RE::Actor>()) {
+                return GetCombatStateName(GetCombatState(actor));
+            }
+        }
+
+        return ConditionBase::GetCurrent(a_refr);
+    }
+
+    bool IsCombatStateCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+        if (a_refr) {
+            if (auto actor = a_refr->As<RE::Actor>()) {
+                return GetCombatState(actor) == static_cast<RE::ACTOR_COMBAT_STATE>(combatStateComponent->GetNumericValue(a_refr));
+            }
+        }
+
+        return false;
+    }
+
+    RE::ACTOR_COMBAT_STATE IsCombatStateCondition::GetCombatState(RE::Actor* a_actor) const
+    {
+        if (a_actor) {
+            return Actor_GetCombatState(a_actor);
+        }
+
+        return RE::ACTOR_COMBAT_STATE::kNone;
+    }
+
+    std::string_view IsCombatStateCondition::GetCombatStateName(RE::ACTOR_COMBAT_STATE a_state) const
+    {
+        static auto map = GetEnumMap();
+        if (const auto it = map.find(static_cast<int32_t>(a_state)); it != map.end()) {
+            return it->second;
+        }
+
+        return "(Invalid)"sv;
+    }
+
+    std::map<int32_t, std::string_view> IsCombatStateCondition::GetEnumMap()
+    {
+        std::map<int32_t, std::string_view> enumMap;
+        enumMap[0] = "Not in combat"sv;
+        enumMap[1] = "In combat "sv;
+        enumMap[2] = "Searching"sv;
+
+        return enumMap;
+    }
+
+    RE::BSString InventoryCountCondition::GetArgument() const
+    {
+        const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+        const auto formArgument = formComponent->form.GetArgument();
+        return std::format("{} count {} {}", formArgument, separator, numericComponent->value.GetArgument()).data();
+    }
+
+    RE::BSString InventoryCountCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+        if (formComponent->IsValid() && a_refr) {
+            if (const auto actor = a_refr->As<RE::Actor>()) {
+                const auto inv = actor->GetInventory([this](const RE::TESBoundObject& a_object) {
+                    return a_object.GetFormID() == formComponent->GetTESFormValue()->GetFormID();
+                });
+
+				int count = 0;
+                for (const auto& invData : inv | std::views::values) {
+                    const auto& [itemCount, entry] = invData;
+					count += itemCount;
+                }
+
+				return std::to_string(count).data();
+            }
+        }
+
+        return ConditionBase::GetCurrent(a_refr);
+    }
+
+    bool InventoryCountCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+        if (formComponent->IsValid() && a_refr) {
+            if (const auto actor = a_refr->As<RE::Actor>()) {
+                const auto inv = actor->GetInventory([this](const RE::TESBoundObject& a_object) {
+                    return a_object.GetFormID() == formComponent->GetTESFormValue()->GetFormID();
+                });
+
+                for (const auto& invData : inv | std::views::values) {
+                    const auto& [count, entry] = invData;
+
+                    if (comparisonComponent->GetComparisonResult(static_cast<float>(count), numericComponent->GetNumericValue(a_refr))) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    RE::BSString FallDistanceCondition::GetArgument() const
+    {
+		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+
+		return std::format("Fall distance {} {}", separator, numericComponent->value.GetArgument()).data();
+    }
+
+    RE::BSString FallDistanceCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+		return std::to_string(GetFallDistance(a_refr)).data();
+    }
+
+    bool FallDistanceCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		return comparisonComponent->GetComparisonResult(GetFallDistance(a_refr), numericComponent->GetNumericValue(a_refr));
+    }
+
+    float FallDistanceCondition::GetFallDistance(RE::TESObjectREFR* a_refr)
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				if (auto charController = actor->GetCharController()) {
+					if (charController->fallTime > 0.f) {
+						return bhkCharacterController_CalcFallDistance(charController);
+					}
+				}
+			}
+		}
+
+		return 0.f;
+    }
+
+    RE::BSString FallDamageCondition::GetArgument() const
+    {
+        const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+
+        return std::format("Fall damage {} {}", separator, numericComponent->value.GetArgument()).data();
+    }
+
+    RE::BSString FallDamageCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+        return std::to_string(GetFallDamage(a_refr)).data();
+    }
+
+    bool FallDamageCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+        return comparisonComponent->GetComparisonResult(GetFallDamage(a_refr), numericComponent->GetNumericValue(a_refr));
+    }
+
+    float FallDamageCondition::GetFallDamage(RE::TESObjectREFR* a_refr)
+    {
+        if (a_refr) {
+            if (const auto actor = a_refr->As<RE::Actor>()) {
+                if (auto charController = actor->GetCharController()) {
+                    if (charController->fallTime > 0.f) {
+                        float fallDistance = bhkCharacterController_CalcFallDistance(charController);
+						return TESObjectREFR_CalcFallDamage(a_refr, fallDistance, 0.25f);  // The game seems to use a 0.25f mult
+                    }
+                }
+            }
+        }
+
+        return 0.f;
+    }
+
+    void CurrentPackageProcedureTypeCondition::PostInitialize()
+    {
+        ConditionBase::PostInitialize();
+        packageProcedureTypeComponent->value.getEnumMap = &CurrentPackageProcedureTypeCondition::GetEnumMap;
+    }
+
+    RE::BSString CurrentPackageProcedureTypeCondition::GetArgument() const
+    {
+        const auto packageProcedureType = static_cast<RE::PACKAGE_PROCEDURE_TYPE>(packageProcedureTypeComponent->GetNumericValue(nullptr));
+
+        return GetPackageProcedureTypeName(packageProcedureType);
+    }
+
+    RE::BSString CurrentPackageProcedureTypeCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+        if (a_refr) {
+            if (const auto actor = a_refr->As<RE::Actor>()) {
+                return GetPackageProcedureTypeName(GetPackageProcedureType(actor));
+            }
+        }
+
+        return ConditionBase::GetCurrent(a_refr);
+    }
+
+    bool CurrentPackageProcedureTypeCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+        if (a_refr) {
+            if (auto actor = a_refr->As<RE::Actor>()) {
+                return GetPackageProcedureType(actor) == static_cast<RE::PACKAGE_PROCEDURE_TYPE>(packageProcedureTypeComponent->GetNumericValue(a_refr));
+            }
+        }
+
+        return false;
+    }
+
+    RE::PACKAGE_PROCEDURE_TYPE CurrentPackageProcedureTypeCondition::GetPackageProcedureType(RE::Actor* a_actor) const
+    {
+        if (a_actor) {
+            if (const auto currentPackage = a_actor->GetCurrentPackage()) {
+                return *currentPackage->packData.packType;
+            }
+        }
+
+        return RE::PACKAGE_PROCEDURE_TYPE::kNone;
+    }
+
+    std::string_view CurrentPackageProcedureTypeCondition::GetPackageProcedureTypeName(RE::PACKAGE_PROCEDURE_TYPE a_type) const
+    {
+        static auto map = GetEnumMap();
+        if (const auto it = map.find(static_cast<int32_t>(a_type)); it != map.end()) {
+            return it->second;
+        }
+
+        return "(Invalid)"sv;
+    }
+
+    std::map<int32_t, std::string_view> CurrentPackageProcedureTypeCondition::GetEnumMap()
+    {
+        std::map<int32_t, std::string_view> enumMap;
+        enumMap[-1] = "None"sv;
+        enumMap[0] = "Find"sv;
+        enumMap[1] = "Follow"sv;
+        enumMap[2] = "Escort"sv;
+        enumMap[3] = "Eat"sv;
+        enumMap[4] = "Sleep"sv;
+        enumMap[5] = "Wander"sv;
+        enumMap[6] = "Travel"sv;
+        enumMap[7] = "Accompany"sv;
+        enumMap[8] = "UseItemAt"sv;
+        enumMap[9] = "Ambush"sv;
+        enumMap[10] = "FleeNotCombat"sv;
+        enumMap[11] = "CastMagic"sv;
+        enumMap[12] = "Sandbox"sv;
+        enumMap[13] = "Patrol"sv;
+        enumMap[14] = "Guard"sv;
+        enumMap[15] = "Dialogue"sv;
+        enumMap[16] = "UseWeapon"sv;
+        enumMap[17] = "Find2"sv;
+        enumMap[18] = "Package"sv;
+        enumMap[19] = "PackageTemplate"sv;
+        enumMap[20] = "Activate"sv;
+        enumMap[21] = "Alarm"sv;
+        enumMap[22] = "Flee"sv;
+        enumMap[23] = "Trespass"sv;
+        enumMap[24] = "Spectator"sv;
+        enumMap[25] = "ReactToDead"sv;
+        enumMap[26] = "GetUpFromChairBed"sv;
+        enumMap[27] = "DoNothing"sv;
+        enumMap[28] = "InGameDialogue"sv;
+        enumMap[29] = "Surface"sv;
+        enumMap[30] = "SearchForAttacker"sv;
+        enumMap[31] = "AvoidPlayer"sv;
+        enumMap[32] = "ReactToDestroyedObject"sv;
+        enumMap[33] = "ReactToGrenadeOrMine"sv;
+        enumMap[34] = "StealWarning"sv;
+        enumMap[35] = "PickPocketWarning"sv;
+        enumMap[36] = "MovementBlocked"sv;
+        enumMap[37] = "VampireFeed"sv;
+        enumMap[38] = "Cannibal"sv;
+        return enumMap;
+    }
+	
+    bool IsOnMountCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+        if (a_refr) {
+            if (const auto actor = a_refr->As<RE::Actor>()) {
+                return actor->IsOnMount();
+            }
+        }
+
+        return false;
+    }
+
+    RE::BSString IsRidingCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+        if (a_refr) {
+            if (const auto actor = a_refr->As<RE::Actor>()) {
+                if (RE::ActorPtr mountPtr = nullptr; actor->GetMount(mountPtr)) {
+                    if (boolComponent->GetBoolValue()) {
+                        if (const auto mountBase = mountPtr->GetActorBase()) {
+                            return Utils::GetFormNameString(mountBase).data();
+                        }
+                    } else {
+						return Utils::GetFormNameString(mountPtr.get()).data();
+                    }
+                }
+            }
+        }
+
+        return ConditionBase::GetCurrent(a_refr);
+    }
+
+    bool IsRidingCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+        if (formComponent->IsValid() && a_refr) {
+            if (const auto actor = a_refr->As<RE::Actor>()) {
+                if (RE::ActorPtr mountPtr = nullptr; actor->GetMount(mountPtr)) {
+                    if (boolComponent->GetBoolValue()) {
+                        if (const auto mountBase = mountPtr->GetActorBase()) {
+                            return mountBase->GetFormID() == formComponent->GetTESFormValue()->GetFormID();
+                        }
+                    } else {
+                        return mountPtr->GetFormID() == formComponent->GetTESFormValue()->GetFormID();
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    RE::BSString IsRidingHasKeywordCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+        if (a_refr) {
+            if (const auto actor = a_refr->As<RE::Actor>()) {
+                if (RE::ActorPtr mountPtr = nullptr; actor->GetMount(mountPtr)) {
+                    return Utils::GetFormKeywords(mountPtr.get()).data();
+                }
+            }
+        }
+
+        return ConditionBase::GetCurrent(a_refr);
+    }
+
+    bool IsRidingHasKeywordCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+        if (a_refr) {
+            if (const auto actor = a_refr->As<RE::Actor>()) {
+                if (RE::ActorPtr mountPtr = nullptr; actor->GetMount(mountPtr)) {
+                    if (const auto keywordForm = mountPtr->As<RE::BGSKeywordForm>()) {
+                        return keywordComponent->HasKeyword(keywordForm);
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    bool IsBeingRiddenCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+        if (a_refr) {
+            if (const auto actor = a_refr->As<RE::Actor>()) {
+                RE::ActorPtr riderPtr = nullptr;
+                return actor->GetMountedBy(riderPtr);
+            }
+        }
+
+        return false;
+    }
+
+    RE::BSString IsBeingRiddenByCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+        if (a_refr) {
+            if (const auto actor = a_refr->As<RE::Actor>()) {
+                if (RE::ActorPtr riderPtr = nullptr; actor->GetMountedBy(riderPtr)) {
+                    if (boolComponent->GetBoolValue()) {
+                        if (const auto riderBase = riderPtr->GetActorBase()) {
+                            return Utils::GetFormNameString(riderBase).data();
+                        }
+                    } else {
+                        return Utils::GetFormNameString(riderPtr.get()).data();
+                    }
+                }
+            }
+        }
+
+        return ConditionBase::GetCurrent(a_refr);
+    }
+
+    bool IsBeingRiddenByCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+        if (formComponent->IsValid() && a_refr) {
+            if (const auto actor = a_refr->As<RE::Actor>()) {
+                if (RE::ActorPtr riderPtr = nullptr; actor->GetMountedBy(riderPtr)) {
+                    if (boolComponent->GetBoolValue()) {
+                        if (const auto riderBase = riderPtr->GetActorBase()) {
+                            return riderBase->GetFormID() == formComponent->GetTESFormValue()->GetFormID();
+                        }
+                    } else {
+                        return riderPtr->GetFormID() == formComponent->GetTESFormValue()->GetFormID();
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    RE::BSString CurrentFurnitureCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+        if (a_refr) {
+            if (const auto furniture = Utils::GetCurrentFurnitureForm(a_refr, boolComponent->GetBoolValue())) {
+                const auto formNameString = Utils::GetFormNameString(furniture);
+                const auto formIDString = std::format("[{:08X}]", furniture->GetFormID());
+                if (formNameString == formIDString) {
+                    return formNameString.data();
+                } else {
+                    return std::format("{} {}", formNameString, formIDString).data();
+                }
+            }
+        }
+
+        return ConditionBase::GetCurrent(a_refr);
+    }
+
+    bool CurrentFurnitureCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+        if (formComponent->IsValid() && a_refr) {
+            if (const auto furniture = Utils::GetCurrentFurnitureForm(a_refr, boolComponent->GetBoolValue())) {
+                return furniture->GetFormID() == formComponent->GetTESFormValue()->GetFormID();
+            }
+        }
+
+        return false;
+    }
+
+    RE::BSString CurrentFurnitureHasKeywordCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+        if (a_refr) {
+            if (const auto furniture = Utils::GetCurrentFurnitureForm(a_refr, boolComponent->GetBoolValue())) {
+                return Utils::GetFormKeywords(furniture).data();
+            }
+        }
+
+        return ConditionBase::GetCurrent(a_refr);
+    }
+
+    bool CurrentFurnitureHasKeywordCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+        if (a_refr) {
+            if (const auto furniture = Utils::GetCurrentFurnitureForm(a_refr, boolComponent->GetBoolValue())) {
+                if (const auto keywordForm = furniture->As<RE::BGSKeywordForm>()) {
+                    return keywordComponent->HasKeyword(keywordForm);
+                }
+            }
+        }
+
+        return false;
+    }
+
+    void TargetConditionBase::PostInitialize()
+    {
+        ConditionBase::PostInitialize();
+		targetTypeComponent->value.getEnumMap = &CurrentTargetCondition::GetEnumMap;
+    }
+
+    std::string_view TargetConditionBase::GetTargetTypeName(Utils::TargetType a_targetType) const
+    {
+		static auto map = GetEnumMap();
+		if (const auto it = map.find(static_cast<int32_t>(a_targetType)); it != map.end()) {
+			return it->second;
+		}
+
+		return "(Invalid)"sv;
+    }
+
+    std::map<int32_t, std::string_view> TargetConditionBase::GetEnumMap()
+    {
+		std::map<int32_t, std::string_view> enumMap;
+		enumMap[0] = "Target"sv;
+		enumMap[1] = "Combat target"sv;
+		enumMap[2] = "Dialogue target"sv;
+		enumMap[3] = "Follow target"sv;
+		enumMap[4] = "Headtrack target"sv;
+		enumMap[5] = "Package target"sv;
+		return enumMap;
+    }
+
+    RE::BSString HasTargetCondition::GetArgument() const
+    {
+		const auto targetType = static_cast<Utils::TargetType>(targetTypeComponent->GetNumericValue(nullptr));
+
+		return GetTargetTypeName(targetType);
+    }
+
+    bool HasTargetCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				RE::TESObjectREFRPtr target = nullptr;
+				const auto targetType = static_cast<Utils::TargetType>(targetTypeComponent->GetNumericValue(a_refr));
+				return Utils::GetCurrentTarget(actor, targetType, target);
+			}
+		}
+
+		return false;
+    }
+
+    RE::BSString CurrentTargetCondition::GetArgument() const
+	{
+		const auto targetType = static_cast<Utils::TargetType>(targetTypeComponent->GetNumericValue(nullptr));
+		auto baseOptional = boolComponent->GetBoolValue() ? " [Base]" : "";
+
+		return std::format("{}{} is {}", GetTargetTypeName(targetType), baseOptional, formComponent->form.GetArgument()).data();
+	}
+
+	RE::BSString CurrentTargetCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+	{
+		if (a_refr) {
+			if (const auto target = GetTargetForm(a_refr)) {
+				return Utils::GetFormNameString(target).data();
+			}
+		}
+
+		return ConditionBase::GetCurrent(a_refr);
+	}
+
+	bool CurrentTargetCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	{
+		if (formComponent->IsValid() && a_refr) {
+			if (const auto target = GetTargetForm(a_refr)) {
+				return target->GetFormID() == formComponent->GetTESFormValue()->GetFormID();
+			}
+		}
+
+		return false;
+	}
+
+    RE::TESForm* CurrentTargetCondition::GetTargetForm(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				RE::TESObjectREFRPtr target = nullptr;
+				const auto targetType = static_cast<Utils::TargetType>(targetTypeComponent->GetNumericValue(a_refr));
+				if (Utils::GetCurrentTarget(actor, targetType, target)) {
+					if (boolComponent->GetBoolValue()) {
+						if (const auto targetBase = target->GetBaseObject()) {
+							return targetBase;
+						}
+					} else {
+						return target.get();
+					}
+				}
+			}
+		}
+
+		return nullptr;
+    }
+
+    RE::BSString CurrentTargetHasKeywordCondition::GetArgument() const
+    {
+		const auto targetType = static_cast<Utils::TargetType>(targetTypeComponent->GetNumericValue(nullptr));
+		auto baseOptional = boolComponent->GetBoolValue() ? " [Base]" : "";
+
+		return std::format("{}{} has keyword {}", GetTargetTypeName(targetType), baseOptional, keywordComponent->keyword.GetArgument()).data();
+    }
+
+    RE::BSString CurrentTargetHasKeywordCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto target = GetTargetForm(a_refr)) {
+				return Utils::GetFormKeywords(target).data();
+			}
+		}
+
+		return ConditionBase::GetCurrent(a_refr);
+    }
+
+    bool CurrentTargetHasKeywordCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		if (a_refr) {
+			if (const auto target = GetTargetForm(a_refr)) {
+				if (const auto bgsKeywordForm = target->As<RE::BGSKeywordForm>()) {
+				    return keywordComponent->HasKeyword(bgsKeywordForm);
+				}
+			}
+		}
+
+		return false;
+    }
+
+    RE::TESForm* CurrentTargetHasKeywordCondition::GetTargetForm(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				RE::TESObjectREFRPtr target = nullptr;
+				const auto targetType = static_cast<Utils::TargetType>(targetTypeComponent->GetNumericValue(a_refr));
+				if (Utils::GetCurrentTarget(actor, targetType, target)) {
+					if (boolComponent->GetBoolValue()) {
+						if (const auto targetBase = target->GetBaseObject()) {
+							return targetBase;
+						}
+					} else {
+						return target.get();
+					}
+				}
+			}
+		}
+
+		return nullptr;
+    }
+
+    RE::BSString CurrentTargetDistanceCondition::GetArgument() const
+    {
+		const auto targetType = static_cast<Utils::TargetType>(targetTypeComponent->GetNumericValue(nullptr));
+		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+
+		return std::format("Distance to {} {} {}", GetTargetTypeName(targetType), separator, numericComponent->value.GetArgument()).data();
+    }
+
+    RE::BSString CurrentTargetDistanceCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto target = GetTarget(a_refr)) {
+				const auto refrPos = a_refr->GetPosition();
+				const auto targetPos = target->GetPosition();
+			    return std::to_string(refrPos.GetDistance(targetPos)).data();
+			}
+		}
+
+        return TargetConditionBase::GetCurrent(a_refr);
+    }
+
+    bool CurrentTargetDistanceCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		if (a_refr) {
+			if (const auto target = GetTarget(a_refr)) {
+				const auto refrPos = a_refr->GetPosition();
+				const auto targetPos = target->GetPosition();
+				const auto numericVal = numericComponent->GetNumericValue(a_refr);
+				return comparisonComponent->GetComparisonResult(refrPos.GetSquaredDistance(targetPos), numericVal * numericVal);  // compare squared to avoid sqrt
+			}
+		}
+
+		return false;
+    }
+
+    RE::TESObjectREFRPtr CurrentTargetDistanceCondition::GetTarget(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				RE::TESObjectREFRPtr target = nullptr;
+				const auto targetType = static_cast<Utils::TargetType>(targetTypeComponent->GetNumericValue(a_refr));
+				if (Utils::GetCurrentTarget(actor, targetType, target)) {
+					return target;
+				}
+			}
+		}
+
+		return nullptr;
+    }
+
+    void CurrentTargetRelationshipCondition::PostInitialize()
+    {
+        TargetConditionBase::PostInitialize();
+		numericComponent->value.getEnumMap = &CurrentTargetRelationshipCondition::GetRelationshipRankEnumMap;
+    }
+
+    RE::BSString CurrentTargetRelationshipCondition::GetArgument() const
+    {
+		const auto targetType = static_cast<Utils::TargetType>(targetTypeComponent->GetNumericValue(nullptr));
+		const auto relationshipLevel = static_cast<int32_t>(numericComponent->GetNumericValue(nullptr));
+
+		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+
+		return std::format("{} relationship rank {} {}", GetTargetTypeName(targetType), separator, GetRelationshipRankName(relationshipLevel)).data();
+    }
+
+    RE::BSString CurrentTargetRelationshipCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto target = GetTarget(a_refr)) {
+				const auto refrNPC = GetActorBase(a_refr);
+				const auto targetNPC = GetActorBase(target.get());
+				int32_t rank = 0;
+				if (Utils::GetRelationshipRank(refrNPC, targetNPC, rank)) {
+				    return GetRelationshipRankName(rank);
+				}
+			}
+		}
+
+        return TargetConditionBase::GetCurrent(a_refr);
+    }
+
+    bool CurrentTargetRelationshipCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		if (a_refr) {
+			if (const auto target = GetTarget(a_refr)) {
+				const auto refrNPC = GetActorBase(a_refr);
+				const auto targetNPC = GetActorBase(target.get());
+				int32_t rank = 0;
+				if (Utils::GetRelationshipRank(refrNPC, targetNPC, rank)) {
+					return comparisonComponent->GetComparisonResult(static_cast<float>(rank), numericComponent->GetNumericValue(a_refr));
+				}
+			}
+		}
+
+		return false;
+    }
+
+    RE::TESObjectREFRPtr CurrentTargetRelationshipCondition::GetTarget(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				RE::TESObjectREFRPtr target = nullptr;
+				const auto targetType = static_cast<Utils::TargetType>(targetTypeComponent->GetNumericValue(a_refr));
+				if (Utils::GetCurrentTarget(actor, targetType, target)) {
+					return target;
+				}
+			}
+		}
+
+		return nullptr;
+    }
+
+    RE::TESNPC* CurrentTargetRelationshipCondition::GetActorBase(RE::TESObjectREFR* a_refr) const
+    {
+		if (const auto actor = a_refr->As<RE::Actor>()) {
+		    return actor->GetActorBase();
+		}
+
+		return nullptr;
+    }
+
+    std::string_view CurrentTargetRelationshipCondition::GetRelationshipRankName(int32_t a_relationshipRank) const
+    {
+		static auto map = GetRelationshipRankEnumMap();
+		if (const auto it = map.find(a_relationshipRank); it != map.end()) {
+			return it->second;
+		}
+
+		return "(Invalid)"sv;
+    }
+
+    std::map<int32_t, std::string_view> CurrentTargetRelationshipCondition::GetRelationshipRankEnumMap()
+    {
+		std::map<int32_t, std::string_view> enumMap;
+		enumMap[-4] = "Archnemesis"sv;
+		enumMap[-3] = "Enemy"sv;
+		enumMap[-2] = "Foe"sv;
+		enumMap[-1] = "Rival"sv;
+		enumMap[0] = "Acquaintance"sv;
+		enumMap[1] = "Friend"sv;
+		enumMap[2] = "Confidant"sv;
+		enumMap[3] = "Ally"sv;
+		enumMap[4] = "Lover"sv;
+		return enumMap;
+    }
+
+    RE::BSString CurrentTargetFactionRankCondition::GetArgument() const
+    {
+		const auto targetType = static_cast<Utils::TargetType>(targetTypeComponent->GetNumericValue(nullptr));
+		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+
+		return std::format("{} rank in {} {} {}", GetTargetTypeName(targetType), factionComponent->form.GetArgument(), separator, numericComponent->value.GetArgument()).data();
+    }
+
+    RE::BSString CurrentTargetFactionRankCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto target = GetTarget(a_refr)) {
+				return std::to_string(GetFactionRank(target.get())).data();
+			}
+		}
+
+        return TargetConditionBase::GetCurrent(a_refr);
+    }
+
+    bool CurrentTargetFactionRankCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		if (factionComponent->IsValid() && a_refr) {
+			if (const auto target = GetTarget(a_refr)) {
+				const int32_t rank = GetFactionRank(target.get());
+			    const float v = numericComponent->GetNumericValue(a_refr);
+			    return comparisonComponent->GetComparisonResult(static_cast<float>(rank), v);
+			}
+		}
+
+		return false;
+    }
+
+    RE::TESObjectREFRPtr CurrentTargetFactionRankCondition::GetTarget(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				RE::TESObjectREFRPtr target = nullptr;
+				const auto targetType = static_cast<Utils::TargetType>(targetTypeComponent->GetNumericValue(a_refr));
+				if (Utils::GetCurrentTarget(actor, targetType, target)) {
+					return target;
+				}
+			}
+		}
+
+		return nullptr;
+    }
+
+    int32_t CurrentTargetFactionRankCondition::GetFactionRank(RE::TESObjectREFR* a_refr) const
+    {
+		int32_t rank = -2;
+
+		if (factionComponent->IsValid() && a_refr) {
+			if (auto faction = factionComponent->GetTESFormValue()->As<RE::TESFaction>()) {
+				if (auto actor = a_refr->As<RE::Actor>()) {
+					bool bIsPlayer = actor->IsPlayerRef();
+
+					if (actor->IsInFaction(faction)) {
+						rank = Actor_GetFactionRank(actor, faction, bIsPlayer);
+					}
+				}
+			}
+		}
+
+		return rank;
+    }
 }

@@ -19,11 +19,15 @@ public:
     bool GetDisabled() const { return _bDisabled; }
     bool GetIgnoreNoTriggersFlag() const { return _bIgnoreNoTriggersFlag; }
     bool GetInterruptible() const { return _bInterruptible; }
+	bool GetReplaceOnLoop() const { return _bReplaceOnLoop; }
+	bool GetReplaceOnEcho() const { return _bReplaceOnEcho; }
     bool GetKeepRandomResultsOnLoop() const { return _bKeepRandomResultsOnLoop; }
     void SetPriority(int32_t a_priority) { _priority = a_priority; }
     void SetDisabled(bool a_bDisable) { _bDisabled = a_bDisable; }
     void SetIgnoreNoTriggersFlag(bool a_enable) { _bIgnoreNoTriggersFlag = a_enable; }
     void SetInterruptible(bool a_bEnable) { _bInterruptible = a_bEnable; }
+    void SetReplaceOnLoop(bool a_bEnable) { _bReplaceOnLoop = a_bEnable; }
+    void SetReplaceOnEcho(bool a_bEnable) { _bReplaceOnEcho = a_bEnable; }
     void SetKeepRandomResultsOnLoop(bool a_bEnable) { _bKeepRandomResultsOnLoop = a_bEnable; }
     std::string_view GetAnimPath() const { return _path; }
     std::string_view GetProjectName() const { return _projectName; }
@@ -39,6 +43,8 @@ protected:
     bool _bDisabled = false;
     bool _bIgnoreNoTriggersFlag = false;
     bool _bInterruptible = false;
+	bool _bReplaceOnLoop = true;
+	bool _bReplaceOnEcho = false;
     bool _bKeepRandomResultsOnLoop = false;
     std::string _path;
     std::string _projectName;

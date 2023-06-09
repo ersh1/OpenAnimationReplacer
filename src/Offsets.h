@@ -1,9 +1,12 @@
 #pragma once
 
-static float& g_deltaTime = *(float*)REL::VariantID(523660, 410199, 0x30C3A08).address();                            // 2F6B948, 30064C8, 30C3A08
-static float& g_deltaTimeRealTime = *(float*)REL::VariantID(523661, 410200, 0x30C3A0C).address();                    // 2F6B94C, 30064CC, 30C3A0C
-static uint32_t& g_durationOfApplicationRunTimeMS = *(uint32_t*)REL::VariantID(523662, 410201, 0x30C3A10).address(); // 2F6B950, 30064D0, 30C3A10
-static float& g_globalTimeMultiplier = *(float*)REL::VariantID(511882, 388442, 0x1EC5698).address();                 // 1E05B28, 1E99FD0, 1EC5698
+static float& g_deltaTime = *(float*)REL::VariantID(523660, 410199, 0x30C3A08).address();                                       // 2F6B948, 30064C8, 30C3A08
+static float& g_deltaTimeRealTime = *(float*)REL::VariantID(523661, 410200, 0x30C3A0C).address();                               // 2F6B94C, 30064CC, 30C3A0C
+static uint32_t& g_durationOfApplicationRunTimeMS = *(uint32_t*)REL::VariantID(523662, 410201, 0x30C3A10).address();            // 2F6B950, 30064D0, 30C3A10
+static float& g_globalTimeMultiplier = *(float*)REL::VariantID(511882, 388442, 0x1EC5698).address();                            // 1E05B28, 1E99FD0, 1EC5698
+static RE::ObjectRefHandle& g_nullObjectRefHandle = *(RE::ObjectRefHandle*)REL::VariantID(514164, 400312, 0x1F8319C).address(); // 1EBEABC, 1F592BC, 1F8319C
+static int32_t* g_RelationshipRankTypeIdsByIndex = (int32_t*)REL::VariantID(502260, 369311, 0x1E911A0).address();            // 1DD3EF8, 1E67FE8, 1E911A0
+
 
 using thkbBlendPoses = RE::hkVector4& (*)(uint32_t numData, const RE::hkQsTransform* src, const RE::hkQsTransform* dst, float amount, RE::hkQsTransform* out);
 static REL::Relocation<thkbBlendPoses> hkbBlendPoses{ REL::VariantID(63192, 64112, 0xB4DD80) }; // B12FA0, B38110, B4DD80
@@ -68,5 +71,23 @@ static REL::Relocation<thkbClipGenerator_UnkUpdateFunc3_CalcLocalTime> hkbClipGe
 using thkbClipGenerator_UnkUpdateFunc4 = void(*)(RE::hkbClipGenerator* a_this, float a_prevLocalTime, float a_newLocalTime, int32_t a_loops, RE::hkbEventQueue* a_eventQueue);
 static REL::Relocation<thkbClipGenerator_UnkUpdateFunc4> hkbClipGenerator_UnkUpdateFunc4{ REL::VariantID(58619, 59270, 0xA48710) }; // A0DBC0, A323D0, A48710
 
-using tTESObjectREFR_GetSubmergeLevel = float(__fastcall*)(RE::TESObjectREFR* a_this, float a_zPos, RE::TESObjectCELL* a_parentCell);
+using tTESObjectREFR_GetSubmergeLevel = float(*)(RE::TESObjectREFR* a_this, float a_zPos, RE::TESObjectCELL* a_parentCell);
 static REL::Relocation<tTESObjectREFR_GetSubmergeLevel> TESObjectREFR_GetSubmergeLevel{ REL::VariantID(36452, 37448, 0x5E9B60) }; // 5E1510, 607080, 5E9B60
+
+using tbhkCharacterController_CalcFallDistance = float(*)(RE::bhkCharacterController* a_this);
+static REL::Relocation<tbhkCharacterController_CalcFallDistance> bhkCharacterController_CalcFallDistance{ REL::VariantID(76430, 78269, 0xE142F0) }; // DBF370, DFFB90, E142F0
+
+using tTESObjectREFR_CalcFallDamage = float(*)(RE::TESObjectREFR* a_this, float a_fallDamage, float a_mult);
+static REL::Relocation<tTESObjectREFR_CalcFallDamage> TESObjectREFR_CalcFallDamage{ REL::VariantID(37294, 38273, 0x6214D0) };  // 618920, 63E9B0, 6214D0
+
+using tActor_GetCombatState = RE::ACTOR_COMBAT_STATE (*)(RE::Actor* a_this);
+static REL::Relocation<tActor_GetCombatState> Actor_GetCombatState{ REL::VariantID(37603, 38556, 0x62DD00) }; // 624E90, 64A520, 62DD00
+
+using tTESNPC_GetRelationship = RE::BGSRelationship* (*)(RE::TESNPC* a_npc1, RE::TESNPC* a_npc2);
+static REL::Relocation<tTESNPC_GetRelationship> TESNPC_GetRelationship{ REL::VariantID(23632, 24084, 0x355D30) };  // 346470, 35C700, 355D30
+
+using tTESNPC_GetRelationshipRankIndex = int32_t (*)(RE::TESNPC* a_npc1, RE::TESNPC* a_npc2);
+static REL::Relocation<tTESNPC_GetRelationshipRankIndex> TESNPC_GetRelationshipRankIndex{ REL::VariantID(23624, 24076, 0x355790) };  // 345ED0, 35C270, 355790
+
+using tActor_IsInDialogue = bool (*)(RE::Actor* a_this);
+static REL::Relocation<tActor_IsInDialogue> Actor_IsInDialogue{ REL::VariantID(36727, 37739, 0x604230) };  // 5FBA40, 6229C0, 604230

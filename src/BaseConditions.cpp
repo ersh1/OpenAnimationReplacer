@@ -90,12 +90,14 @@ namespace Conditions
         bool bEdited = false;
 
         if (a_bEditable) {
-            ImGui::SetNextItemWidth(UI::UICommon::FirstColumnWidth(a_firstColumnWidthPercent));
-            ImGui::PushID(&_type);
-            if (ImGui::SliderInt("", reinterpret_cast<int*>(&_type), 0, static_cast<int>(Type::kTotal) - 1, GetTypeName().data())) {
-                bEdited = true;
+            if (!getEnumMap && _type == Type::kStaticValue) {
+                ImGui::SetNextItemWidth(UI::UICommon::FirstColumnWidth(a_firstColumnWidthPercent));
+                ImGui::PushID(&_type);
+                if (ImGui::SliderInt("", reinterpret_cast<int*>(&_type), 0, static_cast<int>(Type::kTotal) - 1, GetTypeName().data())) {
+                    bEdited = true;
+                }
+                ImGui::PopID();
             }
-            ImGui::PopID();
 
             switch (_type) {
             case Type::kStaticValue:

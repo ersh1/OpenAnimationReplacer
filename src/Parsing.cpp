@@ -210,6 +210,16 @@ namespace Parsing
                 a_outParseResult.bInterruptible = interruptibleIt->value.GetBool();
             }
 
+			// read replace on loop (optional)
+			if (auto replaceOnLoopIt = doc.FindMember("replaceOnLoop"); replaceOnLoopIt != doc.MemberEnd() && replaceOnLoopIt->value.IsBool()) {
+				a_outParseResult.bReplaceOnLoop = replaceOnLoopIt->value.GetBool();
+			}
+
+			// read replace on echo (optional)
+			if (auto replaceOnEchoIt = doc.FindMember("replaceOnEcho"); replaceOnEchoIt != doc.MemberEnd() && replaceOnEchoIt->value.IsBool()) {
+				a_outParseResult.bReplaceOnEcho = replaceOnEchoIt->value.GetBool();
+			}
+
             // read keep random results on loop (optional)
             if (auto keepRandomIt = doc.FindMember("keepRandomResultsOnLoop"); keepRandomIt != doc.MemberEnd() && keepRandomIt->value.IsBool()) {
                 a_outParseResult.bKeepRandomResultsOnLoop = keepRandomIt->value.GetBool();
@@ -483,30 +493,33 @@ namespace Parsing
             logger::warn("invalid directory name at {}, skipping", pathSv);
             return result;
         }
-        auto priorityStringEnd = directoryName.find_first_not_of("-0123456789"sv);
-        if (priorityStringEnd == std::string::npos) {
-            priorityStringEnd = directoryName.size();
-        }
-        auto [ptr, ec]{ std::from_chars(directoryName.data(), directoryName.data() + priorityStringEnd, priority) };
-        if (ec == std::errc()) {
-            if (exists(txtPath)) {
-                result.configSource = ConfigSource::kLegacy;
-                result.name = std::to_string(priority);
-                result.priority = priority;
-                result.conditionSet = ParseConditionsTxt(txtPath); // parse conditions.txt
-                result.animationsToAdd = ParseAnimationsInDirectory(a_directory, a_stringData);
-                result.bKeepRandomResultsOnLoop = Settings::bLegacyKeepRandomResultsByDefault;
-                result.bSuccess = true;
-            } else {
-                const auto subEntryPath = a_directory.path().u8string();
-                std::string_view subEntryPathSv(reinterpret_cast<const char*>(subEntryPath.data()), subEntryPath.size());
-                logger::warn("directory at {} is missing the _conditions.txt file, skipping", subEntryPathSv);
-            }
-        } else {
-            const auto subEntryPath = a_directory.path().u8string();
-            std::string_view subEntryPathSv(reinterpret_cast<const char*>(subEntryPath.data()), subEntryPath.size());
-            logger::warn("invalid directory name at {}, skipping", subEntryPathSv);
-        }
+
+		if (directoryName.find_first_not_of("-0123456789"sv) == std::string::npos) {
+			auto [ptr, ec]{ std::from_chars(directoryName.data(), directoryName.data() + directoryName.size(), priority) };
+			if (ec == std::errc()) {
+				if (exists(txtPath)) {
+					result.configSource = ConfigSource::kLegacy;
+					result.name = std::to_string(priority);
+					result.priority = priority;
+					result.conditionSet = ParseConditionsTxt(txtPath);  // parse conditions.txt
+					result.animationsToAdd = ParseAnimationsInDirectory(a_directory, a_stringData);
+					result.bKeepRandomResultsOnLoop = Settings::bLegacyKeepRandomResultsByDefault;
+					result.bSuccess = true;
+				} else {
+					const auto subEntryPath = a_directory.path().u8string();
+					std::string_view subEntryPathSv(reinterpret_cast<const char*>(subEntryPath.data()), subEntryPath.size());
+					logger::warn("directory at {} is missing the _conditions.txt file, skipping", subEntryPathSv);
+				}
+			} else {
+				const auto subEntryPath = a_directory.path().u8string();
+				std::string_view subEntryPathSv(reinterpret_cast<const char*>(subEntryPath.data()), subEntryPath.size());
+				logger::warn("invalid directory name at {}, skipping", subEntryPathSv);
+			}
+		} else {
+			const auto subEntryPath = a_directory.path().u8string();
+			std::string_view subEntryPathSv(reinterpret_cast<const char*>(subEntryPath.data()), subEntryPath.size());
+			logger::warn("invalid directory name at {}, skipping", subEntryPathSv);
+		}
 
         result.path = a_directory.path().string();
 

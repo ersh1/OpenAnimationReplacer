@@ -108,7 +108,7 @@ void Settings::WriteSettings()
     ini.SetBoolValue("UI", "bAnimationLogWriteToTextLog", bAnimationLogWriteToTextLog);
 
     // Workarounds
-    ini.SetBoolValue("UI", "bLegacyKeepRandomResultsByDefault", bLegacyKeepRandomResultsByDefault);
+    ini.SetBoolValue("Workarounds", "bLegacyKeepRandomResultsByDefault", bLegacyKeepRandomResultsByDefault);
 
     // Experimental
     ini.SetBoolValue("Experimental", "bDisablePreloading", bDisablePreloading);

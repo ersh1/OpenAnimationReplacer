@@ -44,6 +44,8 @@ void SubMod::LoadParseResult(const Parsing::SubModParseResult& a_parseResult)
     _requiredProjectName = a_parseResult.requiredProjectName;
     _bIgnoreNoTriggersFlag = a_parseResult.bIgnoreNoTriggersFlag;
     _bInterruptible = a_parseResult.bInterruptible;
+	_bReplaceOnLoop = a_parseResult.bReplaceOnLoop;
+	_bReplaceOnEcho = a_parseResult.bReplaceOnEcho;
     _bKeepRandomResultsOnLoop = a_parseResult.bKeepRandomResultsOnLoop;
     _conditionSet->MoveConditions(a_parseResult.conditionSet.get());
 
@@ -61,6 +63,8 @@ void SubMod::UpdateAnimations() const
         }
         anim->SetIgnoreNoTriggersFlag(_bIgnoreNoTriggersFlag);
         anim->SetInterruptible(_bInterruptible);
+		anim->SetReplaceOnLoop(_bReplaceOnLoop);
+		anim->SetReplaceOnEcho(_bReplaceOnEcho);
         anim->SetKeepRandomResultsOnLoop(_bKeepRandomResultsOnLoop);
     }
 
@@ -72,6 +76,7 @@ void SubMod::UpdateAnimations() const
     ForEachReplacerProject([](const auto a_replacerProject) {
         a_replacerProject->ForEach([](auto a_animReplacements) {
             a_animReplacements->TestInterruptible();
+            a_animReplacements->TestReplaceOnEcho();
             a_animReplacements->TestKeepRandomResultsOnLoop();
             a_animReplacements->SortByPriority();
         });
@@ -289,6 +294,18 @@ void SubMod::Serialize(rapidjson::Document& a_doc, ConditionEditMode a_editMode)
         a_doc.AddMember("interruptible", interruptibleValue, allocator);
     }
 
+	// write replace on loop (true is default so skip)
+	if (!_bReplaceOnLoop) {
+		rapidjson::Value interruptibleValue(_bReplaceOnLoop);
+		a_doc.AddMember("replaceOnLoop", interruptibleValue, allocator);
+	}
+
+	// write replace on echo
+	if (_bReplaceOnEcho) {
+		rapidjson::Value interruptibleValue(_bReplaceOnEcho);
+		a_doc.AddMember("replaceOnEcho", interruptibleValue, allocator);
+	}
+
     // write keep random result on loop
     if (_bKeepRandomResultsOnLoop) {
         rapidjson::Value keepRandomResultsOnLoopValue(_bKeepRandomResultsOnLoop);
@@ -343,6 +360,8 @@ void SubMod::ResetToLegacy()
     _requiredProjectName = "";
     _bIgnoreNoTriggersFlag = false;
     _bInterruptible = false;
+	_bReplaceOnLoop = true;
+	_bReplaceOnEcho = false;
     _bKeepRandomResultsOnLoop = false;
 
     SetDirty(false);
@@ -569,6 +588,23 @@ void AnimationReplacements::TestInterruptible()
     }
 
     _bOriginalInterruptible = false;
+}
+
+void AnimationReplacements::TestReplaceOnEcho()
+{
+	ReadLocker locker(_lock);
+
+	for (const auto& replacementAnimation : _replacements) {
+		if (replacementAnimation->GetReplaceOnEcho()) {
+			if (!_bOriginalReplaceOnEcho) {
+				logger::info("original animation {} will replace on echo because there are potential replacements that do", _originalPath);
+			}
+			_bOriginalReplaceOnEcho = true;
+			return;
+		}
+	}
+
+	_bOriginalReplaceOnEcho = false;
 }
 
 void AnimationReplacements::TestKeepRandomResultsOnLoop()

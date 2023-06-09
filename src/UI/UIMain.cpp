@@ -961,6 +961,54 @@ namespace UI
                 }
             }
 
+			// Submod replace on loop
+			{
+				std::string replaceOnLoopLabel = "Replace on loop##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "replaceOnLoop";
+				std::string replaceOnLoopTooltip = "If checked the conditions will be reevaluated on animation loop and the clip will be switched to another one if needed. Enabled by default.";
+
+				if (_editMode != ConditionEditMode::kNone) {
+					bool tempReplaceOnLoop = a_subMod->IsReevaluatingOnLoop();
+					if (ImGui::Checkbox(replaceOnLoopLabel.data(), &tempReplaceOnLoop)) {
+						a_subMod->SetReevaluatingOnLoop(tempReplaceOnLoop);
+						OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::UpdateSubModJob>(a_subMod, false);
+						a_subMod->SetDirty(true);
+					}
+					ImGui::SameLine();
+					UICommon::HelpMarker(replaceOnLoopTooltip.data());
+				} else if (!a_subMod->IsReevaluatingOnLoop()) {
+					ImGui::BeginDisabled();
+					bool tempReplaceOnLoop = a_subMod->IsReevaluatingOnLoop();
+					ImGui::Checkbox(replaceOnLoopLabel.data(), &tempReplaceOnLoop);
+					ImGui::EndDisabled();
+					ImGui::SameLine();
+					UICommon::HelpMarker(replaceOnLoopTooltip.data());
+				}
+			}
+
+			// Submod replace on echo
+			{
+				std::string replaceOnEchoLabel = "Replace on echo##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "replaceOnEcho";
+				std::string replaceOnEchoTooltip = "If checked the conditions will be reevaluated on animation echo and the clip will be switched to another one if needed. Disabled by default because of cosmetic issues with several animations, should be only enabled on animations that actually need it.";
+
+				if (_editMode != ConditionEditMode::kNone) {
+					bool tempReplaceOnEcho = a_subMod->IsReevaluatingOnEcho();
+					if (ImGui::Checkbox(replaceOnEchoLabel.data(), &tempReplaceOnEcho)) {
+						a_subMod->SetReevaluatingOnEcho(tempReplaceOnEcho);
+						OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::UpdateSubModJob>(a_subMod, false);
+						a_subMod->SetDirty(true);
+					}
+					ImGui::SameLine();
+					UICommon::HelpMarker(replaceOnEchoTooltip.data());
+				} else if (a_subMod->IsReevaluatingOnEcho()) {
+					ImGui::BeginDisabled();
+					bool tempReplaceOnEcho = a_subMod->IsReevaluatingOnEcho();
+					ImGui::Checkbox(replaceOnEchoLabel.data(), &tempReplaceOnEcho);
+					ImGui::EndDisabled();
+					ImGui::SameLine();
+					UICommon::HelpMarker(replaceOnEchoTooltip.data());
+				}
+			}
+
             // Submod keep random results on loop
             {
                 std::string keepRandomLabel = "Keep random results on loop##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "keepRandom";
@@ -1257,9 +1305,11 @@ namespace UI
                 if (_lastAddNewConditionName.empty()) {
                     auto isFormCondition = Conditions::CreateCondition("IsForm"sv);
                     a_conditionSet->AddCondition(isFormCondition, true);
+					bSetDirty = true;
                 } else {
                     auto newCondition = Conditions::CreateCondition(_lastAddNewConditionName);
                     a_conditionSet->AddCondition(newCondition, true);
+					bSetDirty = true;
                 }
             }
 
@@ -1287,6 +1337,7 @@ namespace UI
                     ImGui::CloseCurrentPopup();
                     const auto duplicatedSet = DuplicateConditionSet(_conditionSetCopy.get());
                     a_conditionSet->AppendConditions(duplicatedSet.get());
+					bSetDirty = true;
                 }
                 ImGui::EndDisabled();
                 // Paste tooltip
@@ -1302,6 +1353,7 @@ namespace UI
                     "Clear condition set"sv, "Are you sure you want to clear the condition set?\nThis operation cannot be undone!\n\n"sv, [&]() {
                         ImGui::ClosePopupsExceptModals();
                         OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::ClearConditionSetJob>(a_conditionSet);
+						bSetDirty = true;
                     },
                     ImVec2(xButtonSize, 0));
                 ImGui::EndPopup();

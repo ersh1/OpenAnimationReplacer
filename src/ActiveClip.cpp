@@ -10,6 +10,7 @@ ActiveClip::ActiveClip(RE::hkbClipGenerator* a_clipGenerator, RE::hkbCharacter* 
     _originalIndex(a_clipGenerator->animationBindingIndex),
     _originalFlags(a_clipGenerator->flags),
     _bOriginalInterruptible(OpenAnimationReplacer::GetSingleton().IsOriginalAnimationInterruptible(a_character, a_clipGenerator->animationBindingIndex)),
+	_bOriginalReplaceOnEcho(OpenAnimationReplacer::GetSingleton().ShouldOriginalAnimationReplaceOnEcho(a_character, a_clipGenerator->animationBindingIndex)),
     _bOriginalKeepRandomResultsOnLoop(OpenAnimationReplacer::GetSingleton().ShouldOriginalAnimationKeepRandomResultsOnLoop(a_character, a_clipGenerator->animationBindingIndex))
 {
     _refr = Utils::GetActorFromHkbCharacter(a_character);
@@ -166,9 +167,10 @@ void ActiveClip::OnGenerate([[maybe_unused]] RE::hkbClipGenerator* a_clipGenerat
         return;
     }
 
-    TrackHeader* poseHeader = GetTrackHeader(a_output, RE::hkbGeneratorOutput::StandardTracks::TRACK_POSE);
-    if (poseHeader && poseHeader->numData > 0 && poseHeader->onFraction > 0.f) {
-        auto poseOut = reinterpret_cast<RE::hkQsTransform*>(Track_getData(a_output, *poseHeader));
+    if (a_output.IsValid(RE::hkbGeneratorOutput::StandardTracks::TRACK_POSE)) {
+        RE::hkbGeneratorOutput::Track poseTrack = a_output.GetTrack(RE::hkbGeneratorOutput::StandardTracks::TRACK_POSE);
+
+        auto poseOut = poseTrack.GetDataQsTransform();
 
         if (const auto binding = _blendFromClipGenerator->animationControl->binding) {
             if (const auto& blendFromAnimation = binding->animation) {
@@ -180,7 +182,9 @@ void ActiveClip::OnGenerate([[maybe_unused]] RE::hkbClipGenerator* a_clipGenerat
                 blendFromAnimation->SamplePartialTracks(_blendFromClipGenerator->localTime, blendFromAnimation->numberOfTransformTracks, sampledTransformTracks.data(), blendFromAnimation->numberOfFloatTracks, sampledFloatTracks.data(), nullptr);
 
                 float lerpAmount = std::clamp(Utils::InterpEaseInOut(0.f, 1.f, _blendElapsedTime / _blendDuration, 2), 0.f, 1.f);
-                hkbBlendPoses(blendFromAnimation->numberOfTransformTracks, sampledTransformTracks.data(), poseOut, lerpAmount, poseOut);
+
+                auto numBlend = std::min(poseTrack.GetNumData(), blendFromAnimation->numberOfTransformTracks);
+                hkbBlendPoses(numBlend, sampledTransformTracks.data(), poseOut, lerpAmount, poseOut);
             }
         }
     }
@@ -188,13 +192,18 @@ void ActiveClip::OnGenerate([[maybe_unused]] RE::hkbClipGenerator* a_clipGenerat
 
 bool ActiveClip::OnEcho(RE::hkbClipGenerator* a_clipGenerator, float a_echoDuration)
 {
-    ClearRandomFloats();
+	// clear random condition results so they reroll and another animation replacements get a chance to play
+	if (!ShouldKeepRandomResultsOnLoop()) {
+		ClearRandomFloats();
+	}
 
-    const auto newReplacementAnim = OpenAnimationReplacer::GetSingleton().GetReplacementAnimation(_character, a_clipGenerator, _originalIndex);
-    if (_currentReplacementAnimation != newReplacementAnim) {
-        QueueReplacementAnimation(newReplacementAnim, a_echoDuration, AnimationLogEntry::Event::kEchoReplace);
-        return true;
-    }
+	if (ShouldReplaceOnEcho()) {
+		const auto newReplacementAnim = OpenAnimationReplacer::GetSingleton().GetReplacementAnimation(_character, a_clipGenerator, _originalIndex);
+		if (_currentReplacementAnimation != newReplacementAnim) {
+			QueueReplacementAnimation(newReplacementAnim, a_echoDuration, AnimationLogEntry::Event::kEchoReplace);
+			return true;
+		}
+	}
 
     return false;
 }
@@ -206,12 +215,14 @@ bool ActiveClip::OnLoop(RE::hkbClipGenerator* a_clipGenerator)
         ClearRandomFloats();
     }
 
-    // reevaluate conditions on loop
-    const auto newReplacementAnim = OpenAnimationReplacer::GetSingleton().GetReplacementAnimation(_character, a_clipGenerator, _originalIndex);
-    if (_currentReplacementAnimation != newReplacementAnim) {
-        QueueReplacementAnimation(newReplacementAnim, Settings::fBlendTimeOnLoop, AnimationLogEntry::Event::kLoopReplace);
-        return true;
-    }
+	if (ShouldReplaceOnLoop()) {
+		// reevaluate conditions on loop
+		const auto newReplacementAnim = OpenAnimationReplacer::GetSingleton().GetReplacementAnimation(_character, a_clipGenerator, _originalIndex);
+		if (_currentReplacementAnimation != newReplacementAnim) {
+			QueueReplacementAnimation(newReplacementAnim, Settings::fBlendTimeOnLoop, AnimationLogEntry::Event::kLoopReplace);
+			return true;
+		}
+	}
 
     return false;
 }

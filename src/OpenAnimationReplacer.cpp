@@ -131,6 +131,7 @@ void OpenAnimationReplacer::InitializeReplacementAnimations(RE::hkbCharacterStri
     if (const auto projectData = GetReplacerProjectData(a_stringData)) {
         projectData->ForEach([](auto a_animationReplacements) {
             a_animationReplacements->TestInterruptible();
+			a_animationReplacements->TestReplaceOnEcho();
             a_animationReplacements->TestKeepRandomResultsOnLoop();
             a_animationReplacements->SortByPriority();
         });
@@ -211,6 +212,21 @@ bool OpenAnimationReplacer::IsOriginalAnimationInterruptible(RE::hkbCharacter* a
     }
 
     return false;
+}
+
+bool OpenAnimationReplacer::ShouldOriginalAnimationReplaceOnEcho(RE::hkbCharacter* a_character, uint16_t a_originalIndex) const
+{
+	if (a_originalIndex != static_cast<uint16_t>(-1) && a_character) {
+		if (const auto stringData = Utils::GetStringDataFromHkbCharacter(a_character)) {
+			if (const auto replacerProjectData = GetReplacerProjectData(stringData)) {
+				if (const auto animationReplacements = replacerProjectData->GetAnimationReplacements(a_originalIndex)) {
+					return animationReplacements->ShouldOriginalReplaceOnEcho();
+				}
+			}
+		}
+	}
+
+	return false;
 }
 
 bool OpenAnimationReplacer::ShouldOriginalAnimationKeepRandomResultsOnLoop(RE::hkbCharacter* a_character, uint16_t a_originalIndex) const
@@ -542,6 +558,25 @@ void OpenAnimationReplacer::InitFactories()
     _conditionFactories.emplace("WindSpeed", []() { return std::make_unique<WindSpeedCondition>(); });
     _conditionFactories.emplace("WindAngleDifference", []() { return std::make_unique<WindAngleDifferenceCondition>(); });
     _conditionFactories.emplace("CrimeGold", []() { return std::make_unique<CrimeGoldCondition>(); });
+    _conditionFactories.emplace("IsBlocking", []() { return std::make_unique<IsBlockingCondition>(); });
+    _conditionFactories.emplace("IsCombatState", []() { return std::make_unique<IsCombatStateCondition>(); });
+    _conditionFactories.emplace("InventoryCount", []() { return std::make_unique<InventoryCountCondition>(); });
+    _conditionFactories.emplace("FallDistance", []() { return std::make_unique<FallDistanceCondition>(); });
+    _conditionFactories.emplace("FallDamage", []() { return std::make_unique<FallDamageCondition>(); });
+    _conditionFactories.emplace("CurrentPackageProcedureType", []() { return std::make_unique<CurrentPackageProcedureTypeCondition>(); });
+    _conditionFactories.emplace("IsOnMount", []() { return std::make_unique<IsOnMountCondition>(); });
+    _conditionFactories.emplace("IsRiding", []() { return std::make_unique<IsRidingCondition>(); });
+    _conditionFactories.emplace("IsRidingHasKeyword", []() { return std::make_unique<IsRidingHasKeywordCondition>(); });
+    _conditionFactories.emplace("IsBeingRidden", []() { return std::make_unique<IsBeingRiddenCondition>(); });
+    _conditionFactories.emplace("IsBeingRiddenBy", []() { return std::make_unique<IsBeingRiddenByCondition>(); });
+    _conditionFactories.emplace("CurrentFurniture", []() { return std::make_unique<CurrentFurnitureCondition>(); });
+    _conditionFactories.emplace("CurrentFurnitureHasKeyword", []() { return std::make_unique<CurrentFurnitureHasKeywordCondition>(); });
+	_conditionFactories.emplace("HasTarget", []() { return std::make_unique<HasTargetCondition>(); });
+	_conditionFactories.emplace("CurrentTarget", []() { return std::make_unique<CurrentTargetCondition>(); });
+	_conditionFactories.emplace("CurrentTargetHasKeyword", []() { return std::make_unique<CurrentTargetHasKeywordCondition>(); });
+	_conditionFactories.emplace("CurrentTargetDistance", []() { return std::make_unique<CurrentTargetDistanceCondition>(); });
+	_conditionFactories.emplace("CurrentTargetRelationship", []() { return std::make_unique<CurrentTargetRelationshipCondition>(); });
+	_conditionFactories.emplace("CurrentTargetFactionRank", []() { return std::make_unique<CurrentTargetFactionRankCondition>(); });
 
     // Hidden factories - not visible for selection in the UI, used only for mapping legacy names to new conditions
     _hiddenConditionFactories.emplace("IsEquippedRight", []() { return std::make_unique<IsEquippedCondition>(false); });

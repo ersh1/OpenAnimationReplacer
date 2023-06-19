@@ -4,6 +4,8 @@ set(SOURCE_DIR "${ROOT_DIR}/src")
 set(SOURCE_FILES
 	"${SOURCE_DIR}/ActiveClip.cpp"
 	"${SOURCE_DIR}/ActiveClip.h"
+	"${SOURCE_DIR}/ActiveSynchronizedClip.cpp"
+	"${SOURCE_DIR}/ActiveSynchronizedClip.h"
 	"${SOURCE_DIR}/AnimationFileHashCache.cpp"
 	"${SOURCE_DIR}/AnimationFileHashCache.h"
 	"${SOURCE_DIR}/AnimationLog.cpp"

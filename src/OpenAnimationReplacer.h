@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ActiveClip.h"
+#include "ActiveSynchronizedClip.h"
 #include "ReplacerMods.h"
 #include "Jobs.h"
 
@@ -33,6 +34,9 @@ public:
     ActiveClip* AddOrGetActiveClip(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context, bool& a_bOutAdded);
     void RemoveActiveClip(RE::hkbClipGenerator* a_clipGenerator);
 
+	ActiveSynchronizedClip* AddOrGetActiveSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context, bool& a_bOutAdded);
+	void RemoveActiveSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator);
+
     [[nodiscard]] bool IsOriginalAnimationInterruptible(RE::hkbCharacter* a_character, uint16_t a_originalIndex) const;
     [[nodiscard]] bool ShouldOriginalAnimationReplaceOnEcho(RE::hkbCharacter* a_character, uint16_t a_originalIndex) const;
     [[nodiscard]] bool ShouldOriginalAnimationKeepRandomResultsOnLoop(RE::hkbCharacter* a_character, uint16_t a_originalIndex) const;
@@ -43,6 +47,7 @@ public:
     [[nodiscard]] ReplacerProjectData* GetOrAddReplacerProjectData(RE::hkbCharacterStringData* a_stringData, RE::BShkbHkxDB::ProjectDBData* a_projectDBData);
     void ForEachReplacerProjectData(const std::function<void(RE::hkbCharacterStringData*, ReplacerProjectData*)>& a_func) const;
     void ForEachReplacerMod(const std::function<void(ReplacerMod*)>& a_func) const;
+    void ForEachSortedReplacerMod(const std::function<void(ReplacerMod*)>& a_func) const;
 
     void SetSynchronizedClipsIDOffset(RE::hkbCharacterStringData* a_stringData, uint16_t a_offset);
     [[nodiscard]] uint16_t GetSynchronizedClipsIDOffset(RE::hkbCharacterStringData* a_stringData) const;
@@ -75,6 +80,20 @@ public:
         _jobs.push_back(std::make_unique<T>(std::forward<Args>(a_args)...));
     }
 
+	template <class T, typename... Args>
+	void QueueLatentJob(Args&&... a_args)
+	{
+		WriteLocker locker(_jobsLock);
+
+		static_assert(std::is_base_of_v<Jobs::LatentJob, T>);
+		_latentJobs.push_back(std::make_unique<T>(std::forward<Args>(a_args)...));
+	}
+
+	void QueueWeakLatentJob(std::weak_ptr<Jobs::LatentJob> a_job)
+    {
+		_weakLatentJobs.emplace_back(a_job);
+    }
+
     static inline bool bKeywordsLoaded = false;
     static inline RE::BGSKeyword* kywd_weapTypeWarhammer = nullptr;
     static inline RE::BGSKeyword* kywd_weapTypeBattleaxe = nullptr;
@@ -97,6 +116,9 @@ protected:
     mutable SharedLock _activeClipsLock;
     std::unordered_map<RE::hkbClipGenerator*, std::unique_ptr<ActiveClip>> _activeClips;
 
+	mutable SharedLock _activeSynchronizedClipsLock;
+	std::unordered_map<RE::BSSynchronizedClipGenerator*, std::unique_ptr<ActiveSynchronizedClip>> _activeSynchronizedClips;
+
     void InitDefaultProjects() const;
     [[nodiscard]] RE::Character* CreateDummyCharacter(RE::TESNPC* a_baseForm) const;
 
@@ -114,6 +136,10 @@ protected:
 
     mutable SharedLock _jobsLock;
     std::vector<std::unique_ptr<Jobs::GenericJob>> _jobs;
+
+	std::vector<std::unique_ptr<Jobs::LatentJob>> _latentJobs;
+
+	std::vector<std::weak_ptr<Jobs::LatentJob>> _weakLatentJobs;
 
 private:
     OpenAnimationReplacer() = default;

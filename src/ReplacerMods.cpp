@@ -11,8 +11,7 @@ void SubMod::AddReplacementAnimations(RE::hkbCharacterStringData* a_stringData, 
     const auto replacerProjectData = OpenAnimationReplacer::GetSingleton().GetOrAddReplacerProjectData(a_stringData, a_projectDBData);
 
     for (auto& replacementAnimToAdd : a_animationsToAdd) {
-        if (uint16_t newIndex = replacerProjectData->TryAddAnimationToAnimationBundleNames(replacementAnimToAdd); newIndex != static_cast<uint16_t>(-1)) {
-            auto newReplacementAnimation = std::make_unique<ReplacementAnimation>(newIndex, replacementAnimToAdd.originalBindingIndex, _priority, replacementAnimToAdd.animationPath, a_stringData->name.data(), _conditionSet.get());
+		if (auto newReplacementAnimation = CreateReplacementAnimation(replacerProjectData, a_stringData, replacementAnimToAdd)) {
             newReplacementAnimation->_parentSubMod = this;
             {
                 WriteLocker locker(_dataLock);
@@ -27,19 +26,38 @@ void SubMod::AddReplacementAnimations(RE::hkbCharacterStringData* a_stringData, 
             replacerProjectData->AddReplacementAnimation(a_stringData, replacementAnimToAdd.originalBindingIndex, newReplacementAnimation);
         }
     }
+}
 
-    UpdateAnimations();
+std::unique_ptr<ReplacementAnimation> SubMod::CreateReplacementAnimation(ReplacerProjectData* a_replacerProjectData, RE::hkbCharacterStringData* a_stringData, const Parsing::ReplacementAnimationToAdd& a_anim)
+{
+	if (a_anim.variants) {
+		std::vector<ReplacementAnimation::Variant> variants;
+		for (auto& variantToAdd : *a_anim.variants) {
+			if (uint16_t newIndex = a_replacerProjectData->TryAddAnimationToAnimationBundleNames(variantToAdd.fullPath, variantToAdd.hash); newIndex != static_cast<uint16_t>(-1)) {
+				variants.emplace_back(newIndex, Utils::GetFileNameWithExtension(variantToAdd.fullPath));
+			}
+		}
+
+		return std::make_unique<ReplacementAnimation>(variants, a_anim.originalBindingIndex, _priority, a_anim.animationPath, a_stringData->name.data(), _conditionSet.get());
+	}
+
+	if (uint16_t newIndex = a_replacerProjectData->TryAddAnimationToAnimationBundleNames(a_anim.animationPath, a_anim.hash); newIndex != static_cast<uint16_t>(-1)) {
+		return std::make_unique<ReplacementAnimation>(newIndex, a_anim.originalBindingIndex, _priority, a_anim.animationPath, a_stringData->name.data(), _conditionSet.get());
+	}
+	
+	return nullptr;
 }
 
 void SubMod::LoadParseResult(const Parsing::SubModParseResult& a_parseResult)
 {
+	ResetAnimations();
+
     _path = a_parseResult.path;
     _configSource = a_parseResult.configSource;
     _name = a_parseResult.name;
     _description = a_parseResult.description;
     _priority = a_parseResult.priority;
     _bDisabled = a_parseResult.bDisabled;
-    _disabledAnimations = a_parseResult.disabledAnimations;
     _overrideAnimationsFolder = a_parseResult.overrideAnimationsFolder;
     _requiredProjectName = a_parseResult.requiredProjectName;
     _bIgnoreNoTriggersFlag = a_parseResult.bIgnoreNoTriggersFlag;
@@ -47,9 +65,33 @@ void SubMod::LoadParseResult(const Parsing::SubModParseResult& a_parseResult)
 	_bReplaceOnLoop = a_parseResult.bReplaceOnLoop;
 	_bReplaceOnEcho = a_parseResult.bReplaceOnEcho;
     _bKeepRandomResultsOnLoop = a_parseResult.bKeepRandomResultsOnLoop;
+	_bShareRandomResults = a_parseResult.bShareRandomResults;
     _conditionSet->MoveConditions(a_parseResult.conditionSet.get());
+	
+	LoadReplacementAnimationDatas(a_parseResult.replacementAnimDatas);
 
     SetDirtyRecursive(false);
+}
+
+void SubMod::LoadReplacementAnimationDatas(const std::vector<ReplacementAnimData>& a_replacementAnimDatas)
+{
+	for (const auto& replacementAnimData : a_replacementAnimDatas) {
+		auto search = std::ranges::find_if(_replacementAnimations, [&](const ReplacementAnimation* a_replacementAnimation) {
+		    return a_replacementAnimation->GetProjectName() == replacementAnimData.projectName && a_replacementAnimation->GetAnimPath() == replacementAnimData.path;
+		});
+
+		if (search != _replacementAnimations.end()) {
+			(*search)->LoadAnimData(replacementAnimData);
+		}
+	}
+}
+
+void SubMod::ResetAnimations()
+{
+	for (const auto& anim : _replacementAnimations) {
+		anim->SetDisabled(false);
+		anim->ResetVariants();
+	}
 }
 
 void SubMod::UpdateAnimations() const
@@ -57,15 +99,14 @@ void SubMod::UpdateAnimations() const
     // Update stuff in each anim
     for (const auto& anim : _replacementAnimations) {
         anim->SetPriority(_priority);
-        anim->SetDisabled(_bDisabled);
-        if (_disabledAnimations.contains(anim)) {
-            anim->SetDisabled(true);
-        }
+        anim->SetDisabledByParent(_bDisabled);
         anim->SetIgnoreNoTriggersFlag(_bIgnoreNoTriggersFlag);
         anim->SetInterruptible(_bInterruptible);
 		anim->SetReplaceOnLoop(_bReplaceOnLoop);
 		anim->SetReplaceOnEcho(_bReplaceOnEcho);
         anim->SetKeepRandomResultsOnLoop(_bKeepRandomResultsOnLoop);
+		anim->SetShareRandomResults(_bShareRandomResults);
+		anim->UpdateVariantCache();
     }
 
     // Update stuff in each anim replacements struct
@@ -119,7 +160,7 @@ bool SubMod::ReloadConfig()
     bool bUserJsonFound = is_regular_file(userPath);
     if (bConfigJsonFound || bUserJsonFound) {
         if (bOriginallyLegacy) {
-            // only read user.json if it was originally a legacy mod
+            // if it was originally a legacy mod, only read user.json
             if (bUserJsonFound) {
                 ResetToLegacy();
                 parseResult.name = _name;
@@ -256,19 +297,49 @@ void SubMod::Serialize(rapidjson::Document& a_doc, ConditionEditMode a_editMode)
         a_doc.AddMember("disabled", disabledValue, allocator);
     }
 
-    // write disabled animations
-    if (!_disabledAnimations.empty()) {
-        rapidjson::Value disabledAnimationsValue(rapidjson::kArrayType);
-        for (const auto& disabledAnim : _disabledAnimations) {
-            rapidjson::Value animValue(rapidjson::kObjectType);
+    // write replacement anim datas (only save those that have non-default settings)
+	rapidjson::Value replacementAnimationDatasValue(rapidjson::kArrayType);
+	for (auto& replacementAnimation : _replacementAnimations) {
+		if (replacementAnimation->ShouldSaveToJson()) {
+			rapidjson::Value animValue(rapidjson::kObjectType);
 
-            animValue.AddMember("projectName", rapidjson::StringRef(disabledAnim.projectName.data(), disabledAnim.projectName.length()), allocator);
-            animValue.AddMember("path", rapidjson::StringRef(disabledAnim.path.data(), disabledAnim.path.length()), allocator);
+			animValue.AddMember("projectName", rapidjson::StringRef(replacementAnimation->GetProjectName().data(), replacementAnimation->GetProjectName().length()), allocator);
+			animValue.AddMember("path", rapidjson::StringRef(replacementAnimation->GetAnimPath().data(), replacementAnimation->GetAnimPath().length()), allocator);
+			if (replacementAnimation->GetDisabled()) {
+				animValue.AddMember("disabled", replacementAnimation->GetDisabled(), allocator);
+			}
 
-            disabledAnimationsValue.PushBack(animValue, allocator);
-        }
-        a_doc.AddMember("disabledAnimations", disabledAnimationsValue, allocator);
-    }
+			if (replacementAnimation->HasVariants()) {
+				rapidjson::Value variantsValue(rapidjson::kArrayType);
+				replacementAnimation->ForEachVariant([&](const ReplacementAnimation::Variant& a_variant) {
+					if (a_variant.ShouldSaveToJson()) {
+						rapidjson::Value variantValue(rapidjson::kObjectType);
+
+						variantValue.AddMember("filename", rapidjson::StringRef(a_variant.GetFilename().data(), a_variant.GetFilename().length()), allocator);
+						if (a_variant.GetWeight() != 1.f) {
+							variantValue.AddMember("weight", a_variant.GetWeight(), allocator);
+						}
+						if (a_variant.IsDisabled()) {
+							variantValue.AddMember("disabled", a_variant.IsDisabled(), allocator);
+						}
+
+						variantsValue.PushBack(variantValue, allocator);
+					}
+
+					return RE::BSVisit::BSVisitControl::kContinue;
+				});
+
+				if (!variantsValue.Empty()) {
+					animValue.AddMember("variants", variantsValue, allocator);
+				}
+			}
+
+			replacementAnimationDatasValue.PushBack(animValue, allocator);
+		}
+	}
+	if (!replacementAnimationDatasValue.Empty()) {
+		a_doc.AddMember("replacementAnimDatas", replacementAnimationDatasValue, allocator);
+	}
 
     // write override animations folder
     if (!_overrideAnimationsFolder.empty()) {
@@ -311,6 +382,12 @@ void SubMod::Serialize(rapidjson::Document& a_doc, ConditionEditMode a_editMode)
         rapidjson::Value keepRandomResultsOnLoopValue(_bKeepRandomResultsOnLoop);
         a_doc.AddMember("keepRandomResultsOnLoop", keepRandomResultsOnLoopValue, allocator);
     }
+
+	// write share random results
+	if (_bShareRandomResults) {
+		rapidjson::Value shareRandomResultsValue(_bShareRandomResults);
+		a_doc.AddMember("shareRandomResults", shareRandomResultsValue, allocator);
+	}
 
     // write conditions
     rapidjson::Value conditionArrayValue = _conditionSet->Serialize(allocator);
@@ -355,7 +432,6 @@ void SubMod::ResetToLegacy()
 
     _description = "";
     _bDisabled = false;
-    _disabledAnimations.clear();
     _overrideAnimationsFolder = "";
     _requiredProjectName = "";
     _bIgnoreNoTriggersFlag = false;
@@ -363,10 +439,28 @@ void SubMod::ResetToLegacy()
 	_bReplaceOnLoop = true;
 	_bReplaceOnEcho = false;
     _bKeepRandomResultsOnLoop = false;
+	_bShareRandomResults = false;
+
+	ResetReplacementAnimationsToLegacy();
 
     SetDirty(false);
 
     UpdateAnimations();
+}
+
+void SubMod::ResetReplacementAnimationsToLegacy()
+{
+	for (const auto& anim : _replacementAnimations) {
+		anim->SetDisabled(false);
+		anim->ResetVariants();
+		anim->SetIgnoreNoTriggersFlag(_bIgnoreNoTriggersFlag);
+		anim->SetInterruptible(_bInterruptible);
+		anim->SetReplaceOnLoop(_bReplaceOnLoop);
+		anim->SetReplaceOnEcho(_bReplaceOnEcho);
+		anim->SetKeepRandomResultsOnLoop(_bKeepRandomResultsOnLoop);
+		anim->SetShareRandomResults(_bShareRandomResults);
+		anim->UpdateVariantCache();
+	}
 }
 
 void SubMod::AddReplacerProject(ReplacerProjectData* a_replacerProject)
@@ -399,19 +493,119 @@ void SubMod::ForEachReplacementAnimation(const std::function<void(ReplacementAni
     }
 }
 
-bool SubMod::HasDisabledAnimation(ReplacementAnimation* a_replacementAnimation) const
+float SubMod::GetSharedRandom(ActiveClip* a_activeClip, const Conditions::IRandomConditionComponent* a_randomComponent)
 {
-    return _disabledAnimations.contains(a_replacementAnimation);
+	{
+	    ReadLocker locker(_randomLock);
+
+		if (const auto search = _sharedRandomFloats.find(a_activeClip->GetBehaviorGraph()); search != _sharedRandomFloats.end()) {
+			return search->second.GetRandomFloat(a_activeClip, a_randomComponent);
+		}
+	}
+
+	{
+		WriteLocker locker(_randomLock);
+
+		const auto behaviorGraph = a_activeClip->GetBehaviorGraph();
+
+		auto [it, bSuccess] = _sharedRandomFloats.try_emplace(behaviorGraph, this, behaviorGraph);
+		return it->second.GetRandomFloat(a_activeClip, a_randomComponent);
+	}
 }
 
-void SubMod::AddDisabledAnimation(ReplacementAnimation* a_replacementAnimation)
+float SubMod::GetVariantRandom(ActiveClip* a_activeClip)
 {
-    _disabledAnimations.emplace(a_replacementAnimation);
+	{
+		ReadLocker locker(_randomLock);
+
+		if (const auto search = _sharedRandomFloats.find(a_activeClip->GetBehaviorGraph()); search != _sharedRandomFloats.end()) {
+			return search->second.GetVariantFloat(a_activeClip);
+		}
+	}
+
+	{
+		WriteLocker locker(_randomLock);
+
+		const auto behaviorGraph = a_activeClip->GetBehaviorGraph();
+
+		auto [it, bSuccess] = _sharedRandomFloats.try_emplace(behaviorGraph, this, behaviorGraph);
+		return it->second.GetVariantFloat(a_activeClip);
+	}
 }
 
-void SubMod::RemoveDisabledAnimation(ReplacementAnimation* a_replacementAnimation)
+void SubMod::ClearSharedRandom(const RE::hkbBehaviorGraph* a_behaviorGraph)
 {
-    _disabledAnimations.erase(a_replacementAnimation);
+	WriteLocker locker(_randomLock);
+
+	_sharedRandomFloats.erase(a_behaviorGraph);
+}
+
+float SubMod::SharedRandomFloats::GetRandomFloat(ActiveClip* a_activeClip, const Conditions::IRandomConditionComponent* a_randomComponent)
+{
+	AddActiveClip(a_activeClip);
+
+	// Returns a saved random float if it exists, otherwise generates a new one and saves it
+	{
+		ReadLocker locker(_randomLock);
+		const auto search = _randomFloats.find(a_randomComponent);
+		if (search != _randomFloats.end()) {
+			return search->second;
+		}
+	}
+
+	WriteLocker locker(_randomLock);
+	float randomFloat = Utils::GetRandomFloat(a_randomComponent->GetMinValue(), a_randomComponent->GetMaxValue());
+	_randomFloats.emplace(a_randomComponent, randomFloat);
+
+	return randomFloat;
+}
+
+float SubMod::SharedRandomFloats::GetVariantFloat(ActiveClip* a_activeClip)
+{
+	AddActiveClip(a_activeClip);
+
+	// Returns a saved variant float if it exists, otherwise generates a new one and saves it
+	{
+		ReadLocker locker(_randomLock);
+		if (_variantFloat) {
+		    return *_variantFloat;
+		}
+	}
+
+	WriteLocker locker(_randomLock);
+	_variantFloat = Utils::GetRandomFloat(0.f, 1.f);
+
+	return *_variantFloat;
+}
+
+void SubMod::SharedRandomFloats::AddActiveClip(ActiveClip* a_activeClip)
+{
+	Locker locker(_clipLock);
+
+	auto [it, bSuccess] = _registeredCallbacks.try_emplace(a_activeClip, std::make_shared<ActiveClip::DestroyedCallback>([&](auto a_destroyedClip) {
+		RemoveActiveClip(a_destroyedClip);
+	}));
+
+	if (bSuccess) {
+		auto weakPtr = std::weak_ptr(it->second);
+		a_activeClip->RegisterDestroyedCallback(weakPtr);
+	}
+
+	// destroy queued removal job if any exists
+	_queuedRemovalJob = nullptr;
+}
+
+void SubMod::SharedRandomFloats::RemoveActiveClip(ActiveClip* a_activeClip)
+{
+	Locker locker(_clipLock);
+
+	_registeredCallbacks.erase(a_activeClip);
+
+	// queue for removal
+	if (_registeredCallbacks.empty()) {
+		_queuedRemovalJob = std::make_shared<Jobs::RemoveSharedRandomFloatJob>(Settings::fSharedRandomLifetime, _parentSubMod, _behaviorGraph);
+		OpenAnimationReplacer::GetSingleton().QueueWeakLatentJob(_queuedRemovalJob);
+	}
 }
 
 void ReplacerMod::SetName(std::string_view a_name)
@@ -641,23 +835,23 @@ uint16_t ReplacerProjectData::GetOriginalAnimationIndex(uint16_t a_currentIndex)
     return a_currentIndex;
 }
 
-uint16_t ReplacerProjectData::TryAddAnimationToAnimationBundleNames(const Parsing::ReplacementAnimationToAdd& a_anim)
+uint16_t ReplacerProjectData::TryAddAnimationToAnimationBundleNames(std::string_view a_path, const std::optional<std::string>& a_hash)
 {
-    std::optional<std::string> hash = std::nullopt;
+	std::optional<std::string> hash = std::nullopt;
 
     // Check hash
-    if (Settings::bFilterOutDuplicateAnimations && a_anim.hash) {
-        hash = a_anim.hash;
+	if (Settings::bFilterOutDuplicateAnimations && a_hash) {
+		hash = a_hash;
 
-        if (const auto search = _fileHashToIndexMap.find(*hash); search != _fileHashToIndexMap.end()) {
-            ++_filteredDuplicates;
-            return search->second;
-        }
+		if (const auto search = _fileHashToIndexMap.find(*hash); search != _fileHashToIndexMap.end()) {
+			++_filteredDuplicates;
+			return search->second;
+		}
     }
 
     // Check if the animation is already in the list and return the index if it is
     for (uint16_t i = 0; i < stringData->animationNames.size(); i++) {
-        if (stringData->animationNames[i].data() == a_anim.animationPath) {
+		if (stringData->animationNames[i].data() == a_path) {
             return i;
         }
     }
@@ -671,7 +865,7 @@ uint16_t ReplacerProjectData::TryAddAnimationToAnimationBundleNames(const Parsin
     }
 
     // Add the animation to the list
-    stringData->animationNames.push_back(a_anim.animationPath.data());
+	stringData->animationNames.push_back(a_path.data());
 
     if (Settings::bFilterOutDuplicateAnimations && hash) {
         _fileHashToIndexMap[*hash] = newIndex;
@@ -682,17 +876,30 @@ uint16_t ReplacerProjectData::TryAddAnimationToAnimationBundleNames(const Parsin
 
 void ReplacerProjectData::AddReplacementAnimation(RE::hkbCharacterStringData* a_stringData, uint16_t a_originalIndex, std::unique_ptr<ReplacementAnimation>& a_replacementAnimation)
 {
-    uint16_t replacementIndex = a_replacementAnimation->GetIndex();
-    if (const auto it = originalIndexToAnimationReplacementsMap.find(a_originalIndex); it != originalIndexToAnimationReplacementsMap.end()) {
-        it->second->AddReplacementAnimation(a_replacementAnimation);
-    } else {
-        auto newReplacementAnimations = std::make_unique<AnimationReplacements>(Utils::GetOriginalAnimationName(a_stringData, a_originalIndex));
-        newReplacementAnimations->AddReplacementAnimation(a_replacementAnimation);
-        originalIndexToAnimationReplacementsMap.emplace(a_originalIndex, std::move(newReplacementAnimations));
-    }
+	auto addReplacementIndex = [&](uint16_t a_index) {
+		replacementIndexToOriginalIndexMap.emplace(a_index, a_originalIndex);
+		animationsToQueue.emplace_back(a_index);
+	};
 
-    replacementIndexToOriginalIndexMap.emplace(replacementIndex, a_originalIndex);
-    animationsToQueue.emplace_back(replacementIndex);
+	if (a_replacementAnimation->HasVariants()) {
+		a_replacementAnimation->ForEachVariant([&](const ReplacementAnimation::Variant& a_variant) {
+			addReplacementIndex(a_variant.GetIndex());
+			return RE::BSVisit::BSVisitControl::kContinue;
+		});
+	} else {
+		const uint16_t replacementIndex = a_replacementAnimation->GetIndex();
+		if (replacementIndex != static_cast<uint16_t>(-1)) {
+			addReplacementIndex(replacementIndex);
+		}
+	}
+
+	if (const auto it = originalIndexToAnimationReplacementsMap.find(a_originalIndex); it != originalIndexToAnimationReplacementsMap.end()) {
+		it->second->AddReplacementAnimation(a_replacementAnimation);
+	} else {
+		auto newReplacementAnimations = std::make_unique<AnimationReplacements>(Utils::GetOriginalAnimationName(a_stringData, a_originalIndex));
+		newReplacementAnimations->AddReplacementAnimation(a_replacementAnimation);
+		originalIndexToAnimationReplacementsMap.emplace(a_originalIndex, std::move(newReplacementAnimations));
+	}
 }
 
 void ReplacerProjectData::SortReplacementAnimationsByPriority(uint16_t a_originalIndex)

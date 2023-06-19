@@ -9,7 +9,8 @@ namespace OAR_API::Conditions
     // Available Open Animation Replacer interface versions
     enum class InterfaceVersion : uint8_t
     {
-        V1
+        V1,
+		V2
     };
 
     // Error types that may be returned by Open Animation Replacer
@@ -29,7 +30,7 @@ namespace OAR_API::Conditions
     };
 
     // Open Animation Replacer's conditions interface
-    class IConditionsInterface1
+    class IConditionsInterface2
     {
     public:
         /// <summary>
@@ -57,14 +58,14 @@ namespace OAR_API::Conditions
         [[nodiscard]] virtual ::Conditions::ConditionComponentFactory GetConditionComponentFactory(::Conditions::ConditionComponentType a_componentType) noexcept = 0;
     };
 
-    using _RequestPluginAPI_Conditions = IConditionsInterface1* (*)(InterfaceVersion a_interfaceVersion, const char* a_pluginName, REL::Version a_pluginVersion);
+    using _RequestPluginAPI_Conditions = IConditionsInterface2* (*)(InterfaceVersion a_interfaceVersion, const char* a_pluginName, REL::Version a_pluginVersion);
 
     /// <summary>
     /// Request the Open Animation Replacer Conditions API interface.
     /// </summary>
     /// <param name="a_interfaceVersion">The interface version to request</param>
     /// <returns>The pointer to the API singleton, or nullptr if request failed</returns>
-    IConditionsInterface1* GetAPI(InterfaceVersion a_interfaceVersion = InterfaceVersion::V1);
+    IConditionsInterface2* GetAPI(InterfaceVersion a_interfaceVersion = InterfaceVersion::V2);
 
     /// <summary>
     /// A helper function that will try to add a new custom condition to Open Animation Replacer.
@@ -85,4 +86,4 @@ namespace OAR_API::Conditions
     }
 }
 
-extern OAR_API::Conditions::IConditionsInterface1* g_oarConditionsInterface;
+extern OAR_API::Conditions::IConditionsInterface2* g_oarConditionsInterface;

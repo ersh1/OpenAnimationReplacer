@@ -263,6 +263,40 @@ namespace UI
         ImGui::SetNextWindowPos(a_pos, ImGuiCond_None, ImVec2(0.f, 1.f));
 
         if (ImGui::Begin("Settings", &_bShowSettings, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings)) {
+			// UI settings
+			ImGui::AlignTextToFramePadding();
+			ImGui::TextUnformatted("UI Settings");
+			ImGui::Spacing();
+
+			if (UICommon::InputKey("Menu key", Settings::uToggleUIKeyData)) {
+				Settings::WriteSettings();
+			}
+			ImGui::SameLine();
+			UICommon::HelpMarker("Set the key to toggle the UI.");
+
+			ImGui::Spacing();
+
+			if (ImGui::Checkbox("Show welcome banner", &Settings::bShowWelcomeBanner)) {
+				Settings::WriteSettings();
+			}
+			ImGui::SameLine();
+			UICommon::HelpMarker("Enable to show the welcome banner on startup.");
+
+			static float tempScale = Settings::fUIScale;
+			ImGui::SliderFloat("UI scale", &tempScale, 1.f, 2.f, "%.1f", ImGuiSliderFlags_AlwaysClamp);
+			ImGui::SameLine();
+			UICommon::HelpMarker("Set the UI scale.");
+			ImGui::SameLine();
+			ImGui::BeginDisabled(tempScale == Settings::fUIScale);
+			if (ImGui::Button("Apply##UIScale")) {
+				Settings::fUIScale = tempScale;
+				Settings::WriteSettings();
+			}
+			ImGui::EndDisabled();
+
+			ImGui::Spacing();
+			ImGui::Separator();
+
             // General settings
             ImGui::AlignTextToFramePadding();
             ImGui::TextUnformatted("General Settings");
@@ -329,38 +363,6 @@ namespace UI
             }
             UICommon::AddTooltip("Delete the animation file hash cache. This will cause the hashes to be recalculated on the next game launch.");
             ImGui::EndDisabled();*/
-
-            ImGui::Spacing();
-            ImGui::Separator();
-
-            // UI settings
-            ImGui::AlignTextToFramePadding();
-            ImGui::TextUnformatted("UI Settings");
-            ImGui::Spacing();
-
-            if (ImGui::Checkbox("Show welcome banner", &Settings::bShowWelcomeBanner)) {
-                Settings::WriteSettings();
-            }
-            ImGui::SameLine();
-            UICommon::HelpMarker("Enable to show the welcome banner on startup.");
-
-            if (UICommon::InputKey("Menu key", Settings::uToggleUIKeyData)) {
-                Settings::WriteSettings();
-            }
-            ImGui::SameLine();
-            UICommon::HelpMarker("Set the key to toggle the UI.");
-
-            static float tempScale = Settings::fUIScale;
-            ImGui::SliderFloat("UI scale", &tempScale, 1.f, 2.f, "%.1f", ImGuiSliderFlags_AlwaysClamp);
-            ImGui::SameLine();
-            UICommon::HelpMarker("Set the UI scale.");
-            ImGui::SameLine();
-            ImGui::BeginDisabled(tempScale == Settings::fUIScale);
-            if (ImGui::Button("Apply##UIScale")) {
-                Settings::fUIScale = tempScale;
-                Settings::WriteSettings();
-            }
-            ImGui::EndDisabled();
 
             ImGui::Spacing();
             ImGui::Separator();
@@ -601,7 +603,8 @@ namespace UI
         ImGui::Separator();
 
         if (ImGui::BeginChild("Mods")) {
-            OpenAnimationReplacer::GetSingleton().ForEachReplacerMod([&](ReplacerMod* a_replacerMod) {
+			bool bFirstDisplayed = true;
+            OpenAnimationReplacer::GetSingleton().ForEachSortedReplacerMod([&](ReplacerMod* a_replacerMod) {
                 // Parse names for filtering and duplicate names
                 std::unordered_map<std::string, SubModNameFilterResult> subModNameFilterResults{};
                 const bool bEntireReplacerModMatchesFilter = !std::strlen(nameFilterBuf) || Utils::ContainsStringIgnoreCase(a_replacerMod->GetName(), nameFilterBuf) || Utils::ContainsStringIgnoreCase(a_replacerMod->GetAuthor(), nameFilterBuf);
@@ -626,7 +629,11 @@ namespace UI
                 });
 
                 if (bDisplayMod) {
+					if (!bFirstDisplayed && a_replacerMod->IsLegacy()) {
+						ImGui::Separator();
+					}
                     DrawReplacerMod(a_replacerMod, subModNameFilterResults);
+					bFirstDisplayed = false;
                 }
             });
         }
@@ -687,7 +694,7 @@ namespace UI
                     ImGui::TableSetColumnIndex(0);
                     ImGui::AlignTextToFramePadding();
                     UICommon::TextDescriptionRightAligned("Description");
-                    ImGui::TextUnformatted(a_replacerMod->GetDescription().data());
+                    UICommon::TextUnformattedWrapped(a_replacerMod->GetDescription().data());
                     ImGui::EndTable();
                 }
                 ImGui::Spacing();
@@ -730,7 +737,7 @@ namespace UI
         bool bStyleVarPushed = false;
         if (a_subMod->IsDisabled()) {
             auto& style = ImGui::GetStyle();
-            ImGui::PushStyleVar(ImGuiStyleVar_Alpha, style.Alpha * style.DisabledAlpha);
+			ImGui::PushStyleVar(ImGuiStyleVar_Alpha, style.DisabledAlpha);
             bStyleVarPushed = true;
         }
 
@@ -829,7 +836,7 @@ namespace UI
                         ImGui::TableSetColumnIndex(0);
                         ImGui::AlignTextToFramePadding();
                         UICommon::TextDescriptionRightAligned("Description");
-                        ImGui::TextUnformatted(a_subMod->GetDescription().data());
+						UICommon::TextUnformattedWrapped(a_subMod->GetDescription().data());
                         ImGui::EndTable();
                     }
                 }
@@ -840,7 +847,7 @@ namespace UI
                 std::string priorityLabel = "Priority##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "priority";
                 if (_editMode != ConditionEditMode::kNone) {
                     int32_t tempPriority = a_subMod->GetPriority();
-                    if (ImGui::InputInt(priorityLabel.data(), &tempPriority)) {
+					if (ImGui::InputInt(priorityLabel.data(), &tempPriority, 1, 100, ImGuiInputTextFlags_EnterReturnsTrue)) {
                         a_subMod->SetPriority(tempPriority);
                         OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::UpdateSubModJob>(a_subMod, true);
                         a_subMod->SetDirty(true);
@@ -1011,8 +1018,8 @@ namespace UI
 
             // Submod keep random results on loop
             {
-                std::string keepRandomLabel = "Keep random results on loop##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "keepRandom";
-                std::string keepRandomTooltip = "If checked, the results of the random conditions won't be reset when the animation loops. Mostly useful for random movement animations that don't want to be interrupted after every step or two.";
+                std::string keepRandomLabel = "Keep random results and variants on loop/echo##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "keepRandom";
+                std::string keepRandomTooltip = "If checked, the results of random number generation won't be reset when the animation loops or plays an echo. In case the animation has variants, the current variant won't get rerolled. Mostly useful for random movement animations that don't want to be interrupted after every step or two.";
 
                 if (_editMode != ConditionEditMode::kNone) {
                     bool tempKeepRandomResultsOnLoop = a_subMod->IsKeepingRandomResultsOnLoop();
@@ -1033,6 +1040,30 @@ namespace UI
                 }
             }
 
+			// Submod share random results
+			{
+				std::string shareRandomLabel = "Share random results##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "shareRandom";
+				std::string shareRandomTooltip = "If checked, the results of random number generation will be shared throughout the whole submod (instead of being rolled separately for each animation). In case the animations have variants, the randomly generated number will be shared for all animations. Useful if you want entire animation sets to be randomly selected instead of separate animations getting randomized.\n\nIn case of variants, keep the variant count the same for all of the animations or you'll most likely see unexpected results.\n\nKeep in mind that animations from other submods can still override any animations from this set if they don't have a similar structure and this setting enabled.";
+
+				if (_editMode != ConditionEditMode::kNone) {
+					bool tempShareRandomResults = a_subMod->IsSharingRandomResults();
+					if (ImGui::Checkbox(shareRandomLabel.data(), &tempShareRandomResults)) {
+						a_subMod->SetShareRandomResults(tempShareRandomResults);
+						OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::UpdateSubModJob>(a_subMod, false);
+						a_subMod->SetDirty(true);
+					}
+					ImGui::SameLine();
+					UICommon::HelpMarker(shareRandomTooltip.data());
+				} else if (a_subMod->IsSharingRandomResults()) {
+					ImGui::BeginDisabled();
+					bool tempShareRandomResults = a_subMod->IsSharingRandomResults();
+					ImGui::Checkbox(shareRandomLabel.data(), &tempShareRandomResults);
+					ImGui::EndDisabled();
+					ImGui::SameLine();
+					UICommon::HelpMarker(shareRandomTooltip.data());
+				}
+			}
+
             // Submod animations
             {
                 std::string animationsTreeNodeLabel = "Replacement Animations##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "animationsNode";
@@ -1040,21 +1071,23 @@ namespace UI
                     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2, 2));
                     std::string animationsTableId = std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "animationsTable";
                     if (ImGui::BeginTable(animationsTableId.data(), 1, ImGuiTableFlags_BordersOuter)) {
-                        a_subMod->ForEachReplacementAnimation([&](const auto a_replacementAnimation) {
+                        a_subMod->ForEachReplacementAnimation([&](ReplacementAnimation* a_replacementAnimation) {
                             ImGui::TableNextRow();
                             ImGui::TableSetColumnIndex(0);
                             ImGui::AlignTextToFramePadding();
 
+							const bool bAnimationDisabled = a_replacementAnimation->IsDisabled();
+							if (bAnimationDisabled) {
+								auto& style = ImGui::GetStyle();
+								ImGui::PushStyleVar(ImGuiStyleVar_Alpha, style.DisabledAlpha);
+							}
+
                             if (_editMode != ConditionEditMode::kNone) {
                                 const std::string idString = std::format("{}##bDisabled", reinterpret_cast<uintptr_t>(a_replacementAnimation));
                                 ImGui::PushID(idString.data());
-                                bool bEnabled = !a_subMod->HasDisabledAnimation(a_replacementAnimation);
+                                bool bEnabled = !a_replacementAnimation->GetDisabled();
                                 if (ImGui::Checkbox("##disableReplacementAnimation", &bEnabled)) {
-                                    if (bEnabled) {
-                                        a_subMod->RemoveDisabledAnimation(a_replacementAnimation);
-                                    } else {
-                                        a_subMod->AddDisabledAnimation(a_replacementAnimation);
-                                    }
+									a_replacementAnimation->SetDisabled(!bEnabled);
                                     OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::UpdateSubModJob>(a_subMod, false);
                                     a_subMod->SetDirty(true);
                                 }
@@ -1063,18 +1096,71 @@ namespace UI
                                 ImGui::SameLine();
                             }
 
+							const bool bHasVariants = a_replacementAnimation->HasVariants();
+
                             UICommon::TextUnformattedDisabled(std::format("[{}]", a_replacementAnimation->GetProjectName()).data());
-                            ImGui::SameLine();
-                            if (a_replacementAnimation->GetDisabled()) {
-                                const ImGuiContext& ctx = *ImGui::GetCurrentContext();
-                                ImGui::PushStyleColor(ImGuiCol_Text, ctx.Style.Colors[ImGuiCol_TextDisabled]);
-                            }
+							ImGui::SameLine();
                             ImGui::TextUnformatted(a_replacementAnimation->GetAnimPath().data());
-                            if (a_replacementAnimation->GetDisabled()) {
-                                ImGui::PopStyleColor();
-                            }
                             // tooltip for full path in case it doesn't fit
                             UICommon::AddTooltip(a_replacementAnimation->GetAnimPath().data());
+
+							// variants
+							if (bHasVariants) {
+								a_replacementAnimation->ForEachVariant([&](ReplacementAnimation::Variant& a_variant) {
+									const bool bVariantDisabled = a_variant.IsDisabled();
+									if (bVariantDisabled) {
+										auto& style = ImGui::GetStyle();
+										ImGui::PushStyleVar(ImGuiStyleVar_Alpha, style.DisabledAlpha);
+									}
+
+									ImGui::TableNextRow();
+									ImGui::TableSetColumnIndex(0);
+									ImGui::AlignTextToFramePadding();
+
+									ImGui::Indent();
+									if (_editMode != ConditionEditMode::kNone) {
+										ImGui::PushID(&a_variant);
+										bool bEnabled = !a_variant.IsDisabled();
+										if (ImGui::Checkbox("##disableVariant", &bEnabled)) {
+											a_variant.SetDisabled(!bEnabled);
+											a_replacementAnimation->UpdateVariantCache();
+											a_subMod->SetDirty(true);
+										}
+										UICommon::AddTooltip("If unchecked, the replacement animation variant will be disabled and will not be considered.");
+										ImGui::SameLine();
+
+										float tempWeight = a_variant.GetWeight();
+										ImGui::SetNextItemWidth(ImGui::GetFontSize() * 10);
+										if (ImGui::InputFloat("Weight", &tempWeight, .01f, 1.0f, "%.3f", ImGuiInputTextFlags_EnterReturnsTrue)) {
+											tempWeight = std::max(0.f, tempWeight);
+											a_variant.SetWeight(tempWeight);
+											a_replacementAnimation->UpdateVariantCache();
+											a_subMod->SetDirty(true);
+										}
+										ImGui::PopID();
+									} else {
+										UICommon::TextUnformattedDisabled("Weight:");
+										ImGui::SameLine();
+										ImGui::TextUnformatted(std::format("{}", a_variant.GetWeight()).data());
+									}
+									UICommon::AddTooltip("The weight of this variant used for the weighted random selection (e.g. a variant with a weight of 2 will be twice as likely to be picked than a variant with a weight of 1)");
+									ImGui::SameLine();
+									UICommon::TextUnformattedDisabled("Filename:");
+									ImGui::SameLine();
+									ImGui::TextUnformatted(a_variant.GetFilename().data());
+									ImGui::Unindent();
+
+									if (bVariantDisabled) {
+										ImGui::PopStyleVar();
+									}
+
+									return RE::BSVisit::BSVisitControl::kContinue;
+								});
+							}
+
+							if (bAnimationDisabled) {
+								ImGui::PopStyleVar();
+							}
                         });
                         ImGui::EndTable();
                     }
@@ -1244,6 +1330,12 @@ namespace UI
 
         const std::string priorityText = "Priority: " + std::to_string(a_replacementAnimation->GetPriority());
 
+		const bool bAnimationDisabled = a_replacementAnimation->IsDisabled();
+		if (bAnimationDisabled) {
+			auto& style = ImGui::GetStyle();
+			ImGui::PushStyleVar(ImGuiStyleVar_Alpha, style.DisabledAlpha);
+		}
+
         ImGui::PushID(&a_replacementAnimation);
         const bool bNodeOpen = ImGui::TreeNodeEx(priorityText.data(), ImGuiTreeNodeFlags_AllowItemOverlap | ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_SpanAvailWidth);
 
@@ -1256,10 +1348,44 @@ namespace UI
             const auto animPath = a_replacementAnimation->GetAnimPath();
             ImGui::TextUnformatted(animPath.data());
             UICommon::AddTooltip(animPath.data()); // tooltip for full path in case it doesn't fit
+
+			// draw variants
+			if (a_replacementAnimation->HasVariants())
+			{
+				ImGui::TextUnformatted("Variants:");
+				ImGui::Indent();
+			    a_replacementAnimation->ForEachVariant([&](const ReplacementAnimation::Variant& a_variant) {
+					const bool bVariantDisabled = a_variant.IsDisabled();
+					if (bVariantDisabled) {
+						auto& style = ImGui::GetStyle();
+						ImGui::PushStyleVar(ImGuiStyleVar_Alpha, style.DisabledAlpha);
+					}
+
+					UICommon::TextUnformattedDisabled("Weight:");
+					ImGui::SameLine();
+					ImGui::TextUnformatted(std::format("{}", a_variant.GetWeight()).data());
+					UICommon::AddTooltip("The weight of this variant used for the weighted random selection (e.g. a variant with a weight of 2 will be twice as likely to be picked than a variant with a weight of 1)");
+					ImGui::SameLine();
+					UICommon::TextUnformattedDisabled("Filename:");
+					ImGui::SameLine();
+					ImGui::TextUnformatted(a_variant.GetFilename().data());
+
+					if (bVariantDisabled) {
+						ImGui::PopStyleVar();
+					}
+
+					return RE::BSVisit::BSVisitControl::kContinue;
+                });
+				ImGui::Unindent();
+			}
             DrawConditionSet(a_replacementAnimation->GetConditionSet(), ConditionEditMode::kNone, true, ImGui::GetCursorScreenPos());
             ImGui::TreePop();
         }
         ImGui::PopID();
+
+		if (bAnimationDisabled) {
+			ImGui::PopStyleVar();
+		}
     }
 
     bool UIMain::DrawConditionSet(Conditions::ConditionSet* a_conditionSet, ConditionEditMode a_editMode, bool a_bDrawLines, const ImVec2& a_drawStartPos)
@@ -1793,74 +1919,6 @@ namespace UI
         }
 
         return 0;
-    }
-
-    bool UIMain::InputPriority(const char* a_label, int* a_v, int a_step /*= 1*/, int a_stepFast /*= 100*/) const
-    {
-        const ImGuiWindow* window = ImGui::GetCurrentWindow();
-        if (window->SkipItems)
-            return false;
-
-        ImGuiContext& g = *GImGui;
-        ImGuiStyle& style = g.Style;
-
-        const char* format = ImGui::DataTypeGetInfo(ImGuiDataType_S32)->PrintFmt;
-
-        char buf[64];
-        ImGui::DataTypeFormatString(buf, IM_ARRAYSIZE(buf), ImGuiDataType_S32, a_v, format);
-
-#pragma warning(suppress: 5054)
-        const ImGuiInputTextFlags flags = ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_NoMarkEdited; // We call MarkItemEdited() ourselves by comparing the actual data rather than the string.
-
-        bool value_changed = false;
-
-        const float button_size = ImGui::GetFrameHeight();
-
-        ImGui::BeginGroup(); // The only purpose of the group here is to allow the caller to query item data e.g. IsItemActive()
-        ImGui::PushID(a_label);
-        ImGui::SetNextItemWidth(ImMax(1.0f, ImGui::CalcItemWidth() - (button_size + style.ItemInnerSpacing.x) * 2));
-        if (ImGui::InputText("", buf, IM_ARRAYSIZE(buf), flags)) {
-            // PushId(label) + "" gives us the expected ID from outside point of view
-            value_changed = ImGui::DataTypeApplyFromText(buf, ImGuiDataType_S32, a_v, format);
-        }
-        IMGUI_TEST_ENGINE_ITEM_INFO(g.LastItemData.ID, label, g.LastItemData.StatusFlags);
-
-        // Step buttons
-        const ImVec2 backup_frame_padding = style.FramePadding;
-        style.FramePadding.x = style.FramePadding.y;
-        const ImGuiButtonFlags button_flags = ImGuiButtonFlags_Repeat | ImGuiButtonFlags_DontClosePopups;
-        if constexpr (false) {
-            ImGui::BeginDisabled();
-        }
-        ImGui::SameLine(0, style.ItemInnerSpacing.x);
-        if (ImGui::ButtonEx("-", ImVec2(button_size, button_size), button_flags)) {
-            ImGui::DataTypeApplyOp(ImGuiDataType_S32, '-', a_v, a_v, g.IO.KeyCtrl ? &a_stepFast : &a_step);
-            value_changed = true;
-        }
-        ImGui::SameLine(0, style.ItemInnerSpacing.x);
-        if (ImGui::ButtonEx("+", ImVec2(button_size, button_size), button_flags)) {
-            ImGui::DataTypeApplyOp(ImGuiDataType_S32, '+', a_v, a_v, g.IO.KeyCtrl ? &a_stepFast : &a_step);
-            value_changed = true;
-        }
-        if constexpr (false) {
-            ImGui::EndDisabled();
-        }
-
-        const char* label_end = ImGui::FindRenderedTextEnd(a_label);
-        if (a_label != label_end) {
-            ImGui::SameLine(0, style.ItemInnerSpacing.x);
-            ImGui::TextEx(a_label, label_end);
-        }
-        style.FramePadding = backup_frame_padding;
-
-        ImGui::PopID();
-        ImGui::EndGroup();
-
-        if (value_changed) {
-            ImGui::MarkItemEdited(g.LastItemData.ID);
-        }
-
-        return value_changed;
     }
 
     bool UIMain::BeginDragDropSourceEx(ImGuiDragDropFlags a_flags /*= 0*/, ImVec2 a_tooltipSize /*= ImVec2(0, 0)*/)

@@ -131,16 +131,17 @@ namespace Hooks
 
     void HavokHooks::BSSynchronizedClipGenerator_Activate(RE::BSSynchronizedClipGenerator* a_this, const RE::hkbContext& a_context)
     {
-        // save the original value
-        const uint16_t originalSynchronizedIndex = a_this->synchronizedAnimIndex;
-
-        // get the offset and alter the index
-        a_this->synchronizedAnimIndex += OpenAnimationReplacer::GetSingleton().GetSynchronizedClipsIDOffset(a_context.character);
+		bool bAdded;
+		OpenAnimationReplacer::GetSingleton().AddOrGetActiveSynchronizedClip(a_this, a_context, bAdded);
 
         _BSSynchronizedClipGenerator_Activate(a_this, a_context);
+    }
 
-        // restore
-        a_this->synchronizedAnimIndex = originalSynchronizedIndex;
+    void HavokHooks::BSSynchronizedClipGenerator_Deactivate(RE::BSSynchronizedClipGenerator* a_this, const RE::hkbContext& a_context)
+    {
+		_BSSynchronizedClipGenerator_Deactivate(a_this, a_context);
+
+		OpenAnimationReplacer::GetSingleton().RemoveActiveSynchronizedClip(a_this);
     }
 
     void HavokHooks::LoadClips(RE::hkbCharacterStringData* a_stringData, RE::hkbAnimationBindingSet* a_bindingSet, void* a_assetLoader, RE::hkbBehaviorGraph* a_rootBehavior, const char* a_animationPath, RE::BSTHashMap<RE::BSFixedString, uint32_t>* a_annotationToEventIdMap)
@@ -209,6 +210,7 @@ namespace Hooks
 
         REL::Relocation<uintptr_t> BSSynchronizedClipGeneratorVtbl{ RE::VTABLE_BSSynchronizedClipGenerator[0] };
         _BSSynchronizedClipGenerator_Activate = BSSynchronizedClipGeneratorVtbl.write_vfunc(0x4, BSSynchronizedClipGenerator_Activate);
+		_BSSynchronizedClipGenerator_Deactivate = BSSynchronizedClipGeneratorVtbl.write_vfunc(0x7, BSSynchronizedClipGenerator_Deactivate);
 
 		// xbyak patch to call our function which will replace the value of the synchronized anim index with one that isn't relative to the amount of animations in the project
         static REL::Relocation<uintptr_t> func{ REL::VariantID(63017, 63942, 0xB40550) }; // B05710, B2A980, B40550  hkbBehaviorGraph::unk

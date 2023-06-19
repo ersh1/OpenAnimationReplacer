@@ -27,7 +27,7 @@ public:
     void WriteCacheToDisk();
     void DeleteCache();
 
-    static std::string CalculateHash(const Parsing::ReplacementAnimationToAdd& a_anim);
+    static std::string CalculateHash(std::string_view a_fullPath);
 
     [[nodiscard]] bool IsDirty() const { return _bDirty; }
 

@@ -4,7 +4,7 @@ void Settings::Initialize()
 {
     uToggleUIKeyData[0] = 0x18;
     uToggleUIKeyData[1] = false;
-    uToggleUIKeyData[2] = false;
+    uToggleUIKeyData[2] = true;
     uToggleUIKeyData[3] = false;
 }
 

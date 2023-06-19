@@ -6,7 +6,7 @@ namespace Conditions
     class IConditionComponent;
 
     using ConditionFactory = ICondition* (*)();
-    using ConditionComponentFactory = IConditionComponent* (*)(const char* a_name, const char* a_description);
+    using ConditionComponentFactory = IConditionComponent* (*)(const ICondition* a_parentCondition, const char* a_name, const char* a_description);
 
     enum class ConditionComponentType : uint8_t
     {
@@ -89,8 +89,13 @@ namespace Conditions
         [[nodiscard]] virtual bool IsCustomCondition() const = 0;
         [[nodiscard]] virtual ICondition* GetWrappedCondition() const = 0;
 
+		[[nodiscard]] class ConditionSet* GetParentConditionSet() const { return _parentConditionSet; }
+		void SetParentConditionSet(ConditionSet* a_conditionSet) { _parentConditionSet = a_conditionSet; }
+
     protected:
         virtual bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const = 0;
+
+		ConditionSet* _parentConditionSet = nullptr;
     };
 
     // a condition can have many condition components
@@ -102,7 +107,8 @@ namespace Conditions
     class IConditionComponent
     {
     public:
-        IConditionComponent(const char* a_name, const char* a_description = "") :
+        IConditionComponent(const ICondition* a_parentCondition, const char* a_name, const char* a_description = "") :
+			_parentCondition(a_parentCondition),
             _name(a_name),
             _description(a_description) {}
 
@@ -130,7 +136,11 @@ namespace Conditions
         [[nodiscard]] virtual RE::BSString GetDefaultDescription() const = 0;
         [[nodiscard]] virtual bool IsValid() const = 0;
 
+		[[nodiscard]] const ICondition* GetParentCondition() const { return _parentCondition; }
+
     protected:
+		const ICondition* _parentCondition = nullptr;
+
         const std::string _name;
         const std::string _description;
     };
@@ -141,13 +151,13 @@ namespace Conditions
         inline static constexpr auto CONDITION_COMPONENT_TYPE = ConditionComponentType::kMulti;
         inline static constexpr auto DEFAULT_DESCRIPTION = "A list of child conditions."sv;
 
-        IMultiConditionComponent(const char* a_name, const char* a_description = "") :
-            IConditionComponent(a_name, a_description) {}
+        IMultiConditionComponent(const ICondition* a_parentCondition, const char* a_name, const char* a_description = "") :
+			IConditionComponent(a_parentCondition, a_name, a_description) {}
 
         [[nodiscard]] ConditionComponentType GetType() const override { return CONDITION_COMPONENT_TYPE; }
         [[nodiscard]] RE::BSString GetDefaultDescription() const override { return DEFAULT_DESCRIPTION; }
 
-        [[nodiscard]] virtual class ConditionSet* GetConditions() const = 0;
+        [[nodiscard]] virtual ConditionSet* GetConditions() const = 0;
     };
 
     class IFormConditionComponent : public IConditionComponent
@@ -156,8 +166,8 @@ namespace Conditions
         inline static constexpr auto CONDITION_COMPONENT_TYPE = ConditionComponentType::kForm;
         inline static constexpr auto DEFAULT_DESCRIPTION = "A reference to a form."sv;
 
-        IFormConditionComponent(const char* a_name, const char* a_description = "") :
-            IConditionComponent(a_name, a_description) {}
+        IFormConditionComponent(const ICondition* a_parentCondition, const char* a_name, const char* a_description = "") :
+			IConditionComponent(a_parentCondition, a_name, a_description) {}
 
         [[nodiscard]] ConditionComponentType GetType() const override { return CONDITION_COMPONENT_TYPE; }
         [[nodiscard]] RE::BSString GetDefaultDescription() const override { return DEFAULT_DESCRIPTION; }
@@ -172,8 +182,8 @@ namespace Conditions
         inline static constexpr auto CONDITION_COMPONENT_TYPE = ConditionComponentType::kNumeric;
         inline static constexpr auto DEFAULT_DESCRIPTION = "A numeric value - a static value, a reference to a global variable, an Actor Value, or a behavior graph variable."sv;
 
-        INumericConditionComponent(const char* a_name, const char* a_description = "") :
-            IConditionComponent(a_name, a_description) {}
+        INumericConditionComponent(const ICondition* a_parentCondition, const char* a_name, const char* a_description = "") :
+			IConditionComponent(a_parentCondition, a_name, a_description) {}
 
         [[nodiscard]] ConditionComponentType GetType() const override { return CONDITION_COMPONENT_TYPE; }
         [[nodiscard]] RE::BSString GetDefaultDescription() const override { return DEFAULT_DESCRIPTION; }
@@ -191,8 +201,8 @@ namespace Conditions
         inline static constexpr auto CONDITION_COMPONENT_TYPE = ConditionComponentType::kNiPoint3;
         inline static constexpr auto DEFAULT_DESCRIPTION = "A user defined static NiPoint3 value (x, y, z vector)."sv;
 
-        INiPoint3ConditionComponent(const char* a_name, const char* a_description = "") :
-            IConditionComponent(a_name, a_description) {}
+        INiPoint3ConditionComponent(const ICondition* a_parentCondition, const char* a_name, const char* a_description = "") :
+			IConditionComponent(a_parentCondition, a_name, a_description) {}
 
         [[nodiscard]] ConditionComponentType GetType() const override { return CONDITION_COMPONENT_TYPE; }
         [[nodiscard]] RE::BSString GetDefaultDescription() const override { return DEFAULT_DESCRIPTION; }
@@ -207,13 +217,13 @@ namespace Conditions
         inline static constexpr auto CONDITION_COMPONENT_TYPE = ConditionComponentType::kKeyword;
         inline static constexpr auto DEFAULT_DESCRIPTION = "A keyword value - a reference to a BGSKeyword form, or a literal EditorID of the keyword."sv;
 
-        IKeywordConditionComponent(const char* a_name, const char* a_description = "") :
-            IConditionComponent(a_name, a_description) {}
+        IKeywordConditionComponent(const ICondition* a_parentCondition, const char* a_name, const char* a_description = "") :
+			IConditionComponent(a_parentCondition, a_name, a_description) {}
 
         [[nodiscard]] ConditionComponentType GetType() const override { return CONDITION_COMPONENT_TYPE; }
         [[nodiscard]] RE::BSString GetDefaultDescription() const override { return DEFAULT_DESCRIPTION; }
 
-        [[nodiscard]] virtual bool HasKeyword(RE::BGSKeywordForm* a_form) const = 0;
+        [[nodiscard]] virtual bool HasKeyword(const RE::BGSKeywordForm* a_form) const = 0;
         virtual void SetKeyword(RE::BGSKeyword* a_keyword) = 0;
         virtual void SetLiteral(const char* a_literal) = 0;
     };
@@ -224,8 +234,8 @@ namespace Conditions
         inline static constexpr auto CONDITION_COMPONENT_TYPE = ConditionComponentType::kText;
         inline static constexpr auto DEFAULT_DESCRIPTION = "A text value."sv;
 
-        ITextConditionComponent(const char* a_name, const char* a_description = "") :
-            IConditionComponent(a_name, a_description) {}
+        ITextConditionComponent(const ICondition* a_parentCondition, const char* a_name, const char* a_description = "") :
+			IConditionComponent(a_parentCondition, a_name, a_description) {}
 
         [[nodiscard]] ConditionComponentType GetType() const override { return CONDITION_COMPONENT_TYPE; }
         [[nodiscard]] RE::BSString GetDefaultDescription() const override { return DEFAULT_DESCRIPTION; }
@@ -241,8 +251,8 @@ namespace Conditions
         inline static constexpr auto CONDITION_COMPONENT_TYPE = ConditionComponentType::kBool;
         inline static constexpr auto DEFAULT_DESCRIPTION = "A boolean value."sv;
 
-        IBoolConditionComponent(const char* a_name, const char* a_description = "") :
-            IConditionComponent(a_name, a_description) {}
+        IBoolConditionComponent(const ICondition* a_parentCondition, const char* a_name, const char* a_description = "") :
+			IConditionComponent(a_parentCondition, a_name, a_description) {}
 
         [[nodiscard]] ConditionComponentType GetType() const override { return CONDITION_COMPONENT_TYPE; }
         [[nodiscard]] RE::BSString GetDefaultDescription() const override { return DEFAULT_DESCRIPTION; }
@@ -257,8 +267,8 @@ namespace Conditions
         inline static constexpr auto CONDITION_COMPONENT_TYPE = ConditionComponentType::kComparison;
         inline static constexpr auto DEFAULT_DESCRIPTION = "A comparison operator."sv;
 
-        IComparisonConditionComponent(const char* a_name, const char* a_description = "") :
-            IConditionComponent(a_name, a_description) {}
+        IComparisonConditionComponent(const ICondition* a_parentCondition, const char* a_name, const char* a_description = "") :
+			IConditionComponent(a_parentCondition, a_name, a_description) {}
 
         [[nodiscard]] ConditionComponentType GetType() const override { return CONDITION_COMPONENT_TYPE; }
         [[nodiscard]] RE::BSString GetDefaultDescription() const override { return DEFAULT_DESCRIPTION; }
@@ -276,8 +286,8 @@ namespace Conditions
         inline static constexpr auto CONDITION_COMPONENT_TYPE = ConditionComponentType::kRandom;
         inline static constexpr auto DEFAULT_DESCRIPTION = "A random value."sv;
 
-        IRandomConditionComponent(const char* a_name, const char* a_description = "") :
-            IConditionComponent(a_name, a_description) {}
+        IRandomConditionComponent(const ICondition* a_parentCondition, const char* a_name, const char* a_description = "") :
+			IConditionComponent(a_parentCondition, a_name, a_description) {}
 
         [[nodiscard]] ConditionComponentType GetType() const override { return CONDITION_COMPONENT_TYPE; }
         [[nodiscard]] RE::BSString GetDefaultDescription() const override { return DEFAULT_DESCRIPTION; }
@@ -295,8 +305,8 @@ namespace Conditions
     public:
         inline static constexpr auto CONDITION_COMPONENT_TYPE = ConditionComponentType::kCustom;
 
-        ICustomConditionComponent(const char* a_name, const char* a_description = "") :
-            IConditionComponent(a_name, a_description) {}
+        ICustomConditionComponent(const ICondition* a_parentCondition, const char* a_name, const char* a_description = "") :
+			IConditionComponent(a_parentCondition, a_name, a_description) {}
 
         [[nodiscard]] ConditionComponentType GetType() const override { return CONDITION_COMPONENT_TYPE; }
     };

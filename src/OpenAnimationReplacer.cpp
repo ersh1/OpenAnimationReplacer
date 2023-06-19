@@ -181,7 +181,7 @@ ActiveClip* OpenAnimationReplacer::AddOrGetActiveClip(RE::hkbClipGenerator* a_cl
 
     auto [newClipIt, result] = _activeClips.try_emplace(a_clipGenerator, nullptr);
     if (result) {
-        newClipIt->second = std::make_unique<ActiveClip>(a_clipGenerator, a_context.character);
+        newClipIt->second = std::make_unique<ActiveClip>(a_clipGenerator, a_context.character, a_context.behavior);
     }
 
     a_bOutAdded = result;
@@ -197,6 +197,26 @@ void OpenAnimationReplacer::RemoveActiveClip(RE::hkbClipGenerator* a_clipGenerat
             _activeClips.erase(search);
         }
     }
+}
+
+ActiveSynchronizedClip* OpenAnimationReplacer::AddOrGetActiveSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context, bool& a_bOutAdded)
+{
+	WriteLocker locker(_activeSynchronizedClipsLock);
+
+	auto [newClipIt, result] = _activeSynchronizedClips.try_emplace(a_synchronizedClipGenerator, nullptr);
+	if (result) {
+		newClipIt->second = std::make_unique<ActiveSynchronizedClip>(a_synchronizedClipGenerator, a_context);
+	}
+
+	a_bOutAdded = result;
+	return newClipIt->second.get();
+}
+
+void OpenAnimationReplacer::RemoveActiveSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator)
+{
+	WriteLocker locker(_activeSynchronizedClipsLock);
+
+	_activeSynchronizedClips.erase(a_synchronizedClipGenerator);
 }
 
 bool OpenAnimationReplacer::IsOriginalAnimationInterruptible(RE::hkbCharacter* a_character, uint16_t a_originalIndex) const
@@ -420,6 +440,28 @@ void OpenAnimationReplacer::ForEachReplacerMod(const std::function<void(Replacer
     }
 }
 
+void OpenAnimationReplacer::ForEachSortedReplacerMod(const std::function<void(ReplacerMod*)>& a_func) const
+{
+	ReadLocker locker(_modLock);
+
+	std::vector<ReplacerMod*> sortedValues;
+	sortedValues.reserve(_replacerMods.size());
+	for (const auto& replacerMod : _replacerMods | std::views::values) {
+		sortedValues.emplace_back(replacerMod.get());
+	}
+
+	std::ranges::sort(sortedValues, [](const ReplacerMod* a_lhs, const ReplacerMod* a_rhs) {
+		return a_lhs->GetName() < a_rhs->GetName();
+	});
+
+	for (const auto& replacerMod : sortedValues) {
+		a_func(replacerMod);
+	}
+
+	if (_legacyReplacerMod) {
+		a_func(_legacyReplacerMod.get());
+	}
+}
 
 void OpenAnimationReplacer::SetSynchronizedClipsIDOffset(RE::hkbCharacterStringData* a_stringData, uint16_t a_offset)
 {
@@ -577,6 +619,21 @@ void OpenAnimationReplacer::InitFactories()
 	_conditionFactories.emplace("CurrentTargetDistance", []() { return std::make_unique<CurrentTargetDistanceCondition>(); });
 	_conditionFactories.emplace("CurrentTargetRelationship", []() { return std::make_unique<CurrentTargetRelationshipCondition>(); });
 	_conditionFactories.emplace("CurrentTargetFactionRank", []() { return std::make_unique<CurrentTargetFactionRankCondition>(); });
+	_conditionFactories.emplace("EquippedObjectWeight", []() { return std::make_unique<EquippedObjectWeightCondition>(); });
+	_conditionFactories.emplace("CurrentCastingType", []() { return std::make_unique<CurrentCastingTypeCondition>(); });
+	_conditionFactories.emplace("CurrentDeliveryType", []() { return std::make_unique<CurrentDeliveryTypeCondition>(); });
+	_conditionFactories.emplace("IsQuestStageDone", []() { return std::make_unique<IsQuestStageDoneCondition>(); });
+	_conditionFactories.emplace("CurrentWeatherHasFlag", []() { return std::make_unique<CurrentWeatherHasFlagCondition>(); });
+	_conditionFactories.emplace("InventoryCountHasKeyword", []() { return std::make_unique<InventoryCountHasKeywordCondition>(); });
+	_conditionFactories.emplace("CurrentTargetRelativeAngle", []() { return std::make_unique<CurrentTargetRelativeAngleCondition>(); });
+	_conditionFactories.emplace("CurrentTargetLineOfSight", []() { return std::make_unique<CurrentTargetLineOfSightCondition>(); });
+	_conditionFactories.emplace("CurrentRotationSpeed", []() { return std::make_unique<CurrentRotationSpeedCondition>(); });
+	_conditionFactories.emplace("IsTalking", []() { return std::make_unique<IsTalkingCondition>(); });
+	_conditionFactories.emplace("IsGreetingPlayer", []() { return std::make_unique<IsGreetingPlayerCondition>(); });
+	_conditionFactories.emplace("IsInScene", []() { return std::make_unique<IsInSceneCondition>(); });
+	_conditionFactories.emplace("IsInSpecifiedScene", []() { return std::make_unique<IsInSpecifiedSceneCondition>(); });
+	_conditionFactories.emplace("IsScenePlaying", []() { return std::make_unique<IsScenePlayingCondition>(); });
+	_conditionFactories.emplace("IsDoingFavor", []() { return std::make_unique<IsDoingFavorCondition>(); });
 
     // Hidden factories - not visible for selection in the UI, used only for mapping legacy names to new conditions
     _hiddenConditionFactories.emplace("IsEquippedRight", []() { return std::make_unique<IsEquippedCondition>(false); });
@@ -700,13 +757,36 @@ void OpenAnimationReplacer::LoadKeywords() const
 
 void OpenAnimationReplacer::RunJobs()
 {
-    WriteLocker locker(_jobsLock);
-
+	WriteLocker locker(_jobsLock);
+   
     for (const auto& job : _jobs) {
         job->Run();
     }
 
-    _jobs.clear();
+	 _jobs.clear();
+
+	// we have no latent jobs right now so skip this
+	/*for (auto it = _latentJobs.begin(); it != _latentJobs.end();) {
+		if (it->get()->Run(g_deltaTime)) {
+			it = _latentJobs.erase(it);
+		} else {
+			++it;
+		}
+	}*/
+
+	for (auto it = _weakLatentJobs.begin(); it != _weakLatentJobs.end();) {
+		auto p = it->lock();
+		if (p) {
+			if (p->Run(g_deltaTime)) {
+				it = _weakLatentJobs.erase(it);
+			} else {
+			    ++it;
+			}
+		} else {
+			// remove if weak pointer is invalid
+			it = _weakLatentJobs.erase(it);
+		}
+	}
 }
 
 void OpenAnimationReplacer::InitDefaultProjects() const
@@ -780,4 +860,9 @@ void OpenAnimationReplacer::AddSubModParseResult(ReplacerMod* a_replacerMod, Par
     // add new replacement anims
     subMod->AddReplacementAnimations(a_stringData, a_projectDBData, a_parseResult.animationsToAdd);
     subMod->AddReplacerProject(GetOrAddReplacerProjectData(a_stringData, a_projectDBData));
+
+	// do this again because the call in LoadParseResult was too early
+	subMod->LoadReplacementAnimationDatas(a_parseResult.replacementAnimDatas);
+
+	subMod->UpdateAnimations();
 }

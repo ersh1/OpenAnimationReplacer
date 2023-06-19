@@ -7,7 +7,7 @@ namespace OAR_API
 {
     namespace Conditions
     {
-        class ConditionsInterface : public IConditionsInterface1
+        class ConditionsInterface : public IConditionsInterface2
         {
         public:
             static ConditionsInterface* GetSingleton() noexcept

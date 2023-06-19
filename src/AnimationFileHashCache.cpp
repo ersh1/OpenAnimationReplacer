@@ -78,41 +78,41 @@ void AnimationFileHashCache::DeleteCache()
     _bDirty = false;
 }
 
-std::string AnimationFileHashCache::CalculateHash(const Parsing::ReplacementAnimationToAdd& a_anim)
+std::string AnimationFileHashCache::CalculateHash(std::string_view a_fullPath)
 {
-    // Search cached hashes first
-    WIN32_FILE_ATTRIBUTE_DATA fad;
-    uint64_t lastWriteTime = 0;
-    uint64_t fileSize = 0;
-    if (GetFileAttributesEx(a_anim.fullPath.data(), GetFileExInfoStandard, &fad)) {
-        ULARGE_INTEGER ulTime;
-        ulTime.HighPart = fad.ftLastWriteTime.dwHighDateTime;
-        ulTime.LowPart = fad.ftLastWriteTime.dwLowDateTime;
-        lastWriteTime = ulTime.QuadPart;
-        ULARGE_INTEGER ulSize;
-        ulSize.HighPart = fad.nFileSizeHigh;
-        ulSize.LowPart = fad.nFileSizeLow;
-        fileSize = ulSize.QuadPart;
-    }
+	// Search cached hashes first
+	WIN32_FILE_ATTRIBUTE_DATA fad;
+	uint64_t lastWriteTime = 0;
+	uint64_t fileSize = 0;
+	if (GetFileAttributesEx(a_fullPath.data(), GetFileExInfoStandard, &fad)) {
+		ULARGE_INTEGER ulTime;
+		ulTime.HighPart = fad.ftLastWriteTime.dwHighDateTime;
+		ulTime.LowPart = fad.ftLastWriteTime.dwLowDateTime;
+		lastWriteTime = ulTime.QuadPart;
+		ULARGE_INTEGER ulSize;
+		ulSize.HighPart = fad.nFileSizeHigh;
+		ulSize.LowPart = fad.nFileSizeLow;
+		fileSize = ulSize.QuadPart;
+	}
 
-    auto& hashCache = GetSingleton();
+	auto& hashCache = GetSingleton();
 
-    std::string ret;
-    if (hashCache.TryGetCachedHash(a_anim.fullPath, lastWriteTime, fileSize, ret)) {
-        return ret;
-    }
+	std::string ret;
+	if (hashCache.TryGetCachedHash(a_fullPath, lastWriteTime, fileSize, ret)) {
+		return ret;
+	}
 
-    // Calculate a hash from the animation file
-    mmio::mapped_file_source file;
-    if (file.open(a_anim.fullPath)) {
-        CryptoPP::byte digest[CryptoPP::SHA256::DIGESTSIZE];
-        CryptoPP::SHA256().CalculateDigest(digest, reinterpret_cast<const CryptoPP::byte*>(file.data()), file.size());
+	// Calculate a hash from the animation file
+	mmio::mapped_file_source file;
+	if (file.open(a_fullPath)) {
+		CryptoPP::byte digest[CryptoPP::SHA256::DIGESTSIZE];
+		CryptoPP::SHA256().CalculateDigest(digest, reinterpret_cast<const CryptoPP::byte*>(file.data()), file.size());
 
-        ret = std::string(reinterpret_cast<char*>(digest), CryptoPP::SHA256::DIGESTSIZE);
-        hashCache.SaveHash(a_anim.fullPath, lastWriteTime, fileSize, ret);
-    }
+		ret = std::string(reinterpret_cast<char*>(digest), CryptoPP::SHA256::DIGESTSIZE);
+		hashCache.SaveHash(a_fullPath, lastWriteTime, fileSize, ret);
+	}
 
-    return ret;
+	return ret;
 }
 
 bool AnimationFileHashCache::TryGetCachedHash(const std::string_view a_path, const uint64_t a_lastWriteTime, const uint64_t a_fileSize, std::string& a_outCachedHash) const

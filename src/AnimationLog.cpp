@@ -39,6 +39,12 @@ AnimationLogEntry::AnimationLogEntry(Event a_event, ActiveClip* a_activeClip, RE
                 animPath.erase(0, std::ranges::distance(animPath.begin(), ++end));
             }
         }
+
+		// variants
+		bVariant = replacementAnimation->HasVariants();
+		if (bVariant) {
+		    variantFilename = replacementAnimation->GetVariantFilename(a_activeClip->GetCurrentIndex());
+		}
     } else {
         if (const auto stringData = Utils::GetStringDataFromHkbCharacter(a_character)) {
             animPath = Utils::GetOriginalAnimationName(stringData, a_activeClip->GetOriginalIndex());
@@ -57,6 +63,7 @@ AnimationLogEntry::AnimationLogEntry(Event a_event, ActiveClip* a_activeClip, RE
 
     if (Settings::bAnimationLogWriteToTextLog) {
         std::string infoString = bOriginal ? "original" : std::format("{} / {}", modName, subModName);
+		std::string variantString = bVariant ? std::format(" [Variant - {}]", variantFilename) : "";
         std::string eventString;
         switch (event) {
         case Event::kActivate:
@@ -78,7 +85,7 @@ AnimationLogEntry::AnimationLogEntry(Event a_event, ActiveClip* a_activeClip, RE
             eventString = "Loop (Replaced)"sv;
             break;
         }
-        logger::info("AnimationLogEntry: {} animation \"{}\" (Project: {}, Clip: {}) - {} ({})", eventString, animationName, projectName, clipName, infoString, animPath);
+		logger::info("AnimationLogEntry: {} animation \"{}\" (Project: {}, Clip: {}) - {} ({}){}", eventString, animationName, projectName, clipName, infoString, animPath, variantString);
     }
 }
 

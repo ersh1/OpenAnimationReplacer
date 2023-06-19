@@ -399,10 +399,6 @@ namespace UI
     {
         _lastKeyPressed = 0;
 
-        auto isVkDown = [&](const int a_vk) {
-            return (GetKeyState(a_vk) & 0x8000) != 0;
-        };
-
         WriteLocker locker(_inputEventLock);
 
         ImGuiIO& io = ImGui::GetIO();
@@ -410,20 +406,14 @@ namespace UI
         if (_bFocusLost) {
             io.AddFocusEvent(false);
             _keyEventQueue.clear();
+			_bShiftHeld = false;
+			_bCtrlHeld = false;
+			_bAltHeld = false;
 
             _bFocusLost = false;
         }
-
+		
         for (auto& event : _keyEventQueue) {
-            const bool bIsCtrlDown = isVkDown(VK_CONTROL);
-            const bool bIsShiftDown = isVkDown(VK_SHIFT);
-            const bool bIsAltDown = isVkDown(VK_APPS);
-
-            io.AddKeyEvent(ImGuiMod_Ctrl, bIsCtrlDown);
-            io.AddKeyEvent(ImGuiMod_Shift, bIsShiftDown);
-            io.AddKeyEvent(ImGuiMod_Alt, bIsAltDown);
-            io.AddKeyEvent(ImGuiMod_Super, isVkDown(VK_APPS));
-
             switch (event.eventType) {
             case RE::INPUT_EVENT_TYPE::kChar:
             {
@@ -519,9 +509,23 @@ namespace UI
                     break;
                 }
 
+				const ImGuiKey imGuiKey = ImGui_ImplWin32_VirtualKeyToImGuiKey(key);
+
+				if (imGuiKey == ImGuiKey_LeftShift || imGuiKey == ImGuiKey_RightShift) {
+					_bShiftHeld = event.IsPressed();
+				} else if (imGuiKey == ImGuiKey_LeftCtrl || imGuiKey == ImGuiKey_RightCtrl) {
+					_bCtrlHeld = event.IsPressed();
+				} else if (imGuiKey == ImGuiKey_LeftAlt || imGuiKey == ImGuiKey_RightAlt) {
+					_bAltHeld = event.IsPressed();
+				}
+
+				io.AddKeyEvent(ImGuiKey_ModShift, _bShiftHeld);
+				io.AddKeyEvent(ImGuiKey_ModCtrl, _bCtrlHeld);
+				io.AddKeyEvent(ImGuiKey_ModAlt, _bAltHeld);
+				
                 if (!bShowMain) {
                     if (event.keyCode == Settings::uToggleUIKeyData[0] && event.IsDown()) {
-                        if (bIsCtrlDown == static_cast<bool>(Settings::uToggleUIKeyData[1]) && bIsShiftDown == static_cast<bool>(Settings::uToggleUIKeyData[2]) && bIsAltDown == static_cast<bool>(Settings::uToggleUIKeyData[3])) {
+						if (_bCtrlHeld == static_cast<bool>(Settings::uToggleUIKeyData[1]) && _bShiftHeld == static_cast<bool>(Settings::uToggleUIKeyData[2]) && _bAltHeld == static_cast<bool>(Settings::uToggleUIKeyData[3])) {
                             bShowMain = true;
                         }
                     }
@@ -540,10 +544,10 @@ namespace UI
                         if (event.keyCode == 0x1 && event.IsDown()) {
                             // 0x1 = escape
                             bShowMain = false;
-                        } else if (event.keyCode == Settings::uToggleUIKeyData[0] && event.IsDown() && bIsCtrlDown == static_cast<bool>(Settings::uToggleUIKeyData[1]) && bIsShiftDown == static_cast<bool>(Settings::uToggleUIKeyData[2]) && bIsAltDown == static_cast<bool>(Settings::uToggleUIKeyData[3])) {
+						} else if (event.keyCode == Settings::uToggleUIKeyData[0] && event.IsDown() && io.KeyCtrl == static_cast<bool>(Settings::uToggleUIKeyData[1]) && io.KeyShift == static_cast<bool>(Settings::uToggleUIKeyData[2]) && io.KeyAlt == static_cast<bool>(Settings::uToggleUIKeyData[3])) {
                             bShowMain = false;
                         } else {
-                            io.AddKeyEvent(ImGui_ImplWin32_VirtualKeyToImGuiKey(key), event.IsPressed());
+                            io.AddKeyEvent(imGuiKey, event.IsPressed());
 
                             if (key < 0xA0 || key > 0xA5) {
                                 // exclude modifier keys

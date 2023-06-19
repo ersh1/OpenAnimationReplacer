@@ -16,6 +16,8 @@ concept Derived = std::is_base_of_v<U, T>;
 template <typename T>
 concept NonAbstract = !std::is_abstract_v<T>;
 
+class SubMod;
+
 namespace Conditions
 {
     template <Derived<RE::TESForm> T>
@@ -401,7 +403,7 @@ namespace Conditions
 
         T* GetFormValue() const { return _keywordForm.GetValue(); }
 
-        bool HasKeyword(RE::BGSKeywordForm* a_keywordForm) const
+        bool HasKeyword(const RE::BGSKeywordForm* a_keywordForm) const
         {
             bool bFound = false;
             ForEachKeyword([&](T* a_keyword) {
@@ -660,7 +662,7 @@ namespace Conditions
         template <typename T>
         T* AddComponent(std::string_view a_name, std::string_view a_description = ""sv)
         {
-            auto& component = _components.emplace_back(std::make_unique<T>(a_name.data(), a_description.data()));
+            auto& component = _components.emplace_back(std::make_unique<T>(this, a_name.data(), a_description.data()));
             return static_cast<T*>(component.get());
         }
 
@@ -691,6 +693,14 @@ namespace Conditions
     class ConditionSet
     {
     public:
+		ConditionSet() = default;
+
+		ConditionSet(SubMod* a_parentSubMod) :
+		    _parentSubMod(a_parentSubMod) {}
+
+		ConditionSet(IMultiConditionComponent* a_parentMultiConditionComponent) :
+		    _parentMultiConditionComponent(a_parentMultiConditionComponent) {}
+
         bool EvaluateAll(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const;
         bool EvaluateAny(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const;
 
@@ -716,19 +726,24 @@ namespace Conditions
         bool IsChildOf(ICondition* a_condition);
         size_t GetNumConditions() const { return _conditions.size(); }
 
+		[[nodiscard]] SubMod* GetParentSubMod() const;
+
     private:
         mutable std::shared_mutex _lock;
         std::vector<std::unique_ptr<ICondition>> _conditions;
         bool _bDirty = false;
+
+		SubMod* _parentSubMod = nullptr;
+		IMultiConditionComponent* _parentMultiConditionComponent = nullptr;
     };
 
     class MultiConditionComponent : public IMultiConditionComponent
     {
     public:
-        MultiConditionComponent(const char* a_name, const char* a_description = "") :
-            IMultiConditionComponent(a_name, a_description)
+        MultiConditionComponent(const ICondition* a_parentCondition, const char* a_name, const char* a_description = "") :
+			IMultiConditionComponent(a_parentCondition, a_name, a_description)
         {
-            conditionSet = std::make_unique<ConditionSet>();
+            conditionSet = std::make_unique<ConditionSet>(this);
         }
 
         void InitializeComponent(void* a_value) override;
@@ -748,8 +763,8 @@ namespace Conditions
     class FormConditionComponent : public IFormConditionComponent
     {
     public:
-        FormConditionComponent(const char* a_name, const char* a_description = "") :
-            IFormConditionComponent(a_name, a_description) {}
+		FormConditionComponent(const ICondition* a_parentCondition, const char* a_name, const char* a_description = "") :
+			IFormConditionComponent(a_parentCondition, a_name, a_description) {}
 
         void InitializeComponent(void* a_value) override;
         void SerializeComponent(void* a_value, void* a_allocator) override;
@@ -769,8 +784,8 @@ namespace Conditions
     class NumericConditionComponent : public INumericConditionComponent
     {
     public:
-        NumericConditionComponent(const char* a_name, const char* a_description = "") :
-            INumericConditionComponent(a_name, a_description) {}
+		NumericConditionComponent(const ICondition* a_parentCondition, const char* a_name, const char* a_description = "") :
+			INumericConditionComponent(a_parentCondition, a_name, a_description) {}
 
         void InitializeComponent(void* a_value) override;
         void SerializeComponent(void* a_value, void* a_allocator) override;
@@ -794,8 +809,8 @@ namespace Conditions
     class NiPoint3ConditionComponent : public INiPoint3ConditionComponent
     {
     public:
-        NiPoint3ConditionComponent(const char* a_name, const char* a_description = "") :
-            INiPoint3ConditionComponent(a_name, a_description) {}
+		NiPoint3ConditionComponent(const ICondition* a_parentCondition, const char* a_name, const char* a_description = "") :
+			INiPoint3ConditionComponent(a_parentCondition, a_name, a_description) {}
 
         void InitializeComponent(void* a_value) override;
         void SerializeComponent(void* a_value, void* a_allocator) override;
@@ -815,8 +830,8 @@ namespace Conditions
     class KeywordConditionComponent : public IKeywordConditionComponent
     {
     public:
-        KeywordConditionComponent(const char* a_name, const char* a_description = "") :
-            IKeywordConditionComponent(a_name, a_description) {}
+		KeywordConditionComponent(const ICondition* a_parentCondition, const char* a_name, const char* a_description = "") :
+			IKeywordConditionComponent(a_parentCondition, a_name, a_description) {}
 
         void InitializeComponent(void* a_value) override;
         void SerializeComponent(void* a_value, void* a_allocator) override;
@@ -827,7 +842,7 @@ namespace Conditions
 
         [[nodiscard]] bool IsValid() const override { return keyword.IsValid(); }
 
-        [[nodiscard]] bool HasKeyword(RE::BGSKeywordForm* a_form) const override { return keyword.HasKeyword(a_form); }
+        [[nodiscard]] bool HasKeyword(const RE::BGSKeywordForm* a_form) const override { return keyword.HasKeyword(a_form); }
         void SetKeyword(RE::BGSKeyword* a_keyword) override { keyword.SetKeyword(a_keyword); }
         void SetLiteral(const char* a_literal) override { keyword.SetLiteral(a_literal); }
 
@@ -837,8 +852,8 @@ namespace Conditions
     class LocRefTypeConditionComponent : public IKeywordConditionComponent
     {
     public:
-        LocRefTypeConditionComponent(const char* a_name, const char* a_description = "") :
-            IKeywordConditionComponent(a_name, a_description) {}
+		LocRefTypeConditionComponent(const ICondition* a_parentCondition, const char* a_name, const char* a_description = "") :
+			IKeywordConditionComponent(a_parentCondition, a_name, a_description) {}
 
         void InitializeComponent(void* a_value) override;
         void SerializeComponent(void* a_value, void* a_allocator) override;
@@ -849,7 +864,7 @@ namespace Conditions
 
         [[nodiscard]] bool IsValid() const override { return locRefType.IsValid(); }
 
-        [[nodiscard]] bool HasKeyword(RE::BGSKeywordForm* a_form) const override { return locRefType.HasKeyword(a_form); }
+        [[nodiscard]] bool HasKeyword(const RE::BGSKeywordForm* a_form) const override { return locRefType.HasKeyword(a_form); }
         void SetKeyword(RE::BGSKeyword* a_keyword) override { locRefType.SetKeyword(static_cast<RE::BGSLocationRefType*>(a_keyword)); }
         void SetLiteral(const char* a_literal) override { locRefType.SetLiteral(a_literal); }
 
@@ -859,8 +874,8 @@ namespace Conditions
     class TextConditionComponent : public ITextConditionComponent
     {
     public:
-        TextConditionComponent(const char* a_name, const char* a_description = "") :
-            ITextConditionComponent(a_name, a_description) {}
+		TextConditionComponent(const ICondition* a_parentCondition, const char* a_name, const char* a_description = "") :
+			ITextConditionComponent(a_parentCondition, a_name, a_description) {}
 
         void InitializeComponent(void* a_value) override;
         void SerializeComponent(void* a_value, void* a_allocator) override;
@@ -881,8 +896,8 @@ namespace Conditions
     class BoolConditionComponent : public IBoolConditionComponent
     {
     public:
-        BoolConditionComponent(const char* a_name, const char* a_description = "") :
-            IBoolConditionComponent(a_name, a_description) {}
+		BoolConditionComponent(const ICondition* a_parentCondition, const char* a_name, const char* a_description = "") :
+			IBoolConditionComponent(a_parentCondition, a_name, a_description) {}
 
         void InitializeComponent(void* a_value) override;
         void SerializeComponent(void* a_value, void* a_allocator) override;
@@ -902,8 +917,8 @@ namespace Conditions
     class ComparisonConditionComponent : public IComparisonConditionComponent
     {
     public:
-        ComparisonConditionComponent(const char* a_name, const char* a_description = "") :
-            IComparisonConditionComponent(a_name, a_description) {}
+		ComparisonConditionComponent(const ICondition* a_parentCondition, const char* a_name, const char* a_description = "") :
+			IComparisonConditionComponent(a_parentCondition, a_name, a_description) {}
 
         void InitializeComponent(void* a_value) override;
         void SerializeComponent(void* a_value, void* a_allocator) override;
@@ -966,8 +981,8 @@ namespace Conditions
     class RandomConditionComponent : public IRandomConditionComponent
     {
     public:
-        RandomConditionComponent(const char* a_name, const char* a_description = "") :
-            IRandomConditionComponent(a_name, a_description) {}
+		RandomConditionComponent(const ICondition* a_parentCondition, const char* a_name, const char* a_description = "") :
+			IRandomConditionComponent(a_parentCondition, a_name, a_description) {}
 
         void InitializeComponent(void* a_value) override;
         void SerializeComponent(void* a_value, void* a_allocator) override;

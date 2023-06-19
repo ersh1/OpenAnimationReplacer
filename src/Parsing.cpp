@@ -20,10 +20,22 @@ namespace Parsing
         originalBindingIndex(a_originalBindingIndex)
     {
         if (Settings::bFilterOutDuplicateAnimations) {
-            hash = AnimationFileHashCache::CalculateHash(*this);
+            hash = AnimationFileHashCache::CalculateHash(fullPath);
         }
     }
 
+    ReplacementAnimationToAdd::ReplacementAnimationToAdd(std::string_view a_fullPath, std::string_view a_animationPath, uint16_t a_originalBindingIndex, std::vector<VariantToAdd>& a_variants) :
+		fullPath(a_fullPath),
+		animationPath(a_animationPath),
+		originalBindingIndex(a_originalBindingIndex),
+		variants(std::move(a_variants))
+	{
+		if (Settings::bFilterOutDuplicateAnimations) {
+			for (auto& variant : *variants) {
+				variant.hash = (AnimationFileHashCache::CalculateHash(variant.fullPath));
+			}
+		}
+	}
 
     ConditionsTxtFile::ConditionsTxtFile(const std::filesystem::path& a_fileName) :
         file(a_fileName),
@@ -93,7 +105,8 @@ namespace Parsing
     {
         mmio::mapped_file_source file;
         if (file.open(a_jsonPath)) {
-            rapidjson::StringStream stream{ reinterpret_cast<const char*>(file.data()) };
+            //rapidjson::StringStream stream{ reinterpret_cast<const char*>(file.data()) };
+			rapidjson::MemoryStream stream{ reinterpret_cast<const char*>(file.data()), file.size() };
 
             rapidjson::Document doc;
             doc.ParseStream(stream);
@@ -135,7 +148,8 @@ namespace Parsing
     {
         mmio::mapped_file_source file;
         if (file.open(a_jsonPath)) {
-            rapidjson::StringStream stream{ reinterpret_cast<const char*>(file.data()) };
+            //rapidjson::StringStream stream{ reinterpret_cast<const char*>(file.data()) };
+            rapidjson::MemoryStream stream{ reinterpret_cast<const char*>(file.data()), file.size() };
 
             rapidjson::Document doc;
             doc.ParseStream(stream);
@@ -178,17 +192,59 @@ namespace Parsing
                 a_outParseResult.bDisabled = disabledIt->value.GetBool();
             }
 
-            // read disabled animations (optional)
+            // read disabled animations (optional, json field deprecated and replaced by replacementAnimDatas - reading it kept for compatibility with older config versions)
             if (auto disabledAnimationsIt = doc.FindMember("disabledAnimations"); disabledAnimationsIt != doc.MemberEnd() && disabledAnimationsIt->value.IsArray()) {
                 for (auto& disabledAnimation : disabledAnimationsIt->value.GetArray()) {
                     if (disabledAnimation.IsObject()) {
                         auto projectNameIt = disabledAnimation.FindMember("projectName");
                         if (auto pathIt = disabledAnimation.FindMember("path"); projectNameIt != doc.MemberEnd() && projectNameIt->value.IsString() && pathIt != doc.MemberEnd() && pathIt->value.IsString()) {
-                            a_outParseResult.disabledAnimations.emplace(projectNameIt->value.GetString(), pathIt->value.GetString());
+                            a_outParseResult.replacementAnimDatas.emplace_back(projectNameIt->value.GetString(), pathIt->value.GetString(), true);
                         }
                     }
                 }
             }
+
+			// read replacement animation datas (optional)
+			if (auto replacementAnimDatasIt = doc.FindMember("replacementAnimDatas"); replacementAnimDatasIt != doc.MemberEnd() && replacementAnimDatasIt->value.IsArray()) {
+				for (auto& replacementAnimData : replacementAnimDatasIt->value.GetArray()) {
+					if (replacementAnimData.IsObject()) {
+						auto projectNameIt = replacementAnimData.FindMember("projectName");
+						if (auto pathIt = replacementAnimData.FindMember("path"); projectNameIt != doc.MemberEnd() && projectNameIt->value.IsString() && pathIt != doc.MemberEnd() && pathIt->value.IsString()) {
+							bool bDisabled = false;
+							if (auto disabledIt = replacementAnimData.FindMember("disabled"); disabledIt != doc.MemberEnd() && disabledIt->value.IsBool()) {
+								bDisabled = disabledIt->value.GetBool();
+							}
+
+							// read replacement animation variants
+							std::optional<std::vector<ReplacementAnimData::Variant>> variants = std::nullopt;
+							if (auto variantsIt = replacementAnimData.FindMember("variants"); variantsIt != doc.MemberEnd() && variantsIt->value.IsArray()) {
+								for (auto& variantObj : variantsIt->value.GetArray()) {
+									if (variantObj.IsObject()) {
+										if (auto variantFilenameIt = variantObj.FindMember("filename"); variantFilenameIt != doc.MemberEnd() && variantFilenameIt->value.IsString()) {
+											ReplacementAnimData::Variant variant(variantFilenameIt->value.GetString());
+
+											if (auto weightIt = variantObj.FindMember("weight"); weightIt != doc.MemberEnd() && weightIt->value.IsNumber()) {
+												variant.weight = weightIt->value.GetFloat();
+											}
+											if (auto variantDisabledIt = variantObj.FindMember("disabled"); variantDisabledIt != doc.MemberEnd() && variantDisabledIt->value.IsBool()) {
+												variant.bDisabled = variantDisabledIt->value.GetBool();
+											}
+
+											if (!variants.has_value()) {
+												variants.emplace();
+											}
+											
+										    variants->emplace_back(variant);
+										}
+									}
+								}
+							}
+
+							a_outParseResult.replacementAnimDatas.emplace_back(projectNameIt->value.GetString(), pathIt->value.GetString(), bDisabled, variants);
+						}
+					}
+				}
+			}
 
             // read override animations folder (optional)
             if (auto overrideAnimationsFolderIt = doc.FindMember("overrideAnimationsFolder"); overrideAnimationsFolderIt != doc.MemberEnd() && overrideAnimationsFolderIt->value.IsString()) {
@@ -224,6 +280,11 @@ namespace Parsing
             if (auto keepRandomIt = doc.FindMember("keepRandomResultsOnLoop"); keepRandomIt != doc.MemberEnd() && keepRandomIt->value.IsBool()) {
                 a_outParseResult.bKeepRandomResultsOnLoop = keepRandomIt->value.GetBool();
             }
+
+			// read share random results (optional)
+			if (auto shareRandomIt = doc.FindMember("shareRandomResults"); shareRandomIt != doc.MemberEnd() && shareRandomIt->value.IsBool()) {
+				a_outParseResult.bShareRandomResults = shareRandomIt->value.GetBool();
+			}
 
             // read conditions
             if (auto conditionsIt = doc.FindMember("conditions"); conditionsIt != doc.MemberEnd() && conditionsIt->value.IsArray()) {
@@ -324,18 +385,17 @@ namespace Parsing
         return ret;
     }
 
-    std::string StripRandomPath(std::string_view a_path)
+    std::string ConvertVariantsPath(std::string_view a_path)
     {
-        // strips the random substring ([_random\subdirectory\subdirectory")
-        constexpr auto separator = "\\";
+        // removes the variants substring "_variants_" and appends ".hkx" to the end
+		constexpr std::string_view substring = "_variants_"sv;
 
-        const std::size_t substringStartPos = a_path.find("_random"sv);
-        std::size_t substringEndPos = substringStartPos + a_path.substr(substringStartPos).find(separator) + 1;
-        substringEndPos = substringEndPos + a_path.substr(substringEndPos).find(separator) + 1;
-        substringEndPos = substringEndPos + a_path.substr(substringEndPos).find(separator) + 1;
+        const std::size_t substringStartPos = a_path.find(substring);
+		const std::size_t substringEndPos = substringStartPos + substring.length();
 
         std::string ret(a_path.substr(0, substringStartPos));
-        ret.append(a_path.substr(substringEndPos));
+		ret.append(a_path.substr(substringEndPos));
+		ret.append(".hkx");
 
         return ret;
     }
@@ -401,13 +461,13 @@ namespace Parsing
         return result;
     }
 
-    SubModParseResult ParseModSubdirectory(const std::filesystem::directory_entry& a_subDirectory, RE::hkbCharacterStringData* a_stringData, bool a_bUserOnly/* = false*/)
+    SubModParseResult ParseModSubdirectory(const std::filesystem::directory_entry& a_subDirectory, RE::hkbCharacterStringData* a_stringData, bool a_bIsLegacy/* = false*/)
     {
         SubModParseResult result;
 
         bool bDeserializeSuccess = false;
 
-        if (a_bUserOnly) {
+        if (a_bIsLegacy) {
             const auto userJsonPath = a_subDirectory.path() / "user.json"sv;
             if (is_regular_file(userJsonPath)) {
                 result.configSource = ConfigSource::kUser;
@@ -452,12 +512,12 @@ namespace Parsing
                     const auto overridePath = a_subDirectory.path().parent_path() / result.overrideAnimationsFolder;
                     const auto overrideDirectory = std::filesystem::directory_entry(overridePath);
                     if (is_directory(overrideDirectory)) {
-                        result.animationsToAdd = ParseAnimationsInDirectory(overrideDirectory, a_stringData);
+						result.animationsToAdd = ParseAnimationsInDirectory(overrideDirectory, a_stringData, a_bIsLegacy);
                     } else {
                         result.bSuccess = false;
                     }
                 } else {
-                    result.animationsToAdd = ParseAnimationsInDirectory(a_subDirectory, a_stringData);
+					result.animationsToAdd = ParseAnimationsInDirectory(a_subDirectory, a_stringData, a_bIsLegacy);
                 }
             } else {
                 result.bSuccess = false;
@@ -502,7 +562,7 @@ namespace Parsing
 					result.name = std::to_string(priority);
 					result.priority = priority;
 					result.conditionSet = ParseConditionsTxt(txtPath);  // parse conditions.txt
-					result.animationsToAdd = ParseAnimationsInDirectory(a_directory, a_stringData);
+					result.animationsToAdd = ParseAnimationsInDirectory(a_directory, a_stringData, true);
 					result.bKeepRandomResultsOnLoop = Settings::bLegacyKeepRandomResultsByDefault;
 					result.bSuccess = true;
 				} else {
@@ -594,7 +654,7 @@ namespace Parsing
                         result.name = argument;
                         result.priority = 0;
                         result.conditionSet = std::move(conditionSet);
-                        result.animationsToAdd = ParseAnimationsInDirectory(subEntry, a_stringData);
+                        result.animationsToAdd = ParseAnimationsInDirectory(subEntry, a_stringData, true);
                         result.bKeepRandomResultsOnLoop = Settings::bLegacyKeepRandomResultsByDefault;
                         result.bSuccess = true;
                         result.path = subEntry.path().string();
@@ -612,49 +672,187 @@ namespace Parsing
         return results;
     }
 
-    std::optional<ReplacementAnimationToAdd> ParseReplacementAnimationEntry(RE::hkbCharacterStringData* a_stringData, std::string_view a_animationPath)
+    std::optional<ReplacementAnimationToAdd> ParseReplacementAnimationEntry(RE::hkbCharacterStringData* a_stringData, std::string_view a_fullPath)
     {
-        const std::string replacementAnimationPath = StripProjectPath(a_animationPath);
-        const std::string originalAnimationPath = StripReplacerPath(replacementAnimationPath);
+		const std::string strippedPath = StripProjectPath(a_fullPath);
+		const std::string originalAnimationPath = StripReplacerPath(strippedPath);
 
         const auto originalIndex = GetOriginalAnimationBindingIndex(a_stringData, originalAnimationPath);
         if (originalIndex != static_cast<uint16_t>(-1)) {
-            return ReplacementAnimationToAdd(a_animationPath, replacementAnimationPath, originalIndex);
+			return ReplacementAnimationToAdd(a_fullPath, strippedPath, originalIndex);
         }
 
         return std::nullopt;
     }
 
-    std::vector<ReplacementAnimationToAdd> ParseAnimationsInDirectory(const std::filesystem::directory_entry& a_directory, RE::hkbCharacterStringData* a_stringData)
+    std::optional<ReplacementAnimationToAdd> ParseReplacementAnimationVariants(RE::hkbCharacterStringData* a_stringData, std::string_view a_fullVariantsPath)
+    {
+		const std::string strippedVariantsPath = StripProjectPath(a_fullVariantsPath);
+		const std::string originalAnimationPath = ConvertVariantsPath(StripReplacerPath(strippedVariantsPath));
+
+		const auto originalIndex = GetOriginalAnimationBindingIndex(a_stringData, originalAnimationPath);
+		if (originalIndex != static_cast<uint16_t>(-1)) {
+			std::vector<ReplacementAnimationToAdd::VariantToAdd> variants;
+
+		    // iterate over all files
+			for (const auto& fileEntry : std::filesystem::directory_iterator(a_fullVariantsPath)) {
+				std::string extensionString;
+				try {
+					extensionString = fileEntry.path().extension().string();
+				} catch (const std::system_error&) {
+					auto path = fileEntry.path().u8string();
+					std::string_view pathSv(reinterpret_cast<const char*>(path.data()), path.size());
+					logger::warn("invalid filename at {}, skipping", pathSv);
+					continue;
+				}
+
+			    if (is_regular_file(fileEntry) && Utils::CompareStringsIgnoreCase(extensionString, ".hkx"sv)) {
+				    std::string fullPath;
+				    try {
+						fullPath = fileEntry.path().string();
+				    } catch (const std::system_error&) {
+						auto path = fileEntry.path().u8string();
+					    std::string_view pathSv(reinterpret_cast<const char*>(path.data()), path.size());
+					    logger::warn("invalid filename at {}, skipping", pathSv);
+					    continue;
+				    }
+
+			        variants.emplace_back(fullPath);
+			    }
+			}
+
+			return ReplacementAnimationToAdd(a_fullVariantsPath, strippedVariantsPath, originalIndex, variants);
+		}
+
+		return std::nullopt;
+    }
+
+    std::vector<ReplacementAnimationToAdd> ParseAnimationsInDirectory(const std::filesystem::directory_entry& a_directory, RE::hkbCharacterStringData* a_stringData, bool a_bIsLegacy/* = false*/)
     {
         std::vector<ReplacementAnimationToAdd> result;
 
-        for (const auto& fileEntry : std::filesystem::recursive_directory_iterator(a_directory)) {
-            std::string extensionString;
-            try {
-                extensionString = fileEntry.path().extension().string();
-            } catch (const std::system_error&) {
-                auto path = fileEntry.path().u8string();
-                std::string_view pathSv(reinterpret_cast<const char*>(path.data()), path.size());
-                logger::warn("invalid filename at {}, skipping", pathSv);
-                continue;
-            }
+		if (!a_bIsLegacy) {
+			std::vector<std::string> filenamesToSkip{};
 
-            if (is_regular_file(fileEntry) && Utils::CompareStringsIgnoreCase(extensionString, ".hkx"sv)) {
-                std::string fileEntryPath;
-                try {
-                    fileEntryPath = fileEntry.path().string();
-                } catch (const std::system_error&) {
-                    auto path = a_directory.path().u8string();
-                    std::string_view pathSv(reinterpret_cast<const char*>(path.data()), path.size());
-                    logger::warn("invalid filename at {}, skipping", pathSv);
-                    continue;
-                }
-                if (auto anim = ParseReplacementAnimationEntry(a_stringData, fileEntryPath)) {
-                    result.emplace_back(*anim);
-                }
-            }
-        }
+			// iterate over directories first
+			for (const auto& fileEntry : std::filesystem::directory_iterator(a_directory)) {
+				if (is_directory(fileEntry)) {
+					std::string directoryNameString;
+					try {
+						directoryNameString = fileEntry.path().filename().string();
+					} catch (const std::system_error&) {
+						auto path = fileEntry.path().filename().u8string();
+						std::string_view pathSv(reinterpret_cast<const char*>(path.data()), path.size());
+						logger::warn("invalid directory name at {}, skipping", pathSv);
+						continue;
+					}
+
+					if (directoryNameString.starts_with("_variants_"sv)) {
+					    // parse variants directory
+						std::string directoryEntryPath;
+						try {
+							directoryEntryPath = fileEntry.path().string();
+						} catch (const std::system_error&) {
+							auto path = fileEntry.path().u8string();
+							std::string_view pathSv(reinterpret_cast<const char*>(path.data()), path.size());
+							logger::warn("invalid directory at {}, skipping", pathSv);
+							continue;
+						}
+
+						filenamesToSkip.emplace_back(ConvertVariantsPath(directoryNameString));
+
+						if (auto anim = ParseReplacementAnimationVariants(a_stringData, directoryEntryPath)) {
+							result.emplace_back(*anim);
+						}
+
+					} else {
+						// parse child directory normally
+						// append result
+						auto res = ParseAnimationsInDirectory(fileEntry, a_stringData, a_bIsLegacy);
+						result.reserve(result.size() + res.size());
+						result.insert(result.end(), std::make_move_iterator(res.begin()), std::make_move_iterator(res.end()));
+					}
+				}
+			}
+
+			// then iterate over files
+			for (const auto& fileEntry : std::filesystem::directory_iterator(a_directory)) {
+				if (is_regular_file(fileEntry)) {
+					std::string extensionString;
+					try {
+						extensionString = fileEntry.path().extension().string();
+					} catch (const std::system_error&) {
+						auto path = fileEntry.path().extension().u8string();
+						std::string_view pathSv(reinterpret_cast<const char*>(path.data()), path.size());
+						logger::warn("invalid filename at {}, skipping", pathSv);
+						continue;
+					}
+
+					if (Utils::CompareStringsIgnoreCase(extensionString, ".hkx"sv)) {
+					    std::string filenameString;
+					    try {
+						    filenameString = fileEntry.path().filename().string();
+					    } catch (const std::system_error&) {
+						    auto path = fileEntry.path().filename().u8string();
+						    std::string_view pathSv(reinterpret_cast<const char*>(path.data()), path.size());
+						    logger::warn("invalid filename at {}, skipping", pathSv);
+						    continue;
+					    }
+
+					    std::string fileEntryPath;
+					    try {
+						    fileEntryPath = fileEntry.path().string();
+					    } catch (const std::system_error&) {
+						    auto path = fileEntry.path().u8string();
+						    std::string_view pathSv(reinterpret_cast<const char*>(path.data()), path.size());
+						    logger::warn("invalid filename at {}, skipping", pathSv);
+						    continue;
+					    }
+
+					    // check if we should skip this file because the variants directory exists
+					    const bool bSkip = std::ranges::any_of(filenamesToSkip, [&](const auto& a_filename) {
+						    return filenameString == a_filename;
+					    });
+
+					    if (bSkip) {
+						    logger::warn("skipping {}{} at {} because a variants directory exists for this animation", filenameString, extensionString, fileEntryPath);
+					        continue;
+					    }
+
+					    if (auto anim = ParseReplacementAnimationEntry(a_stringData, fileEntryPath)) {
+						    result.emplace_back(*anim);
+					    }
+					}
+				}
+			}
+		} else {
+			for (const auto& fileEntry : std::filesystem::recursive_directory_iterator(a_directory)) {
+				std::string extensionString;
+				try {
+					extensionString = fileEntry.path().extension().string();
+				} catch (const std::system_error&) {
+					auto path = fileEntry.path().u8string();
+					std::string_view pathSv(reinterpret_cast<const char*>(path.data()), path.size());
+					logger::warn("invalid filename at {}, skipping", pathSv);
+					continue;
+				}
+
+				if (is_regular_file(fileEntry) && Utils::CompareStringsIgnoreCase(extensionString, ".hkx"sv)) {
+					std::string fileEntryPath;
+					try {
+						fileEntryPath = fileEntry.path().string();
+					} catch (const std::system_error&) {
+						auto path = fileEntry.path().u8string();
+						std::string_view pathSv(reinterpret_cast<const char*>(path.data()), path.size());
+						logger::warn("invalid filename at {}, skipping", pathSv);
+						continue;
+					}
+					if (auto anim = ParseReplacementAnimationEntry(a_stringData, fileEntryPath)) {
+						result.emplace_back(*anim);
+					}
+				}
+			}
+		}
 
         return result;
     }

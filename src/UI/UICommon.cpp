@@ -22,6 +22,17 @@ namespace UI::UICommon
         ImGui::PopStyleColor();
     }
 
+    void TextUnformattedWrapped(const char* a_text, const char* a_textEnd)
+    {
+		if (GImGui->CurrentWindow->DC.TextWrapPos < 0.0f) {
+			ImGui::PushTextWrapPos(0.0f);
+			ImGui::TextUnformatted(a_text, a_textEnd);
+			ImGui::PopTextWrapPos();
+		} else {
+			ImGui::TextUnformatted(a_text, a_textEnd);
+		}
+    }
+
     void DrawConditionEvaluateResult(ConditionEvaluateResult a_result)
     {
         ImGui::SameLine();

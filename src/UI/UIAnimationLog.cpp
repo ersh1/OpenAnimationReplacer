@@ -94,6 +94,11 @@ namespace UI
             break;
         }
 
+		if (a_logEntry.bVariant) {
+			ImGui::SameLine();
+			UICommon::TextUnformattedColored(UICommon::LOG_VARIANT_COLOR, "[Variant]");
+		}
+
         if (a_logEntry.event != Event::kInterrupt && a_logEntry.bInterruptible) {
             ImGui::SameLine();
             UICommon::TextUnformattedColored(UICommon::LOG_INTERRUPTED_COLOR, "(Interruptible)");
@@ -126,5 +131,10 @@ namespace UI
         UICommon::TextUnformattedDisabled("Path:");
         ImGui::SameLine();
         ImGui::TextUnformatted(a_logEntry.animPath.data());
+
+		if (a_logEntry.bVariant) {
+			ImGui::SameLine();
+			UICommon::TextUnformattedColored(UICommon::LOG_VARIANT_COLOR, a_logEntry.variantFilename.data());
+		}
     }
 }

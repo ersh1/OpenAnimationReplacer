@@ -16,14 +16,16 @@ struct AnimationLogEntry
     AnimationLogEntry(Event a_event, class ActiveClip* a_activeClip, RE::hkbCharacter* a_character);
 
     Event event;
-    bool bOriginal;
-    bool bInterruptible;
+    bool bOriginal = false;
+	bool bVariant = false;
+    bool bInterruptible = false;
     std::string animationName{};
     std::string clipName{};
     std::string projectName{};
     std::string modName{};
     std::string subModName{};
     std::string animPath{};
+	std::string variantFilename{};
 
     float timeDrawn = 0.f;
 };

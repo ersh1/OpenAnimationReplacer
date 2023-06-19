@@ -1919,20 +1919,8 @@ namespace Conditions
 
     RE::BSString InventoryCountCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
     {
-        if (formComponent->IsValid() && a_refr) {
-            if (const auto actor = a_refr->As<RE::Actor>()) {
-                const auto inv = actor->GetInventory([this](const RE::TESBoundObject& a_object) {
-                    return a_object.GetFormID() == formComponent->GetTESFormValue()->GetFormID();
-                });
-
-				int count = 0;
-                for (const auto& invData : inv | std::views::values) {
-                    const auto& [itemCount, entry] = invData;
-					count += itemCount;
-                }
-
-				return std::to_string(count).data();
-            }
+		if (formComponent->IsValid() && a_refr) {
+			return std::to_string(GetItemCount(a_refr)).data();
         }
 
         return ConditionBase::GetCurrent(a_refr);
@@ -1941,22 +1929,31 @@ namespace Conditions
     bool InventoryCountCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
     {
         if (formComponent->IsValid() && a_refr) {
-            if (const auto actor = a_refr->As<RE::Actor>()) {
-                const auto inv = actor->GetInventory([this](const RE::TESBoundObject& a_object) {
-                    return a_object.GetFormID() == formComponent->GetTESFormValue()->GetFormID();
-                });
-
-                for (const auto& invData : inv | std::views::values) {
-                    const auto& [count, entry] = invData;
-
-                    if (comparisonComponent->GetComparisonResult(static_cast<float>(count), numericComponent->GetNumericValue(a_refr))) {
-                        return true;
-                    }
-                }
-            }
+			const int count = GetItemCount(a_refr);
+			return comparisonComponent->GetComparisonResult(static_cast<float>(count), numericComponent->GetNumericValue(a_refr));
         }
 
         return false;
+    }
+
+    int InventoryCountCondition::GetItemCount(RE::TESObjectREFR* a_refr) const
+    {
+		int count = 0;
+
+		if (formComponent->IsValid() && a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				const auto inv = actor->GetInventory([this](const RE::TESBoundObject& a_object) {
+					return a_object.GetFormID() == formComponent->GetTESFormValue()->GetFormID();
+				});
+
+				for (const auto& invData : inv | std::views::values) {
+					const auto& [itemCount, entry] = invData;
+					count += itemCount;
+				}
+			}
+		}
+
+		return count;
     }
 
     RE::BSString FallDistanceCondition::GetArgument() const
@@ -2668,5 +2665,610 @@ namespace Conditions
 		}
 
 		return rank;
+    }
+
+    RE::BSString EquippedObjectWeightCondition::GetArgument() const
+    {
+		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+
+		return std::format("Object in {} hand's weight {} {}", boolComponent->GetBoolValue() ? "left"sv : "right"sv, separator, numericComponent->value.GetArgument()).data();
+    }
+
+    RE::BSString EquippedObjectWeightCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+		float weight = 0.f;
+		if (const auto equippedForm = GetEquippedForm(a_refr)) {
+			weight = equippedForm->GetWeight();
+		}
+
+		return std::to_string(weight).data();
+    }
+
+    bool EquippedObjectWeightCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		if (a_refr) {
+			float weight = 0.f;
+			if (const auto equippedForm = GetEquippedForm(a_refr)) {
+				weight = equippedForm->GetWeight();
+			}
+
+			return comparisonComponent->GetComparisonResult(weight, numericComponent->GetNumericValue(a_refr));
+		}
+
+		return false;
+    }
+
+    RE::TESForm* EquippedObjectWeightCondition::GetEquippedForm(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				return actor->GetEquippedObject(boolComponent->GetBoolValue());
+			}
+		}
+
+		return nullptr;
+    }
+
+    void CastingSourceConditionBase::PostInitialize()
+    {
+        ConditionBase::PostInitialize();
+		castingSourceComponent->value.getEnumMap = &CastingSourceConditionBase::GetCastingSourceEnumMap;
+    }
+
+    std::string_view CastingSourceConditionBase::GetCastingSourceName(RE::MagicSystem::CastingSource a_source) const
+    {
+		static auto map = GetCastingSourceEnumMap();
+		if (const auto it = map.find(static_cast<int32_t>(a_source)); it != map.end()) {
+			return it->second;
+		}
+
+		return "(Invalid)"sv;
+    }
+
+    std::map<int32_t, std::string_view> CastingSourceConditionBase::GetCastingSourceEnumMap()
+    {
+		std::map<int32_t, std::string_view> enumMap;
+		enumMap[0] = "Left hand"sv;
+		enumMap[1] = "Right hand"sv;
+		enumMap[2] = "Other"sv;
+		enumMap[3] = "Instant"sv;
+		return enumMap;
+    }
+
+    void CurrentCastingTypeCondition::PostInitialize()
+    {
+		CastingSourceConditionBase::PostInitialize();
+		castingTypeComponent->value.getEnumMap = &CurrentCastingTypeCondition::GetCastingTypeEnumMap;
+    }
+
+    RE::BSString CurrentCastingTypeCondition::GetArgument() const
+    {
+		const auto castingSource = static_cast<RE::MagicSystem::CastingSource>(castingSourceComponent->GetNumericValue(nullptr));
+		const auto castingType = static_cast<RE::MagicSystem::CastingType>(castingTypeComponent->GetNumericValue(nullptr));
+
+		return std::format("{} source casting type is {}", GetCastingSourceName(castingSource), GetCastingTypeName(castingType)).data();
+    }
+
+    RE::BSString CurrentCastingTypeCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				const auto castingSource = static_cast<RE::MagicSystem::CastingSource>(castingSourceComponent->GetNumericValue(a_refr));
+				RE::MagicSystem::CastingType castingType;
+				if (GetCastingType(actor, castingSource, castingType)) {
+					return GetCastingTypeName(castingType);
+				}
+			}
+		}
+
+        return ConditionBase::GetCurrent(a_refr);
+    }
+
+    bool CurrentCastingTypeCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				const auto castingSource = static_cast<RE::MagicSystem::CastingSource>(castingSourceComponent->GetNumericValue(a_refr));
+				RE::MagicSystem::CastingType castingType;
+				if (GetCastingType(actor, castingSource, castingType)) {
+					return castingType == static_cast<RE::MagicSystem::CastingType>(castingTypeComponent->GetNumericValue(a_refr));
+				}
+			}
+		}
+
+        return false;
+    }
+
+    bool CurrentCastingTypeCondition::GetCastingType(RE::Actor* a_actor, RE::MagicSystem::CastingSource a_source, RE::MagicSystem::CastingType& a_outType) const
+    {
+		if (a_source < RE::MagicSystem::CastingSource::kLeftHand || a_source > RE::MagicSystem::CastingSource::kInstant) {
+			return false;
+		}
+
+		if (a_actor) {
+			const RE::MagicItem* spellItem = nullptr;
+			if (const auto magicCaster = a_actor->GetMagicCaster(a_source)) {
+				spellItem = magicCaster->currentSpell;
+			}
+
+			if (!spellItem) {
+				spellItem = a_actor->GetActorRuntimeData().selectedSpells[static_cast<int32_t>(a_source)];
+			}
+
+			if (spellItem) {
+				a_outType = spellItem->GetCastingType();
+				return true;
+			}
+		}
+
+		return false;
+    }
+
+    std::string_view CurrentCastingTypeCondition::GetCastingTypeName(RE::MagicSystem::CastingType a_type) const
+    {
+		static auto map = GetCastingTypeEnumMap();
+		if (const auto it = map.find(static_cast<int32_t>(a_type)); it != map.end()) {
+			return it->second;
+		}
+
+		return "(Invalid)"sv;
+    }
+
+    std::map<int32_t, std::string_view> CurrentCastingTypeCondition::GetCastingTypeEnumMap()
+    {
+		std::map<int32_t, std::string_view> enumMap;
+		enumMap[0] = "Constant effect"sv;
+		enumMap[1] = "Fire and forget"sv;
+		enumMap[2] = "Concentration"sv;
+		enumMap[3] = "Scroll"sv;
+		return enumMap;
+    }
+
+    void CurrentDeliveryTypeCondition::PostInitialize()
+    {
+		CastingSourceConditionBase::PostInitialize();
+		deliveryTypeComponent->value.getEnumMap = &CurrentDeliveryTypeCondition::GetDeliveryTypeEnumMap;
+    }
+
+    RE::BSString CurrentDeliveryTypeCondition::GetArgument() const
+    {
+		const auto castingSource = static_cast<RE::MagicSystem::CastingSource>(castingSourceComponent->GetNumericValue(nullptr));
+		const auto deliveryType = static_cast<RE::MagicSystem::Delivery>(deliveryTypeComponent->GetNumericValue(nullptr));
+
+		return std::format("{} source delivery type is {}", GetCastingSourceName(castingSource), GetDeliveryTypeName(deliveryType)).data();
+    }
+
+    RE::BSString CurrentDeliveryTypeCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				const auto castingSource = static_cast<RE::MagicSystem::CastingSource>(castingSourceComponent->GetNumericValue(a_refr));
+				RE::MagicSystem::Delivery deliveryType;
+				if (GetDeliveryType(actor, castingSource, deliveryType)) {
+					return GetDeliveryTypeName(deliveryType);
+				}
+			}
+		}
+
+		return ConditionBase::GetCurrent(a_refr);
+    }
+
+    bool CurrentDeliveryTypeCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				const auto castingSource = static_cast<RE::MagicSystem::CastingSource>(castingSourceComponent->GetNumericValue(a_refr));
+				RE::MagicSystem::Delivery deliveryType;
+				if (GetDeliveryType(actor, castingSource, deliveryType)) {
+					return deliveryType == static_cast<RE::MagicSystem::Delivery>(deliveryTypeComponent->GetNumericValue(a_refr));
+				}
+			}
+		}
+
+		return false;
+    }
+
+    bool CurrentDeliveryTypeCondition::GetDeliveryType(RE::Actor* a_actor, RE::MagicSystem::CastingSource a_source, RE::MagicSystem::Delivery& a_outDeliveryType) const
+    {
+		if (a_source < RE::MagicSystem::CastingSource::kLeftHand || a_source > RE::MagicSystem::CastingSource::kInstant) {
+			return false;
+		}
+
+		if (a_actor) {
+			const RE::MagicItem* spellItem = nullptr;
+			if (const auto magicCaster = a_actor->GetMagicCaster(a_source)) {
+				spellItem = magicCaster->currentSpell;
+			}
+
+			if (!spellItem) {
+				spellItem = a_actor->GetActorRuntimeData().selectedSpells[static_cast<int32_t>(a_source)];
+			}
+
+			if (spellItem) {
+				a_outDeliveryType = spellItem->GetDelivery();
+				return true;
+			}
+		}
+
+		return false;
+    }
+
+    std::string_view CurrentDeliveryTypeCondition::GetDeliveryTypeName(RE::MagicSystem::Delivery a_deliveryType) const
+    {
+		static auto map = GetDeliveryTypeEnumMap();
+		if (const auto it = map.find(static_cast<int32_t>(a_deliveryType)); it != map.end()) {
+			return it->second;
+		}
+
+		return "(Invalid)"sv;
+    }
+
+    std::map<int32_t, std::string_view> CurrentDeliveryTypeCondition::GetDeliveryTypeEnumMap()
+    {
+		std::map<int32_t, std::string_view> enumMap;
+		enumMap[0] = "Self"sv;
+		enumMap[1] = "Touch"sv;
+		enumMap[2] = "Aimed"sv;
+		enumMap[3] = "Target actor"sv;
+		enumMap[4] = "Target location"sv;
+		return enumMap;
+    }
+
+    RE::BSString IsQuestStageDoneCondition::GetArgument() const
+    {
+		return std::format("{} stage {}", questComponent->form.GetArgument(), stageIndexComponent->value.GetArgument()).data();
+    }
+
+    bool IsQuestStageDoneCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		if (questComponent->IsValid()) {
+			if (auto quest = questComponent->GetTESFormValue()->As<RE::TESQuest>()) {
+				return TESQuest_GetStageDone(quest, static_cast<uint16_t>(stageIndexComponent->GetNumericValue(a_refr)));
+			}
+		}
+
+		return false;
+    }
+
+    void CurrentWeatherHasFlagCondition::PostInitialize()
+    {
+        ConditionBase::PostInitialize();
+		weatherFlagComponent->value.getEnumMap = &CurrentWeatherHasFlagCondition::GetEnumMap;
+    }
+
+    RE::BSString CurrentWeatherHasFlagCondition::GetArgument() const
+    {
+		const auto flag = static_cast<int32_t>(weatherFlagComponent->GetNumericValue(nullptr));
+
+		return GetFlagName(flag);
+    }
+
+    RE::BSString CurrentWeatherHasFlagCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+		if (const auto currentWeather = RE::Sky::GetSingleton()->currentWeather) {
+			std::string_view pleasantStr = currentWeather->data.flags.any(RE::TESWeather::WeatherDataFlag::kPleasant) ? "Pleasant "sv : ""sv;
+			std::string_view cloudyStr = currentWeather->data.flags.any(RE::TESWeather::WeatherDataFlag::kCloudy) ? "Cloudy "sv : ""sv;
+			std::string_view rainyStr = currentWeather->data.flags.any(RE::TESWeather::WeatherDataFlag::kRainy) ? "Rainy "sv : ""sv;
+			std::string_view snowStr = currentWeather->data.flags.any(RE::TESWeather::WeatherDataFlag::kSnow) ? "Snow "sv : ""sv;
+			return std::format("{}{}{}{}", pleasantStr, cloudyStr, rainyStr, snowStr).data();
+		}
+        return ConditionBase::GetCurrent(a_refr);
+    }
+
+    bool CurrentWeatherHasFlagCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		if (const auto currentWeather = RE::Sky::GetSingleton()->currentWeather) {
+			const auto index = static_cast<int32_t>(weatherFlagComponent->GetNumericValue(nullptr));
+			const auto flag = static_cast<RE::TESWeather::WeatherDataFlag>(1 << index);
+
+			return currentWeather->data.flags.any(flag);
+		}
+
+		return false;
+    }
+
+    std::string_view CurrentWeatherHasFlagCondition::GetFlagName(int32_t a_index) const
+    {
+		static auto map = GetEnumMap();
+		if (const auto it = map.find(a_index); it != map.end()) {
+			return it->second;
+		}
+
+		return "(Invalid)"sv;
+    }
+
+    std::map<int32_t, std::string_view> CurrentWeatherHasFlagCondition::GetEnumMap()
+    {
+		std::map<int32_t, std::string_view> enumMap;
+		enumMap[0] = "Pleasant"sv;
+		enumMap[1] = "Cloudy"sv;
+		enumMap[2] = "Rainy"sv;
+		enumMap[3] = "Snow"sv;
+		return enumMap;
+    }
+
+    RE::BSString InventoryCountHasKeywordCondition::GetArgument() const
+    {
+		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+		const auto keywordArgument = keywordComponent->keyword.GetArgument();
+		return std::format("{} count {} {}", keywordArgument, separator, numericComponent->value.GetArgument()).data();
+    }
+
+    RE::BSString InventoryCountHasKeywordCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			return std::to_string(GetItemCount(a_refr)).data();
+		}
+
+		return ConditionBase::GetCurrent(a_refr);
+    }
+
+    bool InventoryCountHasKeywordCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		if (a_refr) {
+			const int count = GetItemCount(a_refr);
+			return comparisonComponent->GetComparisonResult(static_cast<float>(count), numericComponent->GetNumericValue(a_refr));
+		}
+
+		return false;
+    }
+
+    int InventoryCountHasKeywordCondition::GetItemCount(RE::TESObjectREFR* a_refr) const
+    {
+		int count = 0;
+
+		if (keywordComponent->IsValid() && a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				const auto inv = actor->GetInventory([this](const RE::TESBoundObject& a_object) {
+					if (const auto bgsKeywordForm = a_object.As<RE::BGSKeywordForm>()) {
+						return keywordComponent->HasKeyword(bgsKeywordForm);
+					}
+					return false;
+				});
+
+				for (const auto& invData : inv | std::views::values) {
+					const auto& [itemCount, entry] = invData;
+					count += itemCount;
+				}
+			}
+		}
+
+		return count;
+    }
+
+    RE::BSString CurrentTargetRelativeAngleCondition::GetArgument() const
+    {
+		const auto targetType = static_cast<Utils::TargetType>(targetTypeComponent->GetNumericValue(nullptr));
+		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+
+		return std::format("Relative angle to {} {} {}", GetTargetTypeName(targetType), separator, numericComponent->value.GetArgument()).data();
+    }
+
+    RE::BSString CurrentTargetRelativeAngleCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto target = GetTarget(a_refr)) {
+				return std::to_string(GetRelativeAngle(a_refr)).data();
+			}
+		}
+
+		return TargetConditionBase::GetCurrent(a_refr);
+    }
+
+    bool CurrentTargetRelativeAngleCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		if (a_refr) {
+			if (const auto target = GetTarget(a_refr)) {
+				const float relativeAngle = GetRelativeAngle(a_refr);
+				return comparisonComponent->GetComparisonResult(relativeAngle, numericComponent->GetNumericValue(a_refr));
+			}
+		}
+
+		return false;
+    }
+
+    RE::TESObjectREFRPtr CurrentTargetRelativeAngleCondition::GetTarget(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				RE::TESObjectREFRPtr target = nullptr;
+				const auto targetType = static_cast<Utils::TargetType>(targetTypeComponent->GetNumericValue(a_refr));
+				if (Utils::GetCurrentTarget(actor, targetType, target)) {
+					return target;
+				}
+			}
+		}
+
+		return nullptr;
+    }
+
+    float CurrentTargetRelativeAngleCondition::GetRelativeAngle(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				RE::TESObjectREFRPtr target = nullptr;
+				const auto targetType = static_cast<Utils::TargetType>(targetTypeComponent->GetNumericValue(a_refr));
+				if (Utils::GetCurrentTarget(actor, targetType, target)) {
+					const auto refAngle = a_refr->GetAngleZ();
+					const auto targetAngle = target->GetAngleZ();
+
+					auto ret = Utils::NormalRelativeAngle(refAngle - targetAngle);
+					if (degreesComponent->GetBoolValue()) {
+						ret = RE::rad_to_deg(ret);
+					}
+					if (absoluteComponent->GetBoolValue()) {
+						ret = std::fabs(ret);
+					}
+
+					return ret;
+				}
+			}
+		}
+
+		return 0.f;
+    }
+
+    RE::BSString CurrentTargetLineOfSightCondition::GetArgument() const
+    {
+		const auto targetType = static_cast<Utils::TargetType>(targetTypeComponent->GetNumericValue(nullptr));
+
+		if (boolComponent->GetBoolValue()) {
+			return std::format("Is in line of sight of {}", GetTargetTypeName(targetType)).data();
+		}
+
+		return std::format("{} is in line of sight", GetTargetTypeName(targetType)).data();
+    }
+
+    bool CurrentTargetLineOfSightCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				if (const auto target = GetTarget(a_refr)) {
+					if (boolComponent->GetBoolValue()) {
+						if (const auto targetActor = target->As<RE::Actor>()) {
+							bool a2 = false;
+							return targetActor->HasLineOfSight(a_refr, a2);
+						}
+					} else {
+						bool a2 = false;
+						return actor->HasLineOfSight(target.get(), a2);
+					}
+				}
+			}
+		}
+
+		return false;
+    }
+
+    RE::TESObjectREFRPtr CurrentTargetLineOfSightCondition::GetTarget(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				RE::TESObjectREFRPtr target = nullptr;
+				const auto targetType = static_cast<Utils::TargetType>(targetTypeComponent->GetNumericValue(a_refr));
+				if (Utils::GetCurrentTarget(actor, targetType, target)) {
+					return target;
+				}
+			}
+		}
+
+		return nullptr;
+    }
+
+    RE::BSString CurrentRotationSpeedCondition::GetArgument() const
+    {
+		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+
+		return std::format("Rotation speed {} {}", separator, numericComponent->value.GetArgument()).data();
+    }
+
+    RE::BSString CurrentRotationSpeedCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				return std::to_string(actor->AsActorState()->DoGetRotationSpeed()).data();
+			}
+		}
+
+		return ConditionBase::GetCurrent(a_refr);
+    }
+
+    bool CurrentRotationSpeedCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				const float rotationSpeed = actor->AsActorState()->DoGetRotationSpeed();
+				return comparisonComponent->GetComparisonResult(rotationSpeed, numericComponent->GetNumericValue(a_refr));
+			}
+		}
+
+		return false;
+    }
+
+    bool IsTalkingCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				return Actor_IsTalking(actor);
+			}
+		}
+
+		return false;
+    }
+
+    bool IsGreetingPlayerCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				const auto& actorRuntimeData = actor->GetActorRuntimeData();
+				if (const auto process = actorRuntimeData.currentProcess) {
+				    if (const auto high = process->high) {
+				        if (high->greetingPlayer) {
+							if (actorRuntimeData.dialogueItemTarget.native_handle() == 0x100000) {
+							    return true;
+							}
+				        }
+				    }
+				}
+			}
+		}
+
+		return false;
+    }
+
+    bool IsInSceneCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	{
+		if (a_refr) {
+		    return a_refr->GetCurrentScene() != nullptr;
+		}
+
+		return false;
+    }
+
+    RE::BSString IsInSpecifiedSceneCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto currentScene = a_refr->GetCurrentScene()) {
+			    return Utils::GetFormNameString(currentScene).data();
+			}
+		}
+
+        return ConditionBase::GetCurrent(a_refr);
+    }
+
+    bool IsInSpecifiedSceneCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		if (a_refr) {
+			return a_refr->GetCurrentScene() == formComponent->GetTESFormValue();
+		}
+
+		return false;
+    }
+
+    bool IsScenePlayingCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		if (formComponent->IsValid()) {
+			if (const auto scene = formComponent->GetTESFormValue()->As<RE::BGSScene>()) {
+			    return scene->isPlaying;
+			}
+		}
+
+		return false;
+    }
+
+    bool IsDoingFavorCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				const auto& actorRuntimeData = actor->GetActorRuntimeData();
+				if (const auto process = actorRuntimeData.currentProcess) {
+					if (const auto high = process->high) {
+						return high->inCommandState;
+					}
+				}
+			}
+		}
+
+		return false;
     }
 }

@@ -137,7 +137,7 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
     return true;
 }
 
-extern "C" DLLEXPORT OAR_API::Conditions::IConditionsInterface1* SKSEAPI RequestPluginAPI_Conditions(const OAR_API::Conditions::InterfaceVersion a_interfaceVersion, const char* a_pluginName, REL::Version a_pluginVersion)
+extern "C" DLLEXPORT OAR_API::Conditions::IConditionsInterface2* SKSEAPI RequestPluginAPI_Conditions(const OAR_API::Conditions::InterfaceVersion a_interfaceVersion, const char* a_pluginName, REL::Version a_pluginVersion)
 {
     const auto api = OAR_API::Conditions::ConditionsInterface::GetSingleton();
 
@@ -149,12 +149,15 @@ extern "C" DLLEXPORT OAR_API::Conditions::IConditionsInterface1* SKSEAPI Request
     logger::info("OpenAnimationReplacer::RequestPluginAPI_Conditions called, InterfaceVersion {} (Plugin name: {}, version: {}", static_cast<uint8_t>(a_interfaceVersion) + 1, a_pluginName, a_pluginVersion);
 
     switch (a_interfaceVersion) {
-    case OAR_API::Conditions::InterfaceVersion::V1:
+	case OAR_API::Conditions::InterfaceVersion::V1:
+		logger::warn("OpenAnimationReplacer::RequestPluginAPI_Conditions requested an outdated interface version");
+	    return nullptr;
+    case OAR_API::Conditions::InterfaceVersion::V2:
         logger::info("OpenAnimationReplacer::RequestPluginAPI_Conditions returned the API singleton");
         return api;
     }
 
-    logger::info("OpenAnimationReplacer::RequestPluginAPI_Conditions requested the wrong interface version");
+    logger::warn("OpenAnimationReplacer::RequestPluginAPI_Conditions requested the wrong interface version");
     return nullptr;
 }
 
@@ -163,7 +166,7 @@ extern "C" DLLEXPORT OAR_API::UI::IUIInterface1* SKSEAPI RequestPluginAPI_UI(con
     const auto api = OAR_API::UI::UIInterface::GetSingleton();
 
     if (a_pluginName == nullptr) {
-        logger::info("OpenAnimationReplacer::RequestPluginAPI_UI called with a nullptr plugin name");
+        logger::warn("OpenAnimationReplacer::RequestPluginAPI_UI called with a nullptr plugin name");
         return nullptr;
     }
 
@@ -175,6 +178,6 @@ extern "C" DLLEXPORT OAR_API::UI::IUIInterface1* SKSEAPI RequestPluginAPI_UI(con
         return api;
     }
 
-    logger::info("OpenAnimationReplacer::RequestPluginAPI_UI requested the wrong interface version");
+    logger::warn("OpenAnimationReplacer::RequestPluginAPI_UI requested the wrong interface version");
     return nullptr;
 }

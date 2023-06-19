@@ -52,9 +52,6 @@ namespace UI
 
         bool _bShowSettings = false;
 
-        // modified from imgui so it doesn't allow non-number text and also saves immediately  // TODO: remove?
-        bool InputPriority(const char* a_label, int* a_v, int a_step = 1, int a_stepFast = 100) const;
-
         // modified from imgui so it allows setting tooltip size
         static bool BeginDragDropSourceEx(ImGuiDragDropFlags a_flags = 0, ImVec2 a_tooltipSize = ImVec2(0, 0));
 

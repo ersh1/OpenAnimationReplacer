@@ -19,6 +19,7 @@ namespace Utils
     [[nodiscard]] std::string_view TrimQuotes(std::string_view a_s);
     [[nodiscard]] std::string_view TrimSquareBrackets(std::string_view a_s);
     [[nodiscard]] std::string_view TrimHexPrefix(std::string_view a_s);
+    [[nodiscard]] std::string_view GetFileNameWithExtension(std::string_view a_s);
     [[nodiscard]] std::string_view GetFileNameWithoutExtension(std::string_view a_s);
 
     [[nodiscard]] bool CompareStringsIgnoreCase(std::string_view a_lhs, std::string_view a_rhs);
@@ -27,6 +28,8 @@ namespace Utils
     [[nodiscard]] std::string GetFormNameString(const RE::TESForm* a_form);
     [[nodiscard]] std::string GetFormKeywords(RE::TESForm* a_form);
     [[nodiscard]] std::string GetFormKeywords(RE::BGSKeywordForm* a_keywordForm);
+
+	[[nodiscard]] inline float GetRandomFloat(float a_min, float a_max) { return effolkronium::random_static::get<float>(a_min, a_max); }
 
     [[nodiscard]] inline RE::Actor* GetActorFromHkbCharacter(RE::hkbCharacter* a_hkbCharacter)
     {

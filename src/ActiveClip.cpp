@@ -4,9 +4,12 @@
 #include "OpenAnimationReplacer.h"
 #include "Settings.h"
 
-ActiveClip::ActiveClip(RE::hkbClipGenerator* a_clipGenerator, RE::hkbCharacter* a_character) :
+#include <ranges>
+
+ActiveClip::ActiveClip(RE::hkbClipGenerator* a_clipGenerator, RE::hkbCharacter* a_character, RE::hkbBehaviorGraph* a_behaviorGraph) :
     _clipGenerator(a_clipGenerator),
     _character(a_character),
+	_behaviorGraph(a_behaviorGraph),
     _originalIndex(a_clipGenerator->animationBindingIndex),
     _originalFlags(a_clipGenerator->flags),
     _bOriginalInterruptible(OpenAnimationReplacer::GetSingleton().IsOriginalAnimationInterruptible(a_character, a_clipGenerator->animationBindingIndex)),
@@ -18,10 +21,42 @@ ActiveClip::ActiveClip(RE::hkbClipGenerator* a_clipGenerator, RE::hkbCharacter* 
 
 ActiveClip::~ActiveClip()
 {
+	{
+		Locker locker(_callbacksLock);
+
+		for (const auto& callbackWeakPtr : _destroyedCallbacks) {
+			if (auto callback = callbackWeakPtr.lock()) {
+				(*callback)(this);
+			}
+		}
+	}
+
     RestoreOriginalAnimation();
 }
 
-void ActiveClip::ReplaceAnimation(ReplacementAnimation* a_replacementAnimation)
+bool ActiveClip::ShouldReplaceAnimation(const ReplacementAnimation* a_newReplacementAnimation, bool a_bTryVariant, std::optional<uint16_t>& a_outVariantIndex)
+{
+	// if different
+	if (_currentReplacementAnimation != a_newReplacementAnimation) {
+	    return true;
+	}
+
+	if (a_bTryVariant) {
+		// if same but not null
+		if (_currentReplacementAnimation && a_newReplacementAnimation) {
+			// roll for new variant
+			const uint16_t newIndex = _currentReplacementAnimation->GetIndex(this);
+			if (_currentReplacementAnimation->HasVariants() && newIndex != GetCurrentIndex()) {
+				a_outVariantIndex = newIndex;
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+void ActiveClip::ReplaceAnimation(ReplacementAnimation* a_replacementAnimation, std::optional<uint16_t> a_variantIndex/* = std::nullopt*/)
 {
     if (_currentReplacementAnimation) {
         RestoreOriginalAnimation();
@@ -31,7 +66,8 @@ void ActiveClip::ReplaceAnimation(ReplacementAnimation* a_replacementAnimation)
 
     if (_currentReplacementAnimation) {
         // alter variables for the lifetime of this object to the ones read from the replacement animation
-        _clipGenerator->animationBindingIndex = _currentReplacementAnimation->GetIndex(); // this is the most important part - this is what actually replaces the animation
+		const uint16_t newBindingIndex = a_variantIndex ? *a_variantIndex : _currentReplacementAnimation->GetIndex(this);
+		_clipGenerator->animationBindingIndex = newBindingIndex;  // this is the most important part - this is what actually replaces the animation
         // the animation binding index is the index of an entry inside hkbCharacterStringData->animationNames, which contains the actual path to the animation file or one of the replacements
         if (_currentReplacementAnimation->GetIgnoreNoTriggersFlag()) {
             _clipGenerator->flags &= ~0x10;
@@ -48,9 +84,9 @@ void ActiveClip::RestoreOriginalAnimation()
     }
 }
 
-void ActiveClip::QueueReplacementAnimation(ReplacementAnimation* a_replacementAnimation, float a_blendTime, AnimationLogEntry::Event a_replacementEvent)
+void ActiveClip::QueueReplacementAnimation(ReplacementAnimation* a_replacementAnimation, float a_blendTime, AnimationLogEntry::Event a_replacementEvent, std::optional<uint16_t> a_variantIndex/* = std::nullopt*/)
 {
-    _queuedReplacement = { a_replacementAnimation, a_blendTime, a_replacementEvent };
+    _queuedReplacement = { a_replacementAnimation, a_blendTime, a_replacementEvent, a_variantIndex };
 }
 
 ReplacementAnimation* ActiveClip::PopQueuedReplacementAnimation()
@@ -81,7 +117,9 @@ void ActiveClip::ReplaceActiveAnimation(RE::hkbClipGenerator* a_clipGenerator, c
     SetTransitioning(true);
     a_clipGenerator->Deactivate(a_context);
 
-    ReplaceAnimation(PopQueuedReplacementAnimation());
+	const std::optional<uint16_t> newIndex = _queuedReplacement ? _queuedReplacement->variantIndex : std::nullopt;
+	const auto replacement = PopQueuedReplacementAnimation();
+	ReplaceAnimation(replacement, newIndex);
 
     auto& animationLog = AnimationLog::GetSingleton();
 
@@ -115,7 +153,9 @@ void ActiveClip::PreUpdate(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbC
     // check if the animation should be interrupted (queue a replacement if so)
     if (!_queuedReplacement && IsInterruptible()) {
         const auto newReplacementAnim = OpenAnimationReplacer::GetSingleton().GetReplacementAnimation(a_context.character, a_clipGenerator, _originalIndex);
-        if (_currentReplacementAnimation != newReplacementAnim) {
+		// do not try to replace with other variants here
+		std::optional<uint16_t> dummy = std::nullopt;
+        if (ShouldReplaceAnimation(newReplacementAnim, false, dummy)) {
             QueueReplacementAnimation(newReplacementAnim, Settings::fBlendTimeOnInterrupt, AnimationLogEntry::Event::kInterrupt);
         }
     }
@@ -199,7 +239,8 @@ bool ActiveClip::OnEcho(RE::hkbClipGenerator* a_clipGenerator, float a_echoDurat
 
 	if (ShouldReplaceOnEcho()) {
 		const auto newReplacementAnim = OpenAnimationReplacer::GetSingleton().GetReplacementAnimation(_character, a_clipGenerator, _originalIndex);
-		if (_currentReplacementAnimation != newReplacementAnim) {
+		std::optional<uint16_t> variantIndex = std::nullopt;
+		if (ShouldReplaceAnimation(newReplacementAnim, !ShouldKeepRandomResultsOnLoop(), variantIndex)) {
 			QueueReplacementAnimation(newReplacementAnim, a_echoDuration, AnimationLogEntry::Event::kEchoReplace);
 			return true;
 		}
@@ -218,7 +259,8 @@ bool ActiveClip::OnLoop(RE::hkbClipGenerator* a_clipGenerator)
 	if (ShouldReplaceOnLoop()) {
 		// reevaluate conditions on loop
 		const auto newReplacementAnim = OpenAnimationReplacer::GetSingleton().GetReplacementAnimation(_character, a_clipGenerator, _originalIndex);
-		if (_currentReplacementAnimation != newReplacementAnim) {
+		std::optional<uint16_t> variantIndex = std::nullopt;
+		if (ShouldReplaceAnimation(newReplacementAnim, !ShouldKeepRandomResultsOnLoop(), variantIndex)) {
 			QueueReplacementAnimation(newReplacementAnim, Settings::fBlendTimeOnLoop, AnimationLogEntry::Event::kLoopReplace);
 			return true;
 		}
@@ -229,6 +271,17 @@ bool ActiveClip::OnLoop(RE::hkbClipGenerator* a_clipGenerator)
 
 float ActiveClip::GetRandomFloat(const Conditions::IRandomConditionComponent* a_randomComponent)
 {
+    // Check if the condition belongs to a submod that shares random results
+	if (const auto parentCondition = a_randomComponent->GetParentCondition()) {
+	    if (const auto parentConditionSet = parentCondition->GetParentConditionSet()) {
+	        if (const auto parentSubMod = parentConditionSet->GetParentSubMod()) {
+	            if (parentSubMod->IsSharingRandomResults()) {
+	                return parentSubMod->GetSharedRandom(this, a_randomComponent);
+	            }
+	        }
+	    }
+	}
+
     // Returns a saved random float if it exists, otherwise generates a new one and saves it
     {
         ReadLocker locker(_randomLock);
@@ -239,17 +292,49 @@ float ActiveClip::GetRandomFloat(const Conditions::IRandomConditionComponent* a_
     }
 
     WriteLocker locker(_randomLock);
-    float randomFloat = effolkronium::random_static::get<float>(a_randomComponent->GetMinValue(), a_randomComponent->GetMaxValue());
+	float randomFloat = Utils::GetRandomFloat(a_randomComponent->GetMinValue(), a_randomComponent->GetMaxValue());
     _randomFloats.emplace(a_randomComponent, randomFloat);
 
     return randomFloat;
 }
 
+float ActiveClip::GetVariantRandom(const ReplacementAnimation* a_replacementAnimation)
+{
+    if (const auto parentSubMod = a_replacementAnimation->GetParentSubMod()) {
+		if (parentSubMod->IsSharingRandomResults()) {
+		    return parentSubMod->GetVariantRandom(this);
+		}
+    }
+
+	return Utils::GetRandomFloat(0.f, 1.f);
+}
+
 void ActiveClip::ClearRandomFloats()
 {
+	// Check if the current replacement animation belongs to a submod that shares random results
+	if (_currentReplacementAnimation) {
+		if (const auto parentSubMod = _currentReplacementAnimation->GetParentSubMod()) {
+			if (parentSubMod->IsSharingRandomResults()) {
+				parentSubMod->ClearSharedRandom(_behaviorGraph);
+			}
+		}
+	}
+
     WriteLocker locker(_randomLock);
 
     _randomFloats.clear();
+}
+
+void ActiveClip::RegisterDestroyedCallback(std::weak_ptr<DestroyedCallback>& a_callback)
+{
+	Locker locker(_callbacksLock);
+
+	// cleanup expired callbacks
+	std::erase_if(_destroyedCallbacks, [this](const std::weak_ptr<DestroyedCallback>& a_callbackWeakPtr) {
+		return a_callbackWeakPtr.expired();
+	});
+
+	_destroyedCallbacks.emplace_back(a_callback);
 }
 
 ActiveClip::BlendFromClipGenerator::BlendFromClipGenerator(RE::hkbClipGenerator* a_clipGenerator) :

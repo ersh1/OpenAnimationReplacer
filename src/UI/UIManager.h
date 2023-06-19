@@ -83,6 +83,9 @@ namespace UI
         RE::TESObjectREFR* _consoleRefr = nullptr;
         uint8_t _menusConsumingInput = 0;
         uint32_t _lastKeyPressed = 0;
+		bool _bShiftHeld = false;
+		bool _bCtrlHeld = false;
+		bool _bAltHeld = false;
 
         std::array<std::unique_ptr<UIWindow>, static_cast<size_t>(WindowID::kMax)> _windows;
 

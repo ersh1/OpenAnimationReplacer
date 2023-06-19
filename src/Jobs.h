@@ -12,6 +12,20 @@ namespace Jobs
         virtual void Run() = 0;
     };
 
+	struct LatentJob
+	{
+		LatentJob() = delete;
+		LatentJob(float a_delay) :
+			_timeRemaining(a_delay)
+		{}
+
+		virtual ~LatentJob() = default;
+
+		virtual bool Run(float a_deltaTime) = 0;
+
+		float _timeRemaining;
+	};
+
     struct InsertConditionJob : GenericJob
     {
         InsertConditionJob(std::unique_ptr<Conditions::ICondition>& a_conditionToInsert, Conditions::ConditionSet* a_conditionSet, const std::unique_ptr<Conditions::ICondition>& a_insertAfterThisCondition) :
@@ -128,4 +142,27 @@ namespace Jobs
             subMod->ReloadConfig();
         }
     };
+
+	struct RemoveSharedRandomFloatJob : LatentJob
+	{
+		RemoveSharedRandomFloatJob(float a_delay, SubMod* a_subMod, RE::hkbBehaviorGraph* a_behaviorGraph) :
+			LatentJob(a_delay),
+			subMod(a_subMod),
+	        behaviorGraph(a_behaviorGraph) {}
+
+		SubMod* subMod;
+		RE::hkbBehaviorGraph* behaviorGraph;
+
+		bool Run(float a_deltaTime) override
+		{
+		    _timeRemaining -= a_deltaTime;
+
+			if (_timeRemaining > 0.f) {
+			    return false;
+			}
+
+			subMod->ClearSharedRandom(behaviorGraph);
+			return true;
+		}
+	};
 }

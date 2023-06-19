@@ -47,6 +47,15 @@ namespace Utils
         return a_s;
     }
 
+    std::string_view GetFileNameWithExtension(std::string_view a_s)
+    {
+		const size_t slashIndex = a_s.find_last_of('\\');
+		if (slashIndex != std::string::npos) {
+			return a_s.substr(slashIndex + 1);
+		}
+		return a_s;
+    }
+
     std::string_view GetFileNameWithoutExtension(std::string_view a_s)
     {
         const size_t slashIndex = a_s.find_last_of('\\');
@@ -130,11 +139,13 @@ namespace Utils
 
     std::string_view GetActorValueName(RE::ActorValue a_actorValue)
     {
-        const auto actorValueList = RE::ActorValueList::GetSingleton();
-        if (const auto actorValueInfo = actorValueList->GetActorValue(a_actorValue)) {
-            const std::string_view actorValueName = actorValueInfo->enumName;
-            return actorValueName;
-        }
+		if (a_actorValue > RE::ActorValue::kNone && a_actorValue < RE::ActorValue::kTotal) {
+			const auto actorValueList = RE::ActorValueList::GetSingleton();
+			if (const auto actorValueInfo = actorValueList->GetActorValue(a_actorValue)) {
+				const std::string_view actorValueName = actorValueInfo->enumName;
+				return actorValueName;
+			}
+		}
 
         return "(Not found)"sv;
     }

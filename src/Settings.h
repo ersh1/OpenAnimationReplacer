@@ -62,7 +62,9 @@ struct Settings
     // Internal
     static inline float fBlendTimeOnInterrupt = 0.3f;
     static inline float fBlendTimeOnLoop = 0.3f;
+	static inline float fSharedRandomLifetime = 0.5f;
     static inline float fQueueFadeTime = 1.f;
+	static inline uint32_t uQueueMinSize = 10;
     static inline float fAnimationLogEntryFadeTime = 0.5f;
     static inline float fWelcomeBannerFadeTime = 1.f;
 

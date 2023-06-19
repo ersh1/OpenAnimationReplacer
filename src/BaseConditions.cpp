@@ -90,7 +90,7 @@ namespace Conditions
         bool bEdited = false;
 
         if (a_bEditable) {
-            if (!getEnumMap && _type == Type::kStaticValue) {
+            if (!(getEnumMap && _type == Type::kStaticValue)) {
                 ImGui::SetNextItemWidth(UI::UICommon::FirstColumnWidth(a_firstColumnWidthPercent));
                 ImGui::PushID(&_type);
                 if (ImGui::SliderInt("", reinterpret_cast<int*>(&_type), 0, static_cast<int>(Type::kTotal) - 1, GetTypeName().data())) {
@@ -357,7 +357,7 @@ namespace Conditions
 
     bool NumericValue::GetActorValue(RE::TESObjectREFR* a_refr, float& a_outValue) const
     {
-        if (_actorValue != RE::ActorValue::kNone && a_refr) {
+		if (_actorValue > RE::ActorValue::kNone && _actorValue < RE::ActorValue::kTotal && a_refr) {
             if (const auto actor = a_refr->As<RE::Actor>()) {
                 const auto actorValueOwner = actor->AsActorValueOwner();
                 a_outValue = actorValueOwner->GetActorValue(_actorValue);
@@ -370,7 +370,7 @@ namespace Conditions
 
     bool NumericValue::GetActorValueBase(RE::TESObjectREFR* a_refr, float& a_outValue) const
     {
-        if (_actorValue != RE::ActorValue::kNone && a_refr) {
+		if (_actorValue > RE::ActorValue::kNone && _actorValue < RE::ActorValue::kTotal && a_refr) {
             if (const auto actor = a_refr->As<RE::Actor>()) {
                 const auto actorValueOwner = actor->AsActorValueOwner();
                 a_outValue = actorValueOwner->GetBaseActorValue(_actorValue);
@@ -383,7 +383,7 @@ namespace Conditions
 
     bool NumericValue::GetActorValueMax(RE::TESObjectREFR* a_refr, float& a_outValue) const
     {
-        if (_actorValue != RE::ActorValue::kNone && a_refr) {
+		if (_actorValue > RE::ActorValue::kNone && _actorValue < RE::ActorValue::kTotal && a_refr) {
             if (const auto actor = a_refr->As<RE::Actor>()) {
                 const auto actorValueOwner = actor->AsActorValueOwner();
                 const float permanentValue = actorValueOwner->GetPermanentActorValue(_actorValue);
@@ -398,7 +398,7 @@ namespace Conditions
 
     bool NumericValue::GetActorValuePercentage(RE::TESObjectREFR* a_refr, float& a_outValue) const
     {
-        if (_actorValue != RE::ActorValue::kNone && a_refr) {
+        if (_actorValue > RE::ActorValue::kNone && _actorValue < RE::ActorValue::kTotal && a_refr) {
             if (const auto actor = a_refr->As<RE::Actor>()) {
                 const auto actorValueOwner = actor->AsActorValueOwner();
                 const float currentValue = actorValueOwner->GetActorValue(_actorValue);
@@ -588,6 +588,7 @@ namespace Conditions
 
         WriteLocker locker(_lock);
 
+		a_condition->SetParentConditionSet(this);
         _conditions.emplace_back(std::move(a_condition));
 
         if (a_bSetDirty) {
@@ -639,11 +640,13 @@ namespace Conditions
 
         if (a_insertAfter) {
             if (const auto it = std::ranges::find(_conditions, a_insertAfter); it != _conditions.end()) {
+				a_conditionToInsert->SetParentConditionSet(this);
                 _conditions.insert(it + 1, std::move(a_conditionToInsert));
                 return;
             }
         }
 
+		a_conditionToInsert->SetParentConditionSet(this);
         _conditions.emplace_back(std::move(a_conditionToInsert));
     }
 
@@ -690,6 +693,7 @@ namespace Conditions
         {
             WriteLocker locker(_lock);
 
+			a_newCondition->SetParentConditionSet(this);
             a_conditionToSubstitute = std::move(a_newCondition);
         }
 
@@ -726,6 +730,7 @@ namespace Conditions
                 return;
             }
 
+
             auto extractedCondition = std::move(a_sourceCondition);
             _conditions.erase(_conditions.begin() + sourceIndex);
             _conditions.insert(_conditions.begin() + targetIndex, std::move(extractedCondition));
@@ -742,6 +747,7 @@ namespace Conditions
             WriteLocker locker(_lock);
             const auto targetIt = std::ranges::find(_conditions, a_targetCondition);
             auto extractedCondition = a_sourceSet->ExtractCondition(a_sourceCondition);
+			extractedCondition->SetParentConditionSet(this);
             if (targetIt != _conditions.end()) {
                 if (a_bInsertAfter) {
                     _conditions.insert(targetIt + 1, std::move(extractedCondition));
@@ -760,12 +766,23 @@ namespace Conditions
     {
         WriteLocker locker(_lock);
 
+		a_otherSet->ForEachCondition([this](auto& a_condition) {
+		    a_condition->SetParentConditionSet(this);
+			return RE::BSVisit::BSVisitControl::kContinue;
+		});
+
         _conditions = std::move(a_otherSet->_conditions);
     }
 
     void ConditionSet::AppendConditions(ConditionSet* a_otherSet)
     {
         WriteLocker locker(_lock);
+
+		a_otherSet->ForEachCondition([this](auto& a_condition) {
+			a_condition->SetParentConditionSet(this);
+			return RE::BSVisit::BSVisitControl::kContinue;
+		});
+
         WriteLocker otherLocker(a_otherSet->_lock);
 
         _conditions.reserve(_conditions.size() + a_otherSet->_conditions.size());
@@ -856,6 +873,23 @@ namespace Conditions
         return false;
     }
 
+    SubMod* ConditionSet::GetParentSubMod() const
+    {
+		if (_parentSubMod) {
+		    return _parentSubMod;
+		}
+
+		if (_parentMultiConditionComponent) {
+			if (const auto parentCondition = _parentMultiConditionComponent->GetParentCondition()) {
+				if (const auto parentConditionSet = parentCondition->GetParentConditionSet()) {
+				    return parentConditionSet->GetParentSubMod();
+				}
+			}
+		}
+
+		return nullptr;
+    }
+
     void ConditionBase::Initialize(void* a_value)
     {
         auto& value = *static_cast<rapidjson::Value*>(a_value);
@@ -937,7 +971,7 @@ namespace Conditions
 
     IConditionComponent* ConditionBase::AddComponent(ConditionComponentFactory a_factory, const char* a_name, const char* a_description/* = ""*/)
     {
-        const auto& result = _components.emplace_back(std::unique_ptr<IConditionComponent>(a_factory(a_name, a_description)));
+        const auto& result = _components.emplace_back(std::unique_ptr<IConditionComponent>(a_factory(this, a_name, a_description)));
         return result.get();
     }
 
@@ -1252,7 +1286,7 @@ namespace Conditions
             ImGui::SetNextItemWidth(UI::UICommon::FirstColumnWidth(a_firstColumnWidthPercent));
             ImGui::PushID(&minValue);
             float tempValues[2] = { minValue, maxValue };
-            if (ImGui::InputFloat2("", (float*)&tempValues)) {
+            if (ImGui::InputFloat2("", reinterpret_cast<float*>(&tempValues))) {
                 bEdited = true;
                 minValue = tempValues[0];
                 maxValue = tempValues[1];

@@ -34,11 +34,13 @@ namespace UI
         constexpr ImVec4 LOG_LOOP_COLOR(0.4f, 0.7f, 1.f, 1.f);
         constexpr ImVec4 LOG_REPLACED_COLOR(0.8f, 0.8f, 0.f, 1.f);
         constexpr ImVec4 LOG_INTERRUPTED_COLOR(0.8f, 0.5f, 0.25f, 1.f);
+		constexpr ImVec4 LOG_VARIANT_COLOR(0.8f, 0.4f, 0.8f, 1.f);
         constexpr ImVec4 CUSTOM_CONDITION_COLOR(0.5f, 0.7f, 1.f, 1.f);
         constexpr ImVec4 INVALID_CONDITION_COLOR(1.f, 0.3f, 0.3f, 1.f);
 
         void TextUnformattedColored(const ImVec4& a_col, const char* a_text, const char* a_textEnd = nullptr);
         void TextUnformattedDisabled(const char* a_text, const char* a_textEnd = nullptr);
+        void TextUnformattedWrapped(const char* a_text, const char* a_textEnd = nullptr);
 
         inline void AddTooltip(const char* a_desc, ImGuiHoveredFlags a_flags = ImGuiHoveredFlags_DelayNormal)
         {

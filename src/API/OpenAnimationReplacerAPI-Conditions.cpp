@@ -1,10 +1,10 @@
 #include "OpenAnimationReplacerAPI-Conditions.h"
 
-OAR_API::Conditions::IConditionsInterface1* g_oarConditionsInterface = nullptr;
+OAR_API::Conditions::IConditionsInterface2* g_oarConditionsInterface = nullptr;
 
 namespace OAR_API::Conditions
 {
-    IConditionsInterface1* GetAPI(const InterfaceVersion a_interfaceVersion /*= InterfaceVersion::V1*/)
+    IConditionsInterface2* GetAPI(const InterfaceVersion a_interfaceVersion /*= InterfaceVersion::V2*/)
     {
         if (g_oarConditionsInterface) {
             return g_oarConditionsInterface;

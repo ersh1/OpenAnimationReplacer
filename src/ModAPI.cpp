@@ -20,49 +20,49 @@ namespace OAR_API
             return &WrappedConditionFactory;
         }
 
-        ::Conditions::IConditionComponent* MultiConditionComponentFactory(const char* a_name, const char* a_description)
+        ::Conditions::IConditionComponent* MultiConditionComponentFactory(const ::Conditions::ICondition* a_parentCondition, const char* a_name, const char* a_description)
         {
-            return new ::Conditions::MultiConditionComponent(a_name, a_description);
+			return new ::Conditions::MultiConditionComponent(a_parentCondition, a_name, a_description);
         }
 
-        ::Conditions::IConditionComponent* FormConditionComponentFactory(const char* a_name, const char* a_description)
+        ::Conditions::IConditionComponent* FormConditionComponentFactory(const ::Conditions::ICondition* a_parentCondition, const char* a_name, const char* a_description)
         {
-            return new ::Conditions::FormConditionComponent(a_name, a_description);
+			return new ::Conditions::FormConditionComponent(a_parentCondition, a_name, a_description);
         }
 
-        ::Conditions::IConditionComponent* NumericConditionComponentFactory(const char* a_name, const char* a_description)
+        ::Conditions::IConditionComponent* NumericConditionComponentFactory(const ::Conditions::ICondition* a_parentCondition, const char* a_name, const char* a_description)
         {
-            return new ::Conditions::NumericConditionComponent(a_name, a_description);
+			return new ::Conditions::NumericConditionComponent(a_parentCondition, a_name, a_description);
         }
 
-        ::Conditions::IConditionComponent* NiPoint3ConditionComponentFactory(const char* a_name, const char* a_description)
+        ::Conditions::IConditionComponent* NiPoint3ConditionComponentFactory(const ::Conditions::ICondition* a_parentCondition, const char* a_name, const char* a_description)
         {
-            return new ::Conditions::NiPoint3ConditionComponent(a_name, a_description);
+			return new ::Conditions::NiPoint3ConditionComponent(a_parentCondition, a_name, a_description);
         }
 
-        ::Conditions::IConditionComponent* KeywordConditionComponentFactory(const char* a_name, const char* a_description)
+        ::Conditions::IConditionComponent* KeywordConditionComponentFactory(const ::Conditions::ICondition* a_parentCondition, const char* a_name, const char* a_description)
         {
-            return new ::Conditions::KeywordConditionComponent(a_name, a_description);
+			return new ::Conditions::KeywordConditionComponent(a_parentCondition, a_name, a_description);
         }
 
-        ::Conditions::IConditionComponent* TextConditionComponentFactory(const char* a_name, const char* a_description)
+        ::Conditions::IConditionComponent* TextConditionComponentFactory(const ::Conditions::ICondition* a_parentCondition, const char* a_name, const char* a_description)
         {
-            return new ::Conditions::TextConditionComponent(a_name, a_description);
+			return new ::Conditions::TextConditionComponent(a_parentCondition, a_name, a_description);
         }
 
-        ::Conditions::IConditionComponent* BoolConditionComponentFactory(const char* a_name, const char* a_description)
+        ::Conditions::IConditionComponent* BoolConditionComponentFactory(const ::Conditions::ICondition* a_parentCondition, const char* a_name, const char* a_description)
         {
-            return new ::Conditions::BoolConditionComponent(a_name, a_description);
+			return new ::Conditions::BoolConditionComponent(a_parentCondition, a_name, a_description);
         }
 
-        ::Conditions::IConditionComponent* ComparisonConditionComponentFactory(const char* a_name, const char* a_description)
+        ::Conditions::IConditionComponent* ComparisonConditionComponentFactory(const ::Conditions::ICondition* a_parentCondition, const char* a_name, const char* a_description)
         {
-            return new ::Conditions::ComparisonConditionComponent(a_name, a_description);
+			return new ::Conditions::ComparisonConditionComponent(a_parentCondition, a_name, a_description);
         }
 
-        ::Conditions::IConditionComponent* RandomConditionComponentFactory(const char* a_name, const char* a_description)
+        ::Conditions::IConditionComponent* RandomConditionComponentFactory(const ::Conditions::ICondition* a_parentCondition, const char* a_name, const char* a_description)
         {
-            return new ::Conditions::RandomConditionComponent(a_name, a_description);
+			return new ::Conditions::RandomConditionComponent(a_parentCondition, a_name, a_description);
         }
 
         ::Conditions::ConditionComponentFactory ConditionsInterface::GetConditionComponentFactory(::Conditions::ConditionComponentType a_componentType) noexcept

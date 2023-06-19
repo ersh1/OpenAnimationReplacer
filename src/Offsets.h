@@ -91,3 +91,10 @@ static REL::Relocation<tTESNPC_GetRelationshipRankIndex> TESNPC_GetRelationshipR
 
 using tActor_IsInDialogue = bool (*)(RE::Actor* a_this);
 static REL::Relocation<tActor_IsInDialogue> Actor_IsInDialogue{ REL::VariantID(36727, 37739, 0x604230) };  // 5FBA40, 6229C0, 604230
+
+using tActor_IsTalking = bool (*)(RE::Actor* a_this);
+static REL::Relocation<tActor_IsTalking> Actor_IsTalking{ REL::VariantID(36277, 37266, 0x5DA8F0) };  // 5D2330, 5F69A0, 5DA8F0
+
+using tTESQuest_GetStageDone = bool (*)(RE::TESQuest* a_this, uint16_t a_stageIndex);
+static REL::Relocation<tTESQuest_GetStageDone> TESQuest_GetStageDone{ REL::VariantID(24483, 25011, 0x3804C0) };  // 370B20, 3881F0, 3804C0
+

@@ -1,8 +1,13 @@
 #pragma once
 
+#include "ActiveClip.h"
 #include "Havok/Havok.h"
 #include "Parsing.h"
 #include "ReplacementAnimation.h"
+
+namespace Jobs {
+    struct RemoveSharedRandomFloatJob;
+}
 
 enum class ConditionEditMode : int
 {
@@ -16,13 +21,16 @@ class SubMod
 public:
     SubMod()
     {
-        _conditionSet = std::make_unique<Conditions::ConditionSet>();
+        _conditionSet = std::make_unique<Conditions::ConditionSet>(this);
     }
 
     void AddReplacementAnimations(RE::hkbCharacterStringData* a_stringData, RE::BShkbHkxDB::ProjectDBData* a_projectDBData, const std::vector<Parsing::ReplacementAnimationToAdd>& a_animationsToAdd);
+	std::unique_ptr<ReplacementAnimation> CreateReplacementAnimation(class ReplacerProjectData* a_replacerProjectData, RE::hkbCharacterStringData* a_stringData, const Parsing::ReplacementAnimationToAdd& a_anim);
 
     void LoadParseResult(const Parsing::SubModParseResult& a_parseResult);
+	void LoadReplacementAnimationDatas(const std::vector<ReplacementAnimData>& a_replacementAnimDatas);
 
+	void ResetAnimations();
     void UpdateAnimations() const;
 
     Conditions::ConditionSet* GetConditionSet() const { return _conditionSet.get(); }
@@ -42,8 +50,6 @@ public:
 
     bool IsDisabled() const { return _bDisabled; }
     void SetDisabled(bool a_bDisabled) { _bDisabled = a_bDisabled; }
-
-    std::set<DisabledAnimation>& GetDisabledAnimations() { return _disabledAnimations; }
 
     std::string_view GetOverrideAnimationsFolder() const { return _overrideAnimationsFolder; }
     void SetOverrideAnimationsFolder(std::string_view a_overrideAnimationsFolder) { _overrideAnimationsFolder = a_overrideAnimationsFolder; }
@@ -65,6 +71,9 @@ public:
 
     bool IsKeepingRandomResultsOnLoop() const { return _bKeepRandomResultsOnLoop; }
     void SetKeepRandomResultsOnLoop(bool a_bKeepRandomResultsOnLoop) { _bKeepRandomResultsOnLoop = a_bKeepRandomResultsOnLoop; }
+
+	bool IsSharingRandomResults() const { return _bShareRandomResults; }
+	void SetShareRandomResults(bool a_bShareRandomResults) { _bShareRandomResults = a_bShareRandomResults; }
 
     bool IsDirty() const { return _bDirty || _conditionSet->IsDirtyRecursive(); }
     bool IsFromUserConfig() const { return _configSource == Parsing::ConfigSource::kUser; }
@@ -88,14 +97,15 @@ public:
     class ReplacerMod* GetParentMod() const;
 
     void ResetToLegacy();
+	void ResetReplacementAnimationsToLegacy();
 
-    void AddReplacerProject(class ReplacerProjectData* a_replacerProject);
+    void AddReplacerProject(ReplacerProjectData* a_replacerProject);
     void ForEachReplacerProject(const std::function<void(ReplacerProjectData*)>& a_func) const;
     void ForEachReplacementAnimation(const std::function<void(ReplacementAnimation*)>& a_func) const;
 
-    bool HasDisabledAnimation(ReplacementAnimation* a_replacementAnimation) const;
-    void AddDisabledAnimation(ReplacementAnimation* a_replacementAnimation);
-    void RemoveDisabledAnimation(ReplacementAnimation* a_replacementAnimation);
+	float GetSharedRandom(ActiveClip* a_activeClip, const Conditions::IRandomConditionComponent* a_randomComponent);
+	float GetVariantRandom(ActiveClip* a_activeClip);
+	void ClearSharedRandom(const RE::hkbBehaviorGraph* a_behaviorGraph);
 
 private:
     friend class ReplacerMod;
@@ -107,7 +117,6 @@ private:
     std::string _path;
     Parsing::ConfigSource _configSource = Parsing::ConfigSource::kAuthor;
     bool _bDisabled = false;
-    std::set<DisabledAnimation> _disabledAnimations{};
     std::string _overrideAnimationsFolder{};
     std::string _requiredProjectName{};
     bool _bIgnoreNoTriggersFlag = false;
@@ -115,6 +124,7 @@ private:
 	bool _bReplaceOnLoop = true;
 	bool _bReplaceOnEcho = false;
     bool _bKeepRandomResultsOnLoop = false;
+	bool _bShareRandomResults = false;
 
     std::unique_ptr<Conditions::ConditionSet> _conditionSet;
     bool _bDirty = false;
@@ -122,6 +132,35 @@ private:
     mutable SharedLock _dataLock;
     std::vector<ReplacerProjectData*> _replacerProjects;
     std::vector<ReplacementAnimation*> _replacementAnimations;
+
+	struct SharedRandomFloats
+	{
+		SharedRandomFloats(SubMod* a_parentSubMod, RE::hkbBehaviorGraph* a_behaviorGraph) :
+		    _parentSubMod(a_parentSubMod),
+		    _behaviorGraph(a_behaviorGraph) {}
+
+		float GetRandomFloat(ActiveClip* a_activeClip, const Conditions::IRandomConditionComponent* a_randomComponent);
+		float GetVariantFloat(ActiveClip* a_activeClip);
+
+		void AddActiveClip(ActiveClip* a_activeClip);
+
+		void RemoveActiveClip(ActiveClip* a_activeClip);
+
+		SharedLock _randomLock;
+		std::unordered_map<const Conditions::IRandomConditionComponent*, float> _randomFloats{};
+		std::optional<float> _variantFloat = std::nullopt;
+
+		ExclusiveLock _clipLock;
+		std::unordered_map<ActiveClip*, std::shared_ptr<ActiveClip::DestroyedCallback>> _registeredCallbacks;
+
+	    SubMod* _parentSubMod = nullptr;
+		RE::hkbBehaviorGraph* _behaviorGraph = nullptr;
+
+		std::shared_ptr<Jobs::RemoveSharedRandomFloatJob> _queuedRemovalJob = nullptr;
+	};
+
+	SharedLock _randomLock;
+	std::unordered_map<const RE::hkbBehaviorGraph*, SharedRandomFloats> _sharedRandomFloats{};
 };
 
 // this is a replacer mod, contains submods
@@ -218,7 +257,7 @@ public:
     ReplacementAnimation* EvaluateConditionsAndGetReplacementAnimation(RE::hkbClipGenerator* a_clipGenerator, uint16_t a_originalIndex, RE::TESObjectREFR* a_refr) const;
     [[nodiscard]] uint16_t GetOriginalAnimationIndex(uint16_t a_currentIndex) const;
 
-    uint16_t TryAddAnimationToAnimationBundleNames(const Parsing::ReplacementAnimationToAdd& a_anim);
+    uint16_t TryAddAnimationToAnimationBundleNames(std::string_view a_path, const std::optional<std::string>& a_hash);
     void AddReplacementAnimation(RE::hkbCharacterStringData* a_stringData, uint16_t a_originalIndex, std::unique_ptr<ReplacementAnimation>& a_replacementAnimation);
     void SortReplacementAnimationsByPriority(uint16_t a_originalIndex);
     void QueueReplacementAnimations(RE::hkbCharacter* a_character);

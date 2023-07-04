@@ -3,12 +3,12 @@
 #include "Settings.h"
 #include "UI/UIManager.h"
 
+#include "API/OpenAnimationReplacerAPI-Animations.h"
 #include "API/OpenAnimationReplacerAPI-Conditions.h"
 #include "API/OpenAnimationReplacerAPI-UI.h"
 #include "ModAPI.h"
 
 #include "MergeMapperPluginAPI.h"
-#include "AnimationFileHashCache.h"
 
 void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
 {
@@ -137,7 +137,29 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
     return true;
 }
 
-extern "C" DLLEXPORT OAR_API::Conditions::IConditionsInterface2* SKSEAPI RequestPluginAPI_Conditions(const OAR_API::Conditions::InterfaceVersion a_interfaceVersion, const char* a_pluginName, REL::Version a_pluginVersion)
+extern "C" DLLEXPORT OAR_API::Animations::IAnimationsInterface* SKSEAPI RequestPluginAPI_Animations(const OAR_API::Animations::InterfaceVersion a_interfaceVersion, const char* a_pluginName, REL::Version a_pluginVersion)
+{
+	const auto api = OAR_API::Animations::AnimationsInterface::GetSingleton();
+
+	if (a_pluginName == nullptr) {
+		logger::warn("OpenAnimationReplacer::RequestPluginAPI_Animations called with a nullptr plugin name");
+		return nullptr;
+	}
+
+	logger::info("OpenAnimationReplacer::RequestPluginAPI_Animations called, InterfaceVersion {} (Plugin name: {}, version: {}", static_cast<uint8_t>(a_interfaceVersion) + 1, a_pluginName, a_pluginVersion);
+
+	switch (a_interfaceVersion) {
+	case OAR_API::Animations::InterfaceVersion::V1:
+		logger::info("OpenAnimationReplacer::RequestPluginAPI_Animations returned the API singleton");
+		return api;
+	}
+
+	logger::warn("OpenAnimationReplacer::RequestPluginAPI_Animations requested the wrong interface version");
+	return nullptr;
+}
+
+
+extern "C" DLLEXPORT OAR_API::Conditions::IConditionsInterface* SKSEAPI RequestPluginAPI_Conditions(const OAR_API::Conditions::InterfaceVersion a_interfaceVersion, const char* a_pluginName, REL::Version a_pluginVersion)
 {
     const auto api = OAR_API::Conditions::ConditionsInterface::GetSingleton();
 
@@ -161,7 +183,7 @@ extern "C" DLLEXPORT OAR_API::Conditions::IConditionsInterface2* SKSEAPI Request
     return nullptr;
 }
 
-extern "C" DLLEXPORT OAR_API::UI::IUIInterface1* SKSEAPI RequestPluginAPI_UI(const OAR_API::UI::InterfaceVersion a_interfaceVersion, const char* a_pluginName, REL::Version a_pluginVersion)
+extern "C" DLLEXPORT OAR_API::UI::IUIInterface* SKSEAPI RequestPluginAPI_UI(const OAR_API::UI::InterfaceVersion a_interfaceVersion, const char* a_pluginName, REL::Version a_pluginVersion)
 {
     const auto api = OAR_API::UI::UIInterface::GetSingleton();
 
@@ -174,6 +196,9 @@ extern "C" DLLEXPORT OAR_API::UI::IUIInterface1* SKSEAPI RequestPluginAPI_UI(con
 
     switch (a_interfaceVersion) {
     case OAR_API::UI::InterfaceVersion::V1:
+		logger::warn("OpenAnimationReplacer::RequestPluginAPI_UI requested an outdated interface version");
+		return nullptr;
+    case OAR_API::UI::InterfaceVersion::V2:
         logger::info("OpenAnimationReplacer::RequestPluginAPI_UI returned the API singleton");
         return api;
     }

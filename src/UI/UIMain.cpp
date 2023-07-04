@@ -7,13 +7,46 @@
 #include "UICommon.h"
 #include "ActiveClip.h"
 #include "OpenAnimationReplacer.h"
-#include "AnimationFileHashCache.h"
 #include "DetectedProblems.h"
 #include "Jobs.h"
 #include "Parsing.h"
 
 namespace UI
 {
+    bool UIMain::ComboFilterData::SetNewValue(const ConditionInfo* a_conditionInfo, int a_newIndex) noexcept
+    {
+        currentSelection = a_newIndex;
+		return SetNewValue(a_conditionInfo);
+    }
+
+    bool UIMain::ComboFilterData::SetNewValue(const ConditionInfo* a_conditionInfo) noexcept
+    {
+		if (filterStatus) {
+			if (currentSelection >= 0) {
+				currentSelection = filteredInfos[currentSelection].index;
+			}
+			filteredInfos.clear();
+			filterStatus = false;
+			filterString = ""sv;
+		}
+
+		const bool bRet = currentSelection != initialValues.index;
+		if (bRet) {
+		    initialValues.info = a_conditionInfo;
+			initialValues.index = currentSelection;
+		}
+
+		return bRet;
+    }
+
+    void UIMain::ComboFilterData::ResetToInitialValue() noexcept
+    {
+        filterStatus = false;
+		filterString = ""sv;
+		filteredInfos.clear();
+		currentSelection = initialValues.index;
+    }
+
     bool UIMain::ShouldDrawImpl() const
     {
         return UIManager::GetSingleton().bShowMain;
@@ -283,7 +316,7 @@ namespace UI
 			UICommon::HelpMarker("Enable to show the welcome banner on startup.");
 
 			static float tempScale = Settings::fUIScale;
-			ImGui::SliderFloat("UI scale", &tempScale, 1.f, 2.f, "%.1f", ImGuiSliderFlags_AlwaysClamp);
+			ImGui::SliderFloat("UI scale", &tempScale, 0.5f, 2.f, "%.1f", ImGuiSliderFlags_AlwaysClamp);
 			ImGui::SameLine();
 			UICommon::HelpMarker("Set the UI scale.");
 			ImGui::SameLine();
@@ -545,9 +578,7 @@ namespace UI
                         ImGui::TableNextRow();
                         ImGui::TableSetColumnIndex(0);
                         ImGui::TextUnformatted(parentMod->GetName().data());
-                        ImGui::TextUnformatted(a_subMod->GetPath().data());
-                        // tooltip for full path in case it doesn't fit
-                        UICommon::AddTooltip(a_subMod->GetPath().data());
+                        UICommon::TextUnformattedEllipsis(a_subMod->GetPath().data());
                     }
                     ImGui::TreePop();
                 }
@@ -1098,11 +1129,35 @@ namespace UI
 
 							const bool bHasVariants = a_replacementAnimation->HasVariants();
 
+							const auto refrToEvaluate = UIManager::GetSingleton().GetRefrToEvaluate();
+							const bool bCanPreview = CanPreviewAnimation(refrToEvaluate, a_replacementAnimation);
+							bool bIsPreviewing = IsPreviewingAnimation(refrToEvaluate, a_replacementAnimation);
+
                             UICommon::TextUnformattedDisabled(std::format("[{}]", a_replacementAnimation->GetProjectName()).data());
 							ImGui::SameLine();
-                            ImGui::TextUnformatted(a_replacementAnimation->GetAnimPath().data());
-                            // tooltip for full path in case it doesn't fit
-                            UICommon::AddTooltip(a_replacementAnimation->GetAnimPath().data());
+
+							float previewButtonWidth = 0.f;
+							if (bCanPreview || bIsPreviewing) {
+								const std::string previewButtonName = bIsPreviewing ? "Stop" : "Preview";
+								const auto& style = ImGui::GetStyle();
+								previewButtonWidth = (ImGui::CalcTextSize(previewButtonName.data()).x + style.FramePadding.x * 2 + style.ItemSpacing.x);
+							}
+							UICommon::TextUnformattedEllipsis(a_replacementAnimation->GetAnimPath().data(), nullptr, ImGui::GetContentRegionAvail().x - previewButtonWidth);
+
+							// preview button
+							if (bIsPreviewing) {
+							    ImGui::SameLine(ImGui::GetContentRegionMax().x - previewButtonWidth);
+                                const std::string label = std::format("Stop##{}", reinterpret_cast<uintptr_t>(a_replacementAnimation));
+                                if (ImGui::Button(label.data())) {
+                                    OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::StopPreviewAnimationJob>(refrToEvaluate);
+                                }
+							} else if (bCanPreview) {
+								ImGui::SameLine(ImGui::GetContentRegionMax().x - previewButtonWidth);
+								const std::string label = std::format("Preview##{}", reinterpret_cast<uintptr_t>(a_replacementAnimation));
+								if (ImGui::Button(label.data())) {
+									OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::BeginPreviewAnimationJob>(refrToEvaluate, a_replacementAnimation);
+								}
+							}
 
 							// variants
 							if (bHasVariants) {
@@ -1144,10 +1199,36 @@ namespace UI
 										ImGui::TextUnformatted(std::format("{}", a_variant.GetWeight()).data());
 									}
 									UICommon::AddTooltip("The weight of this variant used for the weighted random selection (e.g. a variant with a weight of 2 will be twice as likely to be picked than a variant with a weight of 1)");
+
 									ImGui::SameLine();
 									UICommon::TextUnformattedDisabled("Filename:");
+
+									bIsPreviewing = IsPreviewingAnimation(refrToEvaluate, a_replacementAnimation, a_variant.GetIndex());
+
+									float variantPreviewButtonWidth = 0.f;
+									if (bCanPreview || bIsPreviewing) {
+										const std::string variantPreviewButtonName = bIsPreviewing ? "Stop" : "Preview";
+										const auto& style = ImGui::GetStyle();
+										variantPreviewButtonWidth = (ImGui::CalcTextSize(variantPreviewButtonName.data()).x + style.FramePadding.x * 2 + style.ItemSpacing.x);
+									}
 									ImGui::SameLine();
-									ImGui::TextUnformatted(a_variant.GetFilename().data());
+									UICommon::TextUnformattedEllipsis(a_variant.GetFilename().data(), nullptr, ImGui::GetContentRegionAvail().x - variantPreviewButtonWidth);
+									
+									// preview variant button
+									if (bIsPreviewing) {
+										ImGui::SameLine(ImGui::GetContentRegionMax().x - variantPreviewButtonWidth - 10.f);
+										const std::string label = std::format("Stop##{}", reinterpret_cast<uintptr_t>(&a_variant));
+										if (ImGui::Button(label.data())) {
+											OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::StopPreviewAnimationJob>(refrToEvaluate);
+										}
+									} else if (bCanPreview) {
+										ImGui::SameLine(ImGui::GetContentRegionMax().x - variantPreviewButtonWidth - 10.f);
+										const std::string label = std::format("Preview##{}", reinterpret_cast<uintptr_t>(&a_variant));
+										if (ImGui::Button(label.data())) {
+											OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::BeginPreviewAnimationJob>(refrToEvaluate, a_replacementAnimation, a_variant.GetIndex());
+										}
+									}
+
 									ImGui::Unindent();
 
 									if (bVariantDisabled) {
@@ -1179,7 +1260,7 @@ namespace UI
                 ImVec2 pos = ImGui::GetCursorScreenPos();
                 pos.x += style.FramePadding.x;
                 pos.y += style.FramePadding.y;
-                DrawConditionSet(a_subMod->GetConditionSet(), _editMode, true, pos);
+				DrawConditionSet(a_subMod->GetConditionSet(), _editMode, UIManager::GetSingleton().GetRefrToEvaluate(), true, pos);
                 ImGui::Unindent();
 
                 ImGui::Spacing();
@@ -1312,13 +1393,14 @@ namespace UI
         ImGui::EndChild();
     }
 
-    void UIMain::DrawReplacementAnimation(const ReplacementAnimation* a_replacementAnimation)
+    void UIMain::DrawReplacementAnimation(ReplacementAnimation* a_replacementAnimation)
     {
         ImGui::TableNextRow();
         ImGui::TableSetColumnIndex(0);
         // Evaluate
         auto evalResult = ConditionEvaluateResult::kFailure;
-        if (const auto refrToEvaluate = UIManager::GetSingleton().GetRefrToEvaluate()) {
+		const auto refrToEvaluate = UIManager::GetSingleton().GetRefrToEvaluate();
+        if (refrToEvaluate) {
             if (a_replacementAnimation->EvaluateConditions(refrToEvaluate, nullptr)) {
                 if (Utils::ConditionSetHasRandomResult(a_replacementAnimation->GetConditionSet())) {
                     evalResult = ConditionEvaluateResult::kRandom;
@@ -1328,7 +1410,7 @@ namespace UI
             }
         }
 
-        const std::string priorityText = "Priority: " + std::to_string(a_replacementAnimation->GetPriority());
+        const std::string nodeName = std::format("Priority: {}##{}", std::to_string(a_replacementAnimation->GetPriority()), reinterpret_cast<uintptr_t>(a_replacementAnimation));
 
 		const bool bAnimationDisabled = a_replacementAnimation->IsDisabled();
 		if (bAnimationDisabled) {
@@ -1337,17 +1419,55 @@ namespace UI
 		}
 
         ImGui::PushID(&a_replacementAnimation);
-        const bool bNodeOpen = ImGui::TreeNodeEx(priorityText.data(), ImGuiTreeNodeFlags_AllowItemOverlap | ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_SpanAvailWidth);
+		const bool bNodeOpen = ImGui::TreeNodeEx(nodeName.data(), ImGuiTreeNodeFlags_AllowItemOverlap | ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_SpanAvailWidth);
+
+		if (const auto parentSubMod = a_replacementAnimation->GetParentSubMod()) {
+			if (parentSubMod->IsFromLegacyConfig()) {
+				ImGui::SameLine();
+				UICommon::TextUnformattedDisabled("Legacy");
+			} else if (const auto parentMod = parentSubMod->GetParentMod()) {
+				ImGui::SameLine();
+				UICommon::TextUnformattedDisabled(parentMod->GetName().data());
+				ImGui::SameLine();
+				UICommon::TextUnformattedDisabled("-");
+				ImGui::SameLine();
+				UICommon::TextUnformattedDisabled(parentSubMod->GetName().data());
+			}
+		}
 
         // Evaluate success/failure indicator
-        if (UIManager::GetSingleton().GetRefrToEvaluate()) {
+		if (refrToEvaluate) {
             UICommon::DrawConditionEvaluateResult(evalResult);
         }
 
         if (bNodeOpen) {
+			const bool bCanPreview = CanPreviewAnimation(refrToEvaluate, a_replacementAnimation);
+			bool bIsPreviewing = IsPreviewingAnimation(refrToEvaluate, a_replacementAnimation);
+
             const auto animPath = a_replacementAnimation->GetAnimPath();
-            ImGui::TextUnformatted(animPath.data());
-            UICommon::AddTooltip(animPath.data()); // tooltip for full path in case it doesn't fit
+
+			float previewButtonWidth = 0.f;
+			if (bCanPreview || bIsPreviewing) {
+				const std::string previewButtonName = bIsPreviewing ? "Stop" : "Preview";
+				const auto& style = ImGui::GetStyle();
+				previewButtonWidth = (ImGui::CalcTextSize(previewButtonName.data()).x + style.FramePadding.x * 2 + style.ItemSpacing.x);
+			}
+			UICommon::TextUnformattedEllipsis(animPath.data(), nullptr, ImGui::GetContentRegionAvail().x - previewButtonWidth);
+
+			// preview button
+			if (bIsPreviewing) {
+				ImGui::SameLine(ImGui::GetContentRegionMax().x - previewButtonWidth);
+				const std::string label = std::format("Stop##{}", reinterpret_cast<uintptr_t>(a_replacementAnimation));
+				if (ImGui::Button(label.data())) {
+					OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::StopPreviewAnimationJob>(refrToEvaluate);
+				}
+			} else if (bCanPreview) {
+				ImGui::SameLine(ImGui::GetContentRegionMax().x - previewButtonWidth);
+				const std::string label = std::format("Preview##{}", reinterpret_cast<uintptr_t>(a_replacementAnimation));
+				if (ImGui::Button(label.data())) {
+					OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::BeginPreviewAnimationJob>(refrToEvaluate, a_replacementAnimation);
+				}
+			}
 
 			// draw variants
 			if (a_replacementAnimation->HasVariants())
@@ -1367,8 +1487,32 @@ namespace UI
 					UICommon::AddTooltip("The weight of this variant used for the weighted random selection (e.g. a variant with a weight of 2 will be twice as likely to be picked than a variant with a weight of 1)");
 					ImGui::SameLine();
 					UICommon::TextUnformattedDisabled("Filename:");
+
+					bIsPreviewing = IsPreviewingAnimation(refrToEvaluate, a_replacementAnimation, a_variant.GetIndex());
+
+					float variantPreviewButtonWidth = 0.f;
+					if (bCanPreview || bIsPreviewing) {
+						const std::string variantPreviewButtonName = bIsPreviewing ? "Stop" : "Preview";
+						const auto& style = ImGui::GetStyle();
+						variantPreviewButtonWidth = (ImGui::CalcTextSize(variantPreviewButtonName.data()).x + style.FramePadding.x * 2 + style.ItemSpacing.x);
+					}
 					ImGui::SameLine();
-					ImGui::TextUnformatted(a_variant.GetFilename().data());
+					UICommon::TextUnformattedEllipsis(a_variant.GetFilename().data(), nullptr, ImGui::GetContentRegionAvail().x - variantPreviewButtonWidth);
+
+					// preview variant button
+					if (bIsPreviewing) {
+						ImGui::SameLine(ImGui::GetContentRegionMax().x - variantPreviewButtonWidth - 10.f);
+						const std::string label = std::format("Stop##{}", reinterpret_cast<uintptr_t>(&a_variant));
+						if (ImGui::Button(label.data())) {
+							OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::StopPreviewAnimationJob>(refrToEvaluate);
+						}
+					} else 	if (bCanPreview) {
+						ImGui::SameLine(ImGui::GetContentRegionMax().x - variantPreviewButtonWidth - 10.f);
+						const std::string label = std::format("Preview##{}", reinterpret_cast<uintptr_t>(&a_variant));
+						if (ImGui::Button(label.data())) {
+							OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::BeginPreviewAnimationJob>(refrToEvaluate, a_replacementAnimation, a_variant.GetIndex());
+						}
+					}
 
 					if (bVariantDisabled) {
 						ImGui::PopStyleVar();
@@ -1378,7 +1522,7 @@ namespace UI
                 });
 				ImGui::Unindent();
 			}
-            DrawConditionSet(a_replacementAnimation->GetConditionSet(), ConditionEditMode::kNone, true, ImGui::GetCursorScreenPos());
+            DrawConditionSet(a_replacementAnimation->GetConditionSet(), ConditionEditMode::kNone, refrToEvaluate, true, ImGui::GetCursorScreenPos());
             ImGui::TreePop();
         }
         ImGui::PopID();
@@ -1388,7 +1532,7 @@ namespace UI
 		}
     }
 
-    bool UIMain::DrawConditionSet(Conditions::ConditionSet* a_conditionSet, ConditionEditMode a_editMode, bool a_bDrawLines, const ImVec2& a_drawStartPos)
+    bool UIMain::DrawConditionSet(Conditions::ConditionSet* a_conditionSet, ConditionEditMode a_editMode, RE::TESObjectREFR* a_refrToEvaluate, bool a_bDrawLines, const ImVec2& a_drawStartPos)
     {
         //ImGui::TableNextRow();
         //ImGui::TableSetColumnIndex(0);
@@ -1407,7 +1551,7 @@ namespace UI
 
         if (!a_conditionSet->IsEmpty()) {
             a_conditionSet->ForEachCondition([&](std::unique_ptr<Conditions::ICondition>& a_condition) {
-                const ImRect nodeRect = DrawCondition(a_condition, a_conditionSet, a_editMode, bSetDirty);
+				const ImRect nodeRect = DrawCondition(a_condition, a_conditionSet, a_editMode, a_refrToEvaluate, bSetDirty);
                 if (a_bDrawLines) {
                     const float midPoint = (nodeRect.Min.y + nodeRect.Max.y) / 2.f;
                     constexpr float horLineLength = 10.f;
@@ -1470,7 +1614,7 @@ namespace UI
                 if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) {
                     ImGui::SetNextWindowSize(ImVec2(tooltipWidth, 0));
                     ImGui::BeginTooltip();
-                    DrawConditionSet(_conditionSetCopy.get(), ConditionEditMode::kNone, false, a_drawStartPos);
+					DrawConditionSet(_conditionSetCopy.get(), ConditionEditMode::kNone, nullptr, false, a_drawStartPos);
                     ImGui::EndTooltip();
                 }
 
@@ -1489,19 +1633,17 @@ namespace UI
         return bSetDirty;
     }
 
-    ImRect UIMain::DrawCondition(std::unique_ptr<Conditions::ICondition>& a_condition, Conditions::ConditionSet* a_conditionSet, ConditionEditMode a_editMode, bool& a_bOutSetDirty)
+    ImRect UIMain::DrawCondition(std::unique_ptr<Conditions::ICondition>& a_condition, Conditions::ConditionSet* a_conditionSet, ConditionEditMode a_editMode, RE::TESObjectREFR* a_refrToEvaluate, bool& a_bOutSetDirty)
     {
         ImRect conditionRect;
 
         // Evaluate
         auto evalResult = ConditionEvaluateResult::kFailure;
-        if (auto refrToEvaluate = UIManager::GetSingleton().GetRefrToEvaluate()) {
-            if (a_condition->Evaluate(refrToEvaluate, nullptr)) {
-                if (Utils::ConditionHasRandomResult(a_condition.get())) {
-                    evalResult = ConditionEvaluateResult::kRandom;
-                } else {
-                    evalResult = ConditionEvaluateResult::kSuccess;
-                }
+		if (a_refrToEvaluate && a_condition->Evaluate(a_refrToEvaluate, nullptr)) {
+            if (Utils::ConditionHasRandomResult(a_condition.get())) {
+                evalResult = ConditionEvaluateResult::kRandom;
+            } else {
+                evalResult = ConditionEvaluateResult::kSuccess;
             }
         }
 
@@ -1558,6 +1700,7 @@ namespace UI
                     if (ImGui::Button("Paste condition below", ImVec2(xButtonSize, 0))) {
                         auto duplicate = DuplicateCondition(_conditionCopy);
                         OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::InsertConditionJob>(duplicate, a_conditionSet, a_condition);
+						a_bOutSetDirty = true;
                         ImGui::CloseCurrentPopup();
                     }
                     ImGui::EndDisabled();
@@ -1566,7 +1709,7 @@ namespace UI
                         ImGui::SetNextWindowSize(ImVec2(tooltipWidth, 0));
                         ImGui::BeginTooltip();
                         bool bDummy = false;
-                        DrawCondition(_conditionCopy, a_conditionSet, ConditionEditMode::kNone, bDummy);
+                        DrawCondition(_conditionCopy, a_conditionSet, ConditionEditMode::kNone, nullptr, bDummy);
                         ImGui::EndTooltip();
                     }
 
@@ -1574,6 +1717,7 @@ namespace UI
                     UICommon::ButtonWithConfirmationModal("Delete condition"sv, "Are you sure you want to remove the condition?\nThis operation cannot be undone!\n\n"sv, [&]() {
                         ImGui::ClosePopupsExceptModals();
                         OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::RemoveConditionJob>(a_condition, a_conditionSet);
+                        a_bOutSetDirty = true;
                     }, ImVec2(xButtonSize, 0));
 
                     ImGui::EndPopup();
@@ -1581,31 +1725,7 @@ namespace UI
             }
 
             // Condition description tooltip
-            if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) {
-                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 8, 8 });
-                ImGui::BeginTooltip();
-                ImGui::PushTextWrapPos(ImGui::GetFontSize() * 50.0f);
-                const auto description = a_condition->GetDescription();
-                ImGui::TextUnformatted(description.data());
-                const auto requiredPluginName = a_condition->GetRequiredPluginName();
-                if (!requiredPluginName.empty()) {
-                    ImGui::TextUnformatted("Source plugin:");
-                    ImGui::SameLine();
-                    UICommon::TextUnformattedColored(UICommon::CUSTOM_CONDITION_COLOR, requiredPluginName.data());
-                    ImGui::SameLine();
-                    UICommon::TextUnformattedDisabled(a_condition->GetRequiredVersion().string("."sv).data());
-                    const auto requiredPluginAuthor = a_condition->GetRequiredPluginAuthor();
-                    if (!requiredPluginAuthor.empty()) {
-                        ImGui::SameLine();
-                        ImGui::TextUnformatted("by");
-                        ImGui::SameLine();
-                        UICommon::TextUnformattedColored(UICommon::CUSTOM_CONDITION_COLOR, requiredPluginAuthor.data());
-                    }
-                }
-                ImGui::PopTextWrapPos();
-                ImGui::EndTooltip();
-                ImGui::PopStyleVar();
-            }
+			DrawConditionTooltip(a_condition.get());
 
             nodeRect = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
 
@@ -1615,7 +1735,7 @@ namespace UI
                     DragConditionPayload payload(a_condition, a_conditionSet);
                     ImGui::SetDragDropPayload("DND_CONDITION", &payload, sizeof(DragConditionPayload));
                     bool bDummy = false;
-                    DrawCondition(a_condition, a_conditionSet, ConditionEditMode::kNone, bDummy);
+                    DrawCondition(a_condition, a_conditionSet, ConditionEditMode::kNone, nullptr, bDummy);
                     ImGui::EndDragDropSource();
                 }
             }
@@ -1699,7 +1819,7 @@ namespace UI
             //ImGui::TableSetColumnIndex(0);
 
             // Evaluate success/failure indicator
-            if (UIManager::GetSingleton().GetRefrToEvaluate()) {
+            if (a_refrToEvaluate) {
                 UICommon::DrawConditionEvaluateResult(evalResult);
             }
 
@@ -1721,46 +1841,36 @@ namespace UI
 
                     // select condition type
                     ImGui::SameLine();
-                    ImGui::SetNextItemWidth(UICommon::FirstColumnWidth(_firstColumnWidthPercent));
-                    bool bIsCustomCondition = OpenAnimationReplacer::GetSingleton().IsCustomCondition(conditionName);
-                    if (bIsCustomCondition) {
-                        ImGui::PushStyleColor(ImGuiCol_Text, UICommon::CUSTOM_CONDITION_COLOR);
+					const float conditionComboWidth = UICommon::FirstColumnWidth(_firstColumnWidthPercent);
+					ImGui::SetNextItemWidth(conditionComboWidth);
+
+					if (_conditionInfos.empty()) {
+						CacheConditionInfos();
+					}
+
+					int selectedItem = -1;
+
+					auto it = std::ranges::find_if(_conditionInfos, [&](const ConditionInfo& a_conditionInfo) {
+					    return a_conditionInfo.name == std::string_view(conditionName);
+					});
+
+					if (it != _conditionInfos.end()) {
+						selectedItem = static_cast<int>(std::distance(_conditionInfos.begin(), it));
                     }
-                    if (ImGui::BeginCombo("##Condition type", conditionName.data())) {
-                        if (bIsCustomCondition) {
-                            ImGui::PopStyleColor();
-                        }
-                        OpenAnimationReplacer::GetSingleton().ForEachConditionFactory([&](std::string_view a_name, [[maybe_unused]] auto a_factory) {
-                            const bool bIsCurrent = a_name.data() == conditionName;
-                            const bool bEntryIsCustomCondition = OpenAnimationReplacer::GetSingleton().IsCustomCondition(a_name);
-                            if (bEntryIsCustomCondition) {
-                                ImGui::PushStyleColor(ImGuiCol_Text, UICommon::CUSTOM_CONDITION_COLOR);
-                            }
-                            if (ImGui::Selectable(a_name.data(), bIsCurrent)) {
-                                if (!bIsCurrent) {
-                                    OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::ReplaceConditionJob>(a_condition, a_name, a_conditionSet);
-                                }
-                                _lastAddNewConditionName = a_name;
-                            }
-                            if (bEntryIsCustomCondition) {
-                                ImGui::PopStyleColor();
-                            }
-                            if (bIsCurrent) {
-                                ImGui::SetItemDefaultFocus();
-                            }
-                        });
-                        ImGui::EndCombo();
-                    } else {
-                        if (bIsCustomCondition) {
-                            ImGui::PopStyleColor();
-                        }
-                    }
+
+					if (ConditionComboFilter("##Condition type", selectedItem, &*it, ImGuiComboFlags_HeightLarge)) {
+						if (selectedItem >= 0 && selectedItem < _conditionInfos.size() && OpenAnimationReplacer::GetSingleton().HasConditionFactory(_conditionInfos[selectedItem].name)) {
+							_lastAddNewConditionName = _conditionInfos[selectedItem].name;
+							OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::ReplaceConditionJob>(a_condition, _conditionInfos[selectedItem].name, a_conditionSet);
+						}
+					}
 
                     // remove condition button
                     UICommon::SecondColumn(_firstColumnWidthPercent);
 
                     UICommon::ButtonWithConfirmationModal("Delete condition"sv, "Are you sure you want to remove the condition?\nThis operation cannot be undone!\n\n"sv, [&]() {
                         OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::RemoveConditionJob>(a_condition, a_conditionSet);
+						a_bOutSetDirty = true;
                     });
                 }
 
@@ -1769,7 +1879,7 @@ namespace UI
                         auto component = a_condition->GetComponent(i);
 
                         if (auto multiConditionComponent = dynamic_cast<Conditions::IMultiConditionComponent*>(component)) {
-                            if (DrawConditionSet(multiConditionComponent->GetConditions(), a_editMode, true, cursorPos)) {
+							if (DrawConditionSet(multiConditionComponent->GetConditions(), a_editMode, a_condition->GetRefrToEvaluate(a_refrToEvaluate), true, cursorPos)) {
                                 a_conditionSet->SetDirty(true);
                                 a_bOutSetDirty = true;
                             }
@@ -1793,7 +1903,7 @@ namespace UI
                 }
 
                 // Display current value, if applicable
-                const auto current = a_condition->GetCurrent(UIManager::GetSingleton().GetRefrToEvaluate());
+				const auto current = a_condition->GetCurrent(a_refrToEvaluate);
                 if (!current.empty()) {
                     ImGui::Separator();
                     UICommon::TextUnformattedDisabled("Current:");
@@ -1814,7 +1924,6 @@ namespace UI
         }
         ImGui::PopStyleVar(); // ImGuiStyleVar_CellPadding
 
-        auto rectMin = ImGui::GetItemRectMin();
         auto rectMax = ImGui::GetItemRectMax();
 
         auto width = ImGui::GetItemRectSize().x;
@@ -1882,7 +1991,7 @@ namespace UI
                         ImGui::SetNextWindowSize(ImVec2(tooltipWidth, 0));
                         ImGui::BeginTooltip();
                         bool bDummy = false;
-                        DrawCondition(_conditionCopy, a_conditionSet, ConditionEditMode::kNone, bDummy);
+                        DrawCondition(_conditionCopy, a_conditionSet, ConditionEditMode::kNone, nullptr, bDummy);
                         ImGui::EndTooltip();
                     }
 
@@ -1906,6 +2015,350 @@ namespace UI
         ImGui::PopStyleVar(); // ImGuiStyleVar_CellPadding
 
         return conditionRect;
+    }
+
+    void UIMain::DrawConditionTooltip(const ConditionInfo& a_conditionInfo, ImGuiHoveredFlags a_flags) const
+    {
+		if (ImGui::IsItemHovered(a_flags)) {
+			ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 8, 8 });
+			if (ImGui::BeginTooltip()) {
+				ImGui::PushTextWrapPos(ImGui::GetFontSize() * 50.0f);
+				ImGui::TextUnformatted(a_conditionInfo.description.data());
+				if (!a_conditionInfo.requiredPluginName.empty()) {
+					ImGui::TextUnformatted("Source plugin:");
+					ImGui::SameLine();
+					UICommon::TextUnformattedColored(a_conditionInfo.textColor, a_conditionInfo.requiredPluginName.data());
+					ImGui::SameLine();
+					UICommon::TextUnformattedDisabled(a_conditionInfo.requiredVersion.string("."sv).data());
+					if (!a_conditionInfo.requiredPluginAuthor.empty()) {
+						ImGui::SameLine();
+						ImGui::TextUnformatted("by");
+						ImGui::SameLine();
+						UICommon::TextUnformattedColored(a_conditionInfo.textColor, a_conditionInfo.requiredPluginAuthor.data());
+					}
+				}
+				ImGui::PopTextWrapPos();
+				ImGui::EndTooltip();
+			}
+			ImGui::PopStyleVar();
+		}
+    }
+
+    void UIMain::CacheConditionInfos()
+    {
+        _conditionInfos.clear();
+
+		OpenAnimationReplacer::GetSingleton().ForEachConditionFactory([&](std::string_view a_name, [[maybe_unused]] auto a_factory) {
+			if (const auto tempCondition = OpenAnimationReplacer::GetSingleton().CreateCondition(a_name)) {
+				ImVec4 color = tempCondition->IsCustomCondition() ? UICommon::CUSTOM_CONDITION_COLOR : UICommon::DEFAULT_CONDITION_COLOR;
+				_conditionInfos.emplace_back(a_name, tempCondition->GetDescription(), color, tempCondition->GetRequiredPluginName(), tempCondition->GetRequiredPluginAuthor(), tempCondition->GetRequiredVersion());
+			}
+		});
+    }
+
+	struct ComboMapHasher
+	{
+		ImGuiID operator()(ImGuiID a_id) const noexcept
+		{
+			return a_id;
+		}
+	};
+
+	static std::unordered_map<ImGuiID, std::unique_ptr<UIMain::ComboFilterData>, ComboMapHasher> g_comboHashMap{};
+
+    UIMain::ComboFilterData* UIMain::GetComboFilterData(ImGuiID a_comboId)
+    {
+		const auto it = g_comboHashMap.find(a_comboId);
+		return it == g_comboHashMap.end() ? nullptr : it->second.get();
+    }
+
+    UIMain::ComboFilterData* UIMain::AddComboFilterData(ImGuiID a_comboId)
+    {
+		IM_ASSERT(!g_comboHashMap.contains(a_comboId) && "A combo data currently exists on the same id!");
+		auto& new_data = g_comboHashMap[a_comboId];
+		new_data.reset(new ComboFilterData());
+		return new_data.get();
+    }
+
+    void UIMain::ClearComboFilterData(ImGuiID a_comboId)
+    {
+		g_comboHashMap.erase(a_comboId);
+    }
+
+    float CalcComboItemHeight(int a_itemCount, float a_offsetMultiplier)
+	{
+		const ImGuiContext* g = GImGui;
+		return a_itemCount < 0 ? FLT_MAX : (g->FontSize + g->Style.ItemSpacing.y) * a_itemCount - g->Style.ItemSpacing.y + (g->Style.WindowPadding.y * a_offsetMultiplier);
+	}
+
+    bool UIMain::ConditionComboFilter(const char* a_comboLabel, int& a_selectedItem, const ConditionInfo* a_currentConditionInfo, ImGuiComboFlags a_flags)
+	{
+		using namespace ImGui;
+
+		ImGuiContext* g = GImGui;
+		ImGuiWindow* window = GetCurrentWindow();
+
+		g->NextWindowData.ClearFlags();  // We behave like Begin() and need to consume those values
+		if (window->SkipItems) {
+			return false;
+		}
+
+		IM_ASSERT((a_flags & (ImGuiComboFlags_NoArrowButton | ImGuiComboFlags_NoPreview)) != (ImGuiComboFlags_NoArrowButton | ImGuiComboFlags_NoPreview));  // Can't use both flags together
+
+		const ImGuiStyle& style = g->Style;
+		const ImGuiID combo_id = window->GetID(a_comboLabel);
+
+		const float arrow_size = (a_flags & ImGuiComboFlags_NoArrowButton) ? 0.0f : GetFrameHeight();
+		const ImVec2 label_size = CalcTextSize(a_comboLabel, NULL, true);
+		const float expected_w = CalcItemWidth();
+		const float w = (a_flags & ImGuiComboFlags_NoPreview) ? arrow_size : CalcItemWidth();
+		const ImVec2 bb_max(window->DC.CursorPos.x + w, window->DC.CursorPos.y + (label_size.y + style.FramePadding.y * 2.0f));
+		const ImRect bb(window->DC.CursorPos, bb_max);
+		const ImVec2 total_bb_max(bb.Max.x + (label_size.x > 0.0f ? style.ItemInnerSpacing.x + label_size.x : 0.0f), bb.Max.y);
+		const ImRect total_bb(bb.Min, total_bb_max);
+		ItemSize(total_bb, style.FramePadding.y);
+		if (!ItemAdd(total_bb, combo_id, &bb)) {
+			return false;
+		}
+		
+		// Open on click
+		bool hovered, held;
+		bool pressed = ButtonBehavior(bb, combo_id, &hovered, &held);
+		bool popup_open = IsPopupOpen(combo_id, ImGuiPopupFlags_None);
+		bool popup_just_opened = false;
+		if (pressed && !popup_open) {
+			OpenPopupEx(combo_id, ImGuiPopupFlags_None);
+			popup_open = true;
+			popup_just_opened = true;
+		}
+
+		// Render shape
+		const ImU32 frame_col = GetColorU32(hovered ? ImGuiCol_FrameBgHovered : ImGuiCol_FrameBg);
+		const float value_x2 = ImMax(bb.Min.x, bb.Max.x - arrow_size);
+		RenderNavHighlight(bb, combo_id);
+		if (!(a_flags & ImGuiComboFlags_NoPreview))
+			window->DrawList->AddRectFilled(bb.Min, ImVec2(value_x2, bb.Max.y), frame_col, style.FrameRounding, (a_flags & ImGuiComboFlags_NoArrowButton) ? ImDrawFlags_RoundCornersAll : ImDrawFlags_RoundCornersLeft);
+		if (!(a_flags & ImGuiComboFlags_NoArrowButton)) {
+			ImU32 bg_col = GetColorU32((popup_open || hovered) ? ImGuiCol_ButtonHovered : ImGuiCol_Button);
+			ImU32 text_col = GetColorU32(ImGuiCol_Text);
+			window->DrawList->AddRectFilled(ImVec2(value_x2, bb.Min.y), bb.Max, bg_col, style.FrameRounding, (w <= arrow_size) ? ImDrawFlags_RoundCornersAll : ImDrawFlags_RoundCornersRight);
+			if (value_x2 + arrow_size - style.FramePadding.x <= bb.Max.x)
+				RenderArrow(window->DrawList, ImVec2(value_x2 + style.FramePadding.y, bb.Min.y + style.FramePadding.y), text_col, popup_open ? ImGuiDir_Up : ImGuiDir_Down, 1.0f);
+		}
+		RenderFrameBorder(bb.Min, bb.Max, style.FrameRounding);
+
+		// Render preview and label
+		if (a_currentConditionInfo && !(a_flags & ImGuiComboFlags_NoPreview)) {
+			const ImVec2 min_pos(bb.Min.x + style.FramePadding.x, bb.Min.y + style.FramePadding.y);
+			PushStyleColor(ImGuiCol_Text, a_currentConditionInfo->textColor);
+			RenderTextClipped(min_pos, ImVec2(value_x2, bb.Max.y), a_currentConditionInfo->name.data(), NULL, NULL);
+			PopStyleColor();
+		}
+		if (label_size.x > 0) {
+			RenderText(ImVec2(bb.Max.x + style.ItemInnerSpacing.x, bb.Min.y + style.FramePadding.y), a_comboLabel);
+		}
+
+		if (!popup_open) {
+			ClearComboFilterData(combo_id);
+			return false;
+		}
+
+		ComboFilterData* comboData = GetComboFilterData(combo_id);
+		if (!comboData) {
+			comboData = AddComboFilterData(combo_id);
+			comboData->currentSelection = a_selectedItem;
+			comboData->initialValues.info = a_currentConditionInfo;
+			comboData->initialValues.index = a_selectedItem;
+		}
+
+		PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(3.50f, 5.00f));
+		int popup_item_count = -1;
+		if (!(g->NextWindowData.Flags & ImGuiNextWindowDataFlags_HasSizeConstraint)) {
+			if ((a_flags & ImGuiComboFlags_HeightMask_) == 0)
+				a_flags |= ImGuiComboFlags_HeightRegular;
+			IM_ASSERT(ImIsPowerOfTwo(a_flags & ImGuiComboFlags_HeightMask_));  // Only one
+			if (a_flags & ImGuiComboFlags_HeightRegular)
+				popup_item_count = 8 + 1;
+			else if (a_flags & ImGuiComboFlags_HeightSmall)
+				popup_item_count = 4 + 1;
+			else if (a_flags & ImGuiComboFlags_HeightLarge)
+				popup_item_count = 20 + 1;
+			const float popup_height = CalcComboItemHeight(popup_item_count, 5.0f);  // Increment popup_item_count to account for the InputText widget
+			SetNextWindowSizeConstraints(ImVec2(0.0f, 0.0f), ImVec2(expected_w, popup_height));
+		}
+
+		char name[16];
+		ImFormatString(name, IM_ARRAYSIZE(name), "##Combo_%02d", g->BeginPopupStack.Size);  // Recycle windows based on depth
+
+		if (ImGuiWindow* popup_window = FindWindowByName(name)) {
+			if (popup_window->WasActive) {
+				// Always override 'AutoPosLastDirection' to not leave a chance for a past value to affect us.
+				ImVec2 size_expected = CalcWindowNextAutoFitSize(popup_window);
+				popup_window->AutoPosLastDirection = (a_flags & ImGuiComboFlags_PopupAlignLeft) ? ImGuiDir_Left : ImGuiDir_Down;  // Left = "Below, Toward Left", Down = "Below, Toward Right (default)"
+				ImRect r_outer = GetPopupAllowedExtentRect(popup_window);
+				ImVec2 pos = FindBestWindowPosForPopupEx(bb.GetBL(), size_expected, &popup_window->AutoPosLastDirection, r_outer, bb, ImGuiPopupPositionPolicy_ComboBox);
+				SetNextWindowPos(pos);
+			}
+		}
+
+		constexpr ImGuiWindowFlags window_flags = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_Popup | ImGuiWindowFlags_NoNavInputs | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove;
+		if (!Begin(name, nullptr, window_flags)) {
+			PopStyleVar();
+			EndPopup();
+			IM_ASSERT(0);  // This should never happen as we tested for IsPopupOpen() above
+			return false;
+		}
+
+		if (popup_just_opened) {
+			SetKeyboardFocusHere();
+		}
+
+		const float items_max_width = expected_w - (style.WindowPadding.x * 2.00f);
+		PushItemWidth(items_max_width);
+		PushStyleVar(ImGuiStyleVar_FrameRounding, 5.00f);
+		PushStyleColor(ImGuiCol_FrameBg, (ImVec4)ImColor(240, 240, 240, 255));
+		PushStyleColor(ImGuiCol_Text, (ImVec4)ImColor(0, 0, 0, 255));
+		const bool buffer_changed = InputText("##inputText", &comboData->filterString, ImGuiInputTextFlags_AutoSelectAll, nullptr, nullptr);
+		PopStyleColor(2);
+		PopStyleVar(1);
+		PopItemWidth();
+
+		bool selection_changed = false;
+		const bool clicked_outside = !IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem | ImGuiHoveredFlags_AnyWindow) && IsMouseClicked(0);
+
+		auto getInfo = [&](int a_index) -> const ConditionInfo& {
+			const int index = comboData->filterStatus ? comboData->filteredInfos[a_index].index : a_index;
+			return _conditionInfos[index];
+		};
+
+		const int item_count = static_cast<int>(comboData->filterStatus ? comboData->filteredInfos.size() : _conditionInfos.size());
+		char listbox_name[16];
+		ImFormatString(listbox_name, 16, "##lbn%u", combo_id);
+		if (--popup_item_count > item_count || popup_item_count < 0) {
+			popup_item_count = item_count;
+		}
+		if (BeginListBox(listbox_name, ImVec2(items_max_width, CalcComboItemHeight(popup_item_count, 1.50f)))) {
+			ImGuiWindow* listbox_window = ImGui::GetCurrentWindow();
+			listbox_window->Flags |= ImGuiWindowFlags_NoNavInputs | ImGuiWindowFlags_NoNavFocus;
+
+			if (listbox_window->Appearing) {
+				UICommon::SetScrollToComboItemJump(listbox_window, comboData->initialValues.index);
+			}
+
+			ImGuiListClipper listclipper;
+			listclipper.Begin(item_count);
+			char select_item_id[128];
+			while (listclipper.Step()) {
+				for (int i = listclipper.DisplayStart; i < listclipper.DisplayEnd; ++i) {
+					bool is_selected = i == comboData->currentSelection;
+					const ConditionInfo& conditionInfo = getInfo(i);
+
+					ImFormatString(select_item_id, 128, "%s##id%d", conditionInfo.name.data(), i);
+					PushStyleColor(ImGuiCol_Text, conditionInfo.textColor);
+					if (Selectable(select_item_id, is_selected)) {
+						if (comboData->SetNewValue(&conditionInfo, i)) {
+							selection_changed = true;
+							a_selectedItem = comboData->currentSelection;
+						}
+						CloseCurrentPopup();
+					}
+					PopStyleColor();
+					DrawConditionTooltip(conditionInfo);
+				}
+			}
+
+			if (clicked_outside || IsKeyPressed(ImGuiKey_Escape)) {
+				comboData->ResetToInitialValue();
+				CloseCurrentPopup();
+			} else if (buffer_changed) {
+				comboData->filteredInfos.clear();
+				comboData->filterStatus = !comboData->filterString.empty();
+				if (comboData->filterStatus) {
+					constexpr int max_matches = 128;
+					unsigned char matches[max_matches];
+					int match_count;
+					int score = 0;
+
+					for (int i = 0; i < _conditionInfos.size(); ++i) {
+					    auto& conditionInfo = _conditionInfos[i];
+						if (UICommon::FuzzySearch(comboData->filterString.data(), conditionInfo.name.data(), score, matches, max_matches, match_count)) {
+							comboData->filteredInfos.emplace_back(i, score);
+						}
+					}
+					std::sort(comboData->filteredInfos.rbegin(), comboData->filteredInfos.rend());
+				}
+				comboData->currentSelection = comboData->filteredInfos.empty() ? -1 : 0;
+				SetScrollY(0.0f);
+			} else if (IsKeyPressed(ImGuiKey_Enter) || IsKeyPressed(ImGuiKey_KeypadEnter)) {  // Automatically exit the combo popup on selection
+				if (comboData->SetNewValue(comboData->currentSelection < 0 ? nullptr : &getInfo(comboData->currentSelection))) {
+					selection_changed = true;
+					a_selectedItem = comboData->currentSelection;
+				}
+				CloseCurrentPopup();
+			}
+
+			if (IsKeyPressed(ImGuiKey_UpArrow)) {
+				if (comboData->currentSelection > 0) {
+					UICommon::SetScrollToComboItemUp(listbox_window, --comboData->currentSelection);
+				}
+			} else if (IsKeyPressed(ImGuiKey_DownArrow)) {
+				if (comboData->currentSelection >= -1 && comboData->currentSelection < item_count - 1) {
+					UICommon::SetScrollToComboItemDown(listbox_window, ++comboData->currentSelection);
+				}
+			}
+
+			EndListBox();
+		}
+		EndPopup();
+		PopStyleVar();
+
+		return selection_changed;
+	}
+
+    bool UIMain::CanPreviewAnimation(RE::TESObjectREFR* a_refr, const ReplacementAnimation* a_replacementAnimation)
+    {
+		if (a_refr) {
+			RE::BSAnimationGraphManagerPtr graphManager = nullptr;
+			a_refr->GetAnimationGraphManager(graphManager);
+			if (graphManager) {
+				const auto& activeGraph = graphManager->graphs[graphManager->GetRuntimeData().activeGraph];
+				if (activeGraph->behaviorGraph) {
+					if (const auto stringData = activeGraph->characterInstance.setup->data->stringData) {
+						if (stringData->name.data() == a_replacementAnimation->GetProjectName()) {
+							return true;
+						}
+					}
+				}
+			}
+		}
+
+		return false;
+    }
+
+    bool UIMain::IsPreviewingAnimation(RE::TESObjectREFR* a_refr, const ReplacementAnimation* a_replacementAnimation, std::optional<uint16_t> a_variantIndex)
+    {
+		if (a_refr) {
+			RE::BSAnimationGraphManagerPtr graphManager = nullptr;
+			a_refr->GetAnimationGraphManager(graphManager);
+			if (graphManager) {
+				const auto& activeGraph = graphManager->graphs[graphManager->GetRuntimeData().activeGraph];
+				if (activeGraph->behaviorGraph) {
+					if (const auto activeAnimationPreview = OpenAnimationReplacer::GetSingleton().GetActiveAnimationPreview(activeGraph->behaviorGraph)) {
+						if (activeAnimationPreview->GetReplacementAnimation() == a_replacementAnimation) {
+							if (!a_variantIndex) {
+								return true;
+							}
+
+							if (activeAnimationPreview->GetCurrentBindingIndex() == a_variantIndex) {
+							    return true;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return false;
     }
 
     int UIMain::ReferenceInputTextCallback(struct ImGuiInputTextCallbackData* a_data)

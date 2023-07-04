@@ -36,7 +36,7 @@ namespace Hooks
     void HavokHooks::hkbClipGenerator_Activate(RE::hkbClipGenerator* a_this, const RE::hkbContext& a_context)
     {
         bool bAdded;
-        const auto activeClip = OpenAnimationReplacer::GetSingleton().AddOrGetActiveClip(a_this, a_context, bAdded);
+		const auto activeClip = OpenAnimationReplacer::GetSingleton().AddOrGetActiveClip(a_this, a_context, bAdded);
 
         activeClip->OnActivate(a_this, a_context);
 
@@ -65,9 +65,15 @@ namespace Hooks
 
     void HavokHooks::hkbClipGenerator_Deactivate(RE::hkbClipGenerator* a_this, const RE::hkbContext& a_context)
     {
+		auto& openAnimationReplacer = OpenAnimationReplacer::GetSingleton();
+
+		if (openAnimationReplacer.HasActiveAnimationPreviews()) {
+			openAnimationReplacer.RemoveActiveAnimationPreview(a_context.character->behaviorGraph.get());
+		}
+
         _hkbClipGenerator_Deactivate(a_this, a_context);
 
-        OpenAnimationReplacer::GetSingleton().RemoveActiveClip(a_this);
+        openAnimationReplacer.RemoveActiveClip(a_this);
     }
 
     void HavokHooks::hkbClipGenerator_Generate(RE::hkbClipGenerator* a_this, const RE::hkbContext& a_context, const RE::hkbGeneratorOutput** a_activeChildrenOutput, RE::hkbGeneratorOutput& a_output, float a_timeOffset)
@@ -132,7 +138,9 @@ namespace Hooks
     void HavokHooks::BSSynchronizedClipGenerator_Activate(RE::BSSynchronizedClipGenerator* a_this, const RE::hkbContext& a_context)
     {
 		bool bAdded;
-		OpenAnimationReplacer::GetSingleton().AddOrGetActiveSynchronizedClip(a_this, a_context, bAdded);
+		const auto activeSynchronizedClip = OpenAnimationReplacer::GetSingleton().AddOrGetActiveSynchronizedClip(a_this, a_context, bAdded);
+
+		activeSynchronizedClip->OnActivate(a_this, a_context);
 
         _BSSynchronizedClipGenerator_Activate(a_this, a_context);
     }
@@ -142,6 +150,24 @@ namespace Hooks
 		_BSSynchronizedClipGenerator_Deactivate(a_this, a_context);
 
 		OpenAnimationReplacer::GetSingleton().RemoveActiveSynchronizedClip(a_this);
+    }
+
+    void HavokHooks::hkbBehaviorGraph_Update(RE::hkbBehaviorGraph* a_this, const RE::hkbContext& a_context, float a_timestep)
+    {
+        _hkbBehaviorGraph_Update(a_this, a_context, a_timestep);
+
+		if (const auto activeAnimationPreview = OpenAnimationReplacer::GetSingleton().GetActiveAnimationPreview(a_this)) {
+			activeAnimationPreview->OnUpdate(a_this, a_context, a_timestep);
+		}
+    }
+
+    void HavokHooks::hkbBehaviorGraph_Generate(RE::hkbBehaviorGraph* a_this, const RE::hkbContext& a_context, const RE::hkbGeneratorOutput** a_activeChildrenOutput, RE::hkbGeneratorOutput& a_output, float a_timeOffset)
+    {
+		_hkbBehaviorGraph_Generate(a_this, a_context, a_activeChildrenOutput, a_output, a_timeOffset);
+
+		if (const auto activeAnimationPreview = OpenAnimationReplacer::GetSingleton().GetActiveAnimationPreview(a_context.character->behaviorGraph.get())) {
+			activeAnimationPreview->OnGenerate(a_this, a_context, a_output);
+		}
     }
 
     void HavokHooks::LoadClips(RE::hkbCharacterStringData* a_stringData, RE::hkbAnimationBindingSet* a_bindingSet, void* a_assetLoader, RE::hkbBehaviorGraph* a_rootBehavior, const char* a_animationPath, RE::BSTHashMap<RE::BSFixedString, uint32_t>* a_annotationToEventIdMap)
@@ -266,7 +292,7 @@ namespace Hooks
 
     void HavokHooks::SetSynchronizedClipID(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, RE::hkbCharacter* a_character)
     {
-        a_synchronizedClipGenerator->synchronizedAnimIndex -= OpenAnimationReplacer::GetSingleton().GetSynchronizedClipsIDOffset(a_character);
+        a_synchronizedClipGenerator->synchronizedAnimationBindingIndex -= OpenAnimationReplacer::GetSingleton().GetSynchronizedClipsIDOffset(a_character);
     }
 
     void HavokHooks::PatchUnsignedAnimationBindingIndex()

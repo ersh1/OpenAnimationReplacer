@@ -89,6 +89,9 @@ namespace Conditions
         [[nodiscard]] virtual bool IsCustomCondition() const = 0;
         [[nodiscard]] virtual ICondition* GetWrappedCondition() const = 0;
 
+		[[nodiscard]] virtual bool IsDeprecated() const { return false; }
+        [[nodiscard]] virtual RE::TESObjectREFR* GetRefrToEvaluate(RE::TESObjectREFR* a_refr) const { return a_refr; }
+
 		[[nodiscard]] class ConditionSet* GetParentConditionSet() const { return _parentConditionSet; }
 		void SetParentConditionSet(ConditionSet* a_conditionSet) { _parentConditionSet = a_conditionSet; }
 

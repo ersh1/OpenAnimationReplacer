@@ -99,7 +99,7 @@ namespace UI
 			UICommon::TextUnformattedColored(UICommon::LOG_VARIANT_COLOR, "[Variant]");
 		}
 
-        if (a_logEntry.event != Event::kInterrupt && a_logEntry.bInterruptible) {
+        if (a_logEntry.event < Event::kInterrupt && a_logEntry.bInterruptible) {
             ImGui::SameLine();
             UICommon::TextUnformattedColored(UICommon::LOG_INTERRUPTED_COLOR, "(Interruptible)");
         }
@@ -108,13 +108,13 @@ namespace UI
         ImGui::SameLine(ImGui::GetContentRegionMax().x - ImGui::CalcTextSize(projectText.data()).x);
         UICommon::TextUnformattedDisabled(projectText.data());
 
-        UICommon::TextUnformattedDisabled("Name:");
-        ImGui::SameLine();
-        ImGui::TextUnformatted(a_logEntry.animationName.data());
+		UICommon::TextUnformattedDisabled("Name:");
+		ImGui::SameLine();
+		ImGui::TextUnformatted(a_logEntry.animationName.data());
 
-        const std::string clipText = std::format("Clip: {} ", a_logEntry.clipName);
-        ImGui::SameLine(ImGui::GetContentRegionMax().x - ImGui::CalcTextSize(clipText.data()).x);
-        UICommon::TextUnformattedDisabled(clipText.data());
+		const std::string clipText = std::format("Clip: {} ", a_logEntry.clipName);
+		ImGui::SameLine(ImGui::GetContentRegionMax().x - ImGui::CalcTextSize(clipText.data()).x);
+		UICommon::TextUnformattedDisabled(clipText.data());
 
         if (a_logEntry.bOriginal) {
             UICommon::TextUnformattedDisabled("Original animation");

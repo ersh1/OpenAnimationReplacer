@@ -585,7 +585,7 @@ namespace UI
         if (scale != _prevScale) {
             auto& style = ImGui::GetStyle();
             style = GetDefaultStyle();
-            style.ScaleAllSizes(scale);
+			UICommon::ScaleAllSizes(style, scale);
             _prevScale = scale;
 
             auto& io = ImGui::GetIO();

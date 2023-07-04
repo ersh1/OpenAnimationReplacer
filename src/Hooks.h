@@ -55,6 +55,11 @@ namespace Hooks
             SKSE::AllocTrampoline(14);
             _Unk3 = trampoline.write_call<5>(hook7.address() + 0x11C, Unk3); // same offset for all versions
 
+			// Hook behavior graph for previewing animations
+			REL::Relocation<uintptr_t> hkbBehaviorGraphVtbl{ RE::VTABLE_hkbBehaviorGraph[0] };
+			_hkbBehaviorGraph_Update = hkbBehaviorGraphVtbl.write_vfunc(0x5, hkbBehaviorGraph_Update);
+			_hkbBehaviorGraph_Generate = hkbBehaviorGraphVtbl.write_vfunc(0x17, hkbBehaviorGraph_Generate);
+
             PatchSynchronizedClips();
             PatchUnsignedAnimationBindingIndex();
         }
@@ -70,6 +75,8 @@ namespace Hooks
         static void hkbClipGenerator_computeBeginAndEndLocalTime(RE::hkbClipGenerator* a_this, float a_timestep, float& a_outBeginLocalTime, float& a_outEndLocalTime, int32_t& a_outLoops, bool& a_outEndOfClip);
         static void BSSynchronizedClipGenerator_Activate(RE::BSSynchronizedClipGenerator* a_this, const RE::hkbContext& a_context);
         static void BSSynchronizedClipGenerator_Deactivate(RE::BSSynchronizedClipGenerator* a_this, const RE::hkbContext& a_context);
+		static void hkbBehaviorGraph_Update(RE::hkbBehaviorGraph* a_this, const RE::hkbContext& a_context, float a_timestep);
+		static void hkbBehaviorGraph_Generate(RE::hkbBehaviorGraph* a_this, const RE::hkbContext& a_context, const RE::hkbGeneratorOutput** a_activeChildrenOutput, RE::hkbGeneratorOutput& a_output, float a_timeOffset);
 
         static void LoadClips(RE::hkbCharacterStringData* a_stringData, RE::hkbAnimationBindingSet* a_bindingSet, void* a_assetLoader, RE::hkbBehaviorGraph* a_rootBehavior, const char* a_animationPath, RE::BSTHashMap<RE::BSFixedString, uint32_t>* a_annotationToEventIdMap);
         static bool CreateSynchronizedClips(RE::hkbBehaviorGraph* a_behaviorGraph, RE::hkbCharacter* a_character, RE::BSTHashMap<RE::BSFixedString, uint32_t>* a_annotationToEventIdMap);
@@ -87,6 +94,8 @@ namespace Hooks
         static inline REL::Relocation<decltype(hkbClipGenerator_computeBeginAndEndLocalTime)> _hkbClipGenerator_computeBeginAndEndLocalTime;
         static inline REL::Relocation<decltype(BSSynchronizedClipGenerator_Activate)> _BSSynchronizedClipGenerator_Activate;
         static inline REL::Relocation<decltype(BSSynchronizedClipGenerator_Deactivate)> _BSSynchronizedClipGenerator_Deactivate;
+		static inline REL::Relocation<decltype(hkbBehaviorGraph_Update)> _hkbBehaviorGraph_Update;
+		static inline REL::Relocation<decltype(hkbBehaviorGraph_Generate)> _hkbBehaviorGraph_Generate;
 
         static inline REL::Relocation<decltype(LoadClips)> _LoadClips;
         static inline REL::Relocation<decltype(CreateSynchronizedClips)> _CreateSynchronizedClips;

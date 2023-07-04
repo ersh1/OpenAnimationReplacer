@@ -4,13 +4,12 @@
 #include "OpenAnimationReplacer.h"
 #include "Settings.h"
 
-#include <ranges>
-
 ActiveClip::ActiveClip(RE::hkbClipGenerator* a_clipGenerator, RE::hkbCharacter* a_character, RE::hkbBehaviorGraph* a_behaviorGraph) :
     _clipGenerator(a_clipGenerator),
     _character(a_character),
 	_behaviorGraph(a_behaviorGraph),
     _originalIndex(a_clipGenerator->animationBindingIndex),
+	_originalMode(*a_clipGenerator->mode),
     _originalFlags(a_clipGenerator->flags),
     _bOriginalInterruptible(OpenAnimationReplacer::GetSingleton().IsOriginalAnimationInterruptible(a_character, a_clipGenerator->animationBindingIndex)),
 	_bOriginalReplaceOnEcho(OpenAnimationReplacer::GetSingleton().ShouldOriginalAnimationReplaceOnEcho(a_character, a_clipGenerator->animationBindingIndex)),
@@ -56,7 +55,7 @@ bool ActiveClip::ShouldReplaceAnimation(const ReplacementAnimation* a_newReplace
 	return false;
 }
 
-void ActiveClip::ReplaceAnimation(ReplacementAnimation* a_replacementAnimation, std::optional<uint16_t> a_variantIndex/* = std::nullopt*/)
+void ActiveClip::ReplaceAnimation(ReplacementAnimation* a_replacementAnimation, std::optional<uint16_t> a_variantIndex /* = std::nullopt*/)
 {
     if (_currentReplacementAnimation) {
         RestoreOriginalAnimation();
@@ -69,15 +68,16 @@ void ActiveClip::ReplaceAnimation(ReplacementAnimation* a_replacementAnimation, 
 		const uint16_t newBindingIndex = a_variantIndex ? *a_variantIndex : _currentReplacementAnimation->GetIndex(this);
 		_clipGenerator->animationBindingIndex = newBindingIndex;  // this is the most important part - this is what actually replaces the animation
         // the animation binding index is the index of an entry inside hkbCharacterStringData->animationNames, which contains the actual path to the animation file or one of the replacements
-        if (_currentReplacementAnimation->GetIgnoreNoTriggersFlag()) {
-            _clipGenerator->flags &= ~0x10;
-        }
+		if (_currentReplacementAnimation->GetIgnoreNoTriggersFlag()) {
+			_clipGenerator->flags &= ~0x10;
+		}
     }
 }
 
 void ActiveClip::RestoreOriginalAnimation()
 {
     _clipGenerator->animationBindingIndex = _originalIndex;
+	_clipGenerator->mode = _originalMode;
     _clipGenerator->flags = _originalFlags;
     if (_currentReplacementAnimation) {
         _currentReplacementAnimation = nullptr;
@@ -119,6 +119,7 @@ void ActiveClip::ReplaceActiveAnimation(RE::hkbClipGenerator* a_clipGenerator, c
 
 	const std::optional<uint16_t> newIndex = _queuedReplacement ? _queuedReplacement->variantIndex : std::nullopt;
 	const auto replacement = PopQueuedReplacementAnimation();
+
 	ReplaceAnimation(replacement, newIndex);
 
     auto& animationLog = AnimationLog::GetSingleton();
@@ -133,13 +134,13 @@ void ActiveClip::ReplaceActiveAnimation(RE::hkbClipGenerator* a_clipGenerator, c
 
 void ActiveClip::StartBlend(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context, float a_blendTime)
 {
-    _blendFromClipGenerator = std::make_unique<BlendFromClipGenerator>(a_clipGenerator);
+    _blendFromClipGenerator = std::make_unique<FakeClipGenerator>(a_clipGenerator);
     _blendDuration = a_blendTime;
 
     _blendElapsedTime = 0.f;
     _lastGameTime = OpenAnimationReplacer::gameTimeCounter;
 
-    _blendFromClipGenerator->Activate(a_clipGenerator, a_context);
+    _blendFromClipGenerator->Activate(a_context);
 }
 
 void ActiveClip::StopBlend()
@@ -174,7 +175,7 @@ void ActiveClip::PreGenerate([[maybe_unused]] RE::hkbClipGenerator* a_clipGenera
     _lastGameTime = currentGameTime;
 
     if (_blendElapsedTime < _blendDuration) {
-        _blendFromClipGenerator->Update(a_clipGenerator, a_context, deltaTime);
+        _blendFromClipGenerator->Update(a_context, deltaTime);
     }
 }
 
@@ -196,8 +197,6 @@ void ActiveClip::OnActivate(RE::hkbClipGenerator* a_clipGenerator, const RE::hkb
 void ActiveClip::OnGenerate([[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] const RE::hkbContext& a_context, RE::hkbGeneratorOutput& a_output)
 {
     // manually blend the output pose with the previous animation's output pose
-    using TrackHeader = RE::hkbGeneratorOutput::TrackHeader;
-
     if (!a_clipGenerator) {
         return;
     }
@@ -335,134 +334,4 @@ void ActiveClip::RegisterDestroyedCallback(std::weak_ptr<DestroyedCallback>& a_c
 	});
 
 	_destroyedCallbacks.emplace_back(a_callback);
-}
-
-ActiveClip::BlendFromClipGenerator::BlendFromClipGenerator(RE::hkbClipGenerator* a_clipGenerator) :
-    //userData(a_clipGenerator->userData),
-    cropStartAmountLocalTime(a_clipGenerator->cropStartAmountLocalTime),
-    cropEndAmountLocalTime(a_clipGenerator->cropEndAmountLocalTime),
-    startTime(a_clipGenerator->startTime),
-    playbackSpeed(a_clipGenerator->playbackSpeed),
-    enforcedDuration(a_clipGenerator->enforcedDuration),
-    userControlledTimeFraction(a_clipGenerator->userControlledTimeFraction),
-    animationBindingIndex(a_clipGenerator->animationBindingIndex),
-    mode(a_clipGenerator->mode),
-    flags(a_clipGenerator->flags),
-    animationControl(a_clipGenerator->animationControl),
-    mapperData(a_clipGenerator->mapperData),
-    binding(a_clipGenerator->binding),
-    extractedMotion(a_clipGenerator->extractedMotion),
-    localTime(a_clipGenerator->localTime),
-    time(a_clipGenerator->time),
-    previousUserControlledTimeFraction(a_clipGenerator->previousUserControlledTimeFraction),
-    atEnd(a_clipGenerator->atEnd),
-    ignoreStartTime(a_clipGenerator->ignoreStartTime),
-    pingPongBackward(a_clipGenerator->pingPongBackward) {}
-
-ActiveClip::BlendFromClipGenerator::~BlendFromClipGenerator()
-{
-    struct FakeCharacter
-    {
-        FakeCharacter(RE::hkbBehaviorGraph* a_graph) :
-            graph(a_graph) {}
-
-        uint64_t pad00;
-        uint64_t pad08;
-        uint64_t pad10;
-        uint64_t pad18;
-        uint64_t pad20;
-        uint64_t pad28;
-        uint64_t pad30;
-        uint64_t pad38;
-        uint64_t pad40;
-        uint64_t pad48;
-        uint64_t pad50;
-        RE::hkbBehaviorGraph* graph;
-    };
-
-    struct FakeContext
-    {
-        FakeContext(FakeCharacter* a_character) :
-            character(a_character) {}
-
-        FakeCharacter* character;
-    };
-
-    if (userData) {
-        FakeCharacter fakeCharacter(behaviorGraph.get());
-        FakeContext fakeContext(&fakeCharacter);
-        const auto& fakeContextPtr = reinterpret_cast<RE::hkbContext&>(fakeContext);
-        const auto fakeClipGeneratorPtr = reinterpret_cast<RE::hkbClipGenerator*>(this);
-        RE::AnimationFileManagerSingleton::GetSingleton()->Unload(fakeContextPtr, fakeClipGeneratorPtr, nullptr);
-    }
-}
-
-void ActiveClip::BlendFromClipGenerator::Activate([[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context)
-{
-    const auto fakeClipGeneratorPtr = reinterpret_cast<RE::hkbClipGenerator*>(this); // pretend this is an actual hkbClipGenerator
-
-    // replicate the relevant part of hkbClipGenerator::Activate
-
-    if (!userData) {
-        const auto animationFileManagerSingleton = RE::AnimationFileManagerSingleton::GetSingleton();
-        animationFileManagerSingleton->Queue(a_context, fakeClipGeneratorPtr, nullptr);
-    }
-
-    behaviorGraph = a_context.character->behaviorGraph;
-}
-
-void ActiveClip::BlendFromClipGenerator::Update([[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context, float a_deltaTime)
-{
-    auto fakeClipGeneratorPtr = reinterpret_cast<RE::hkbClipGenerator*>(this); // pretend this is an actual hkbClipGenerator
-
-    // replicate what happens in hkbClipGenerator::Update. Not sure everything here is necessary but there might be rare edge cases where it matters (looping etc)
-
-    if (userData == 8) {
-        const auto animationFileManagerSingleton = RE::AnimationFileManagerSingleton::GetSingleton();
-        if (animationFileManagerSingleton->Load(a_context, fakeClipGeneratorPtr, nullptr)) {
-            Activate(a_clipGenerator, a_context);
-        }
-    }
-
-    if (fabs(playbackSpeed) <= 0.001f) {
-        playbackSpeed = playbackSpeed <= 0.f ? 0.001f : -0.001f;
-    }
-
-    animationControl->localTime = localTime;
-    if (atEnd && mode) {
-        hkbClipGenerator_UnkUpdateFunc1(fakeClipGeneratorPtr);
-    }
-
-    if (mode == RE::hkbClipGenerator::PlaybackMode::kModeUserControlled) {
-        userControlledTimeFraction = std::clamp(userControlledTimeFraction, 0.f, 1.f);
-    }
-
-    hkbClipGenerator_UnkUpdateFunc2(fakeClipGeneratorPtr);
-    float prevLocalTime = 0.f;
-    float newLocalTime = 0.f;
-    int32_t loops = 0;
-    bool newAtEnd = false;
-    hkbClipGenerator_UnkUpdateFunc3_CalcLocalTime(fakeClipGeneratorPtr, a_deltaTime, &prevLocalTime, &newLocalTime, &loops, &newAtEnd);
-    if (!atEnd) {
-        localTime = newLocalTime;
-        animationControl->localTime = newLocalTime;
-
-        atEnd = newAtEnd;
-        RE::hkbEventQueue* eventQueue = a_context.eventQueue;
-        if (!eventQueue) {
-            eventQueue = *reinterpret_cast<RE::hkbEventQueue**>(&a_context.character->eventQueue);
-        }
-        hkbClipGenerator_UnkUpdateFunc4(fakeClipGeneratorPtr, prevLocalTime, newLocalTime, loops, eventQueue);
-        if ((loops & 1) != 0) {
-            if (mode != RE::hkbClipGenerator::PlaybackMode::kModeUserControlled) {
-                pingPongBackward = !pingPongBackward;
-            }
-        }
-    }
-
-    if (mode != RE::hkbClipGenerator::PlaybackMode::kModeUserControlled) {
-        time += a_deltaTime * animationControl->playbackSpeed;
-    }
-
-    previousUserControlledTimeFraction = userControlledTimeFraction;
 }

@@ -46,7 +46,7 @@ struct Settings
 
     static inline bool bEnableAnimationLog = false;
     static inline uint32_t uAnimationLogMaxEntries = 10;
-    static inline uint32_t uAnimationActivateLogMode = 0;
+    static inline uint32_t uAnimationActivateLogMode = 2;
     static inline uint32_t uAnimationEchoLogMode = 0;
     static inline uint32_t uAnimationLoopLogMode = 0;
     static inline bool bAnimationLogOnlyActiveGraph = true;

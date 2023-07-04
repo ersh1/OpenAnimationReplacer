@@ -119,6 +119,9 @@ namespace Conditions
             }
 
             if (auto condition = OpenAnimationReplacer::GetSingleton().CreateCondition(conditionName)) {
+				if (condition->IsDeprecated()) {
+					return ConvertDeprecatedCondition(condition, conditionName, a_value);
+				}
                 condition->PreInitialize();
                 condition->Initialize(&a_value);
                 condition->PostInitialize();
@@ -183,6 +186,121 @@ namespace Conditions
         return newConditionSet;
     }
 
+    std::unique_ptr<ICondition> ConvertDeprecatedCondition(std::unique_ptr<ICondition>& a_deprecatedCondition, std::string_view a_conditionName, rapidjson::Value& a_value)
+    {
+		rapidjson::Document doc(rapidjson::kObjectType);
+		const auto object = a_value.GetObj();
+
+		if (a_conditionName == "CurrentTarget"sv || a_conditionName == "CurrentTargetFactionRank"sv || a_conditionName == "CurrentTargetHasKeyword"sv) {
+			if (auto newCondition = OpenAnimationReplacer::GetSingleton().CreateCondition("TARGET"sv)) {
+				newCondition->PreInitialize();
+
+				const auto targetCondition = static_cast<TARGETCondition*>(newCondition.get());
+
+				// disabled
+				bool bDisabled = false;
+				if (const auto disabledIt = object.FindMember("disabled"); disabledIt != object.MemberEnd() && disabledIt->value.IsBool()) {
+					bDisabled = disabledIt->value.GetBool();
+				}
+
+				// negated
+				bool bNegated = false;
+				if (const auto negatedIt = object.FindMember("negated"); negatedIt != object.MemberEnd() && negatedIt->value.IsBool()) {
+					bNegated = negatedIt->value.GetBool();
+				}
+
+				rapidjson::Value targetConditionValues(rapidjson::kObjectType);
+
+				// Target condition values
+				if (const auto targetTypeIt = object.FindMember("Target type"); targetTypeIt != object.MemberEnd()) {
+					targetConditionValues.AddMember("Target type", targetTypeIt->value, doc.GetAllocator());
+				}
+				if (bDisabled) {
+					targetConditionValues.AddMember("disabled", bDisabled, doc.GetAllocator());
+				}
+
+				targetCondition->Initialize(&targetConditionValues);
+
+				rapidjson::Value serializedCondition(rapidjson::kObjectType);
+				if (bNegated) {
+					serializedCondition.AddMember("negated", bNegated, doc.GetAllocator());
+				}
+
+				if (a_conditionName == "CurrentTarget"sv) {
+					// Base
+					bool bBase = false;
+					if (const auto baseIt = object.FindMember("Base"); baseIt != object.MemberEnd() && baseIt->value.IsBool()) {
+						bBase = baseIt->value.GetBool();
+					}
+					
+					if (bBase) {
+						auto actorBaseCondition = OpenAnimationReplacer::GetSingleton().CreateCondition("IsActorBase"sv);
+
+						if (const auto formIt = object.FindMember("Form"); formIt != object.MemberEnd()) {
+							serializedCondition.AddMember("Actor base", formIt->value, doc.GetAllocator());
+						}
+
+						actorBaseCondition->PreInitialize();
+						actorBaseCondition->Initialize(&serializedCondition);
+						actorBaseCondition->PostInitialize();
+
+						targetCondition->conditionsComponent->conditionSet->AddCondition(actorBaseCondition);
+					} else {
+						auto isFormCondition = OpenAnimationReplacer::GetSingleton().CreateCondition("IsForm"sv);
+
+						if (const auto formIt = object.FindMember("Form"); formIt != object.MemberEnd()) {
+							serializedCondition.AddMember("Form", formIt->value, doc.GetAllocator());
+						}
+
+						isFormCondition->PreInitialize();
+						isFormCondition->Initialize(&serializedCondition);
+						isFormCondition->PostInitialize();
+
+						targetCondition->conditionsComponent->conditionSet->AddCondition(isFormCondition);
+					}
+				} else if (a_conditionName == "CurrentTargetFactionRank"sv) {
+					auto factionRankCondition = OpenAnimationReplacer::GetSingleton().CreateCondition("FactionRank"sv);
+
+					if (const auto factionIt = object.FindMember("Faction"); factionIt != object.MemberEnd()) {
+						serializedCondition.AddMember("Faction", factionIt->value, doc.GetAllocator());
+					}
+
+					if (const auto comparisonIt = object.FindMember("Comparison"); comparisonIt != object.MemberEnd()) {
+						serializedCondition.AddMember("Comparison", comparisonIt->value, doc.GetAllocator());
+					}
+
+					if (const auto numericValueIt = object.FindMember("Numeric value"); numericValueIt != object.MemberEnd()) {
+						serializedCondition.AddMember("Numeric value", numericValueIt->value, doc.GetAllocator());
+					}
+
+					factionRankCondition->PreInitialize();
+					factionRankCondition->Initialize(&serializedCondition);
+					factionRankCondition->PostInitialize();
+
+					targetCondition->conditionsComponent->conditionSet->AddCondition(factionRankCondition);
+				} else if (a_conditionName == "CurrentTargetHasKeyword"sv) {
+					auto hasKeywordCondition = OpenAnimationReplacer::GetSingleton().CreateCondition("HasKeyword"sv);
+
+					if (const auto keywordIt = object.FindMember("Keyword"); keywordIt != object.MemberEnd()) {
+						serializedCondition.AddMember("Keyword", keywordIt->value, doc.GetAllocator());
+					}
+					
+					hasKeywordCondition->PreInitialize();
+					hasKeywordCondition->Initialize(&serializedCondition);
+					hasKeywordCondition->PostInitialize();
+
+					targetCondition->conditionsComponent->conditionSet->AddCondition(hasKeywordCondition);
+				}
+
+				newCondition->PostInitialize();
+
+				return newCondition;
+			}
+		}
+
+		return std::move(a_deprecatedCondition);
+    }
+	
     bool ORCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
     {
         return conditionsComponent->conditionSet->EvaluateAny(a_refr, a_clipGenerator);
@@ -2302,11 +2420,11 @@ namespace Conditions
         return false;
     }
 
-    void TargetConditionBase::PostInitialize()
-    {
-        ConditionBase::PostInitialize();
-		targetTypeComponent->value.getEnumMap = &CurrentTargetCondition::GetEnumMap;
-    }
+	void TargetConditionBase::PostInitialize()
+	{
+		ConditionBase::PostInitialize();
+		targetTypeComponent->value.getEnumMap = &TargetConditionBase::GetEnumMap;
+	}
 
     std::string_view TargetConditionBase::GetTargetTypeName(Utils::TargetType a_targetType) const
     {
@@ -2327,6 +2445,7 @@ namespace Conditions
 		enumMap[3] = "Follow target"sv;
 		enumMap[4] = "Headtrack target"sv;
 		enumMap[5] = "Package target"sv;
+		enumMap[6] = "Any target"sv;
 		return enumMap;
     }
 
@@ -2348,110 +2467,6 @@ namespace Conditions
 		}
 
 		return false;
-    }
-
-    RE::BSString CurrentTargetCondition::GetArgument() const
-	{
-		const auto targetType = static_cast<Utils::TargetType>(targetTypeComponent->GetNumericValue(nullptr));
-		auto baseOptional = boolComponent->GetBoolValue() ? " [Base]" : "";
-
-		return std::format("{}{} is {}", GetTargetTypeName(targetType), baseOptional, formComponent->form.GetArgument()).data();
-	}
-
-	RE::BSString CurrentTargetCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
-	{
-		if (a_refr) {
-			if (const auto target = GetTargetForm(a_refr)) {
-				return Utils::GetFormNameString(target).data();
-			}
-		}
-
-		return ConditionBase::GetCurrent(a_refr);
-	}
-
-	bool CurrentTargetCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
-	{
-		if (formComponent->IsValid() && a_refr) {
-			if (const auto target = GetTargetForm(a_refr)) {
-				return target->GetFormID() == formComponent->GetTESFormValue()->GetFormID();
-			}
-		}
-
-		return false;
-	}
-
-    RE::TESForm* CurrentTargetCondition::GetTargetForm(RE::TESObjectREFR* a_refr) const
-    {
-		if (a_refr) {
-			if (const auto actor = a_refr->As<RE::Actor>()) {
-				RE::TESObjectREFRPtr target = nullptr;
-				const auto targetType = static_cast<Utils::TargetType>(targetTypeComponent->GetNumericValue(a_refr));
-				if (Utils::GetCurrentTarget(actor, targetType, target)) {
-					if (boolComponent->GetBoolValue()) {
-						if (const auto targetBase = target->GetBaseObject()) {
-							return targetBase;
-						}
-					} else {
-						return target.get();
-					}
-				}
-			}
-		}
-
-		return nullptr;
-    }
-
-    RE::BSString CurrentTargetHasKeywordCondition::GetArgument() const
-    {
-		const auto targetType = static_cast<Utils::TargetType>(targetTypeComponent->GetNumericValue(nullptr));
-		auto baseOptional = boolComponent->GetBoolValue() ? " [Base]" : "";
-
-		return std::format("{}{} has keyword {}", GetTargetTypeName(targetType), baseOptional, keywordComponent->keyword.GetArgument()).data();
-    }
-
-    RE::BSString CurrentTargetHasKeywordCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
-    {
-		if (a_refr) {
-			if (const auto target = GetTargetForm(a_refr)) {
-				return Utils::GetFormKeywords(target).data();
-			}
-		}
-
-		return ConditionBase::GetCurrent(a_refr);
-    }
-
-    bool CurrentTargetHasKeywordCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
-    {
-		if (a_refr) {
-			if (const auto target = GetTargetForm(a_refr)) {
-				if (const auto bgsKeywordForm = target->As<RE::BGSKeywordForm>()) {
-				    return keywordComponent->HasKeyword(bgsKeywordForm);
-				}
-			}
-		}
-
-		return false;
-    }
-
-    RE::TESForm* CurrentTargetHasKeywordCondition::GetTargetForm(RE::TESObjectREFR* a_refr) const
-    {
-		if (a_refr) {
-			if (const auto actor = a_refr->As<RE::Actor>()) {
-				RE::TESObjectREFRPtr target = nullptr;
-				const auto targetType = static_cast<Utils::TargetType>(targetTypeComponent->GetNumericValue(a_refr));
-				if (Utils::GetCurrentTarget(actor, targetType, target)) {
-					if (boolComponent->GetBoolValue()) {
-						if (const auto targetBase = target->GetBaseObject()) {
-							return targetBase;
-						}
-					} else {
-						return target.get();
-					}
-				}
-			}
-		}
-
-		return nullptr;
     }
 
     RE::BSString CurrentTargetDistanceCondition::GetArgument() const
@@ -2599,72 +2614,6 @@ namespace Conditions
 		enumMap[3] = "Ally"sv;
 		enumMap[4] = "Lover"sv;
 		return enumMap;
-    }
-
-    RE::BSString CurrentTargetFactionRankCondition::GetArgument() const
-    {
-		const auto targetType = static_cast<Utils::TargetType>(targetTypeComponent->GetNumericValue(nullptr));
-		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
-
-		return std::format("{} rank in {} {} {}", GetTargetTypeName(targetType), factionComponent->form.GetArgument(), separator, numericComponent->value.GetArgument()).data();
-    }
-
-    RE::BSString CurrentTargetFactionRankCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
-    {
-		if (a_refr) {
-			if (const auto target = GetTarget(a_refr)) {
-				return std::to_string(GetFactionRank(target.get())).data();
-			}
-		}
-
-        return TargetConditionBase::GetCurrent(a_refr);
-    }
-
-    bool CurrentTargetFactionRankCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
-    {
-		if (factionComponent->IsValid() && a_refr) {
-			if (const auto target = GetTarget(a_refr)) {
-				const int32_t rank = GetFactionRank(target.get());
-			    const float v = numericComponent->GetNumericValue(a_refr);
-			    return comparisonComponent->GetComparisonResult(static_cast<float>(rank), v);
-			}
-		}
-
-		return false;
-    }
-
-    RE::TESObjectREFRPtr CurrentTargetFactionRankCondition::GetTarget(RE::TESObjectREFR* a_refr) const
-    {
-		if (a_refr) {
-			if (const auto actor = a_refr->As<RE::Actor>()) {
-				RE::TESObjectREFRPtr target = nullptr;
-				const auto targetType = static_cast<Utils::TargetType>(targetTypeComponent->GetNumericValue(a_refr));
-				if (Utils::GetCurrentTarget(actor, targetType, target)) {
-					return target;
-				}
-			}
-		}
-
-		return nullptr;
-    }
-
-    int32_t CurrentTargetFactionRankCondition::GetFactionRank(RE::TESObjectREFR* a_refr) const
-    {
-		int32_t rank = -2;
-
-		if (factionComponent->IsValid() && a_refr) {
-			if (auto faction = factionComponent->GetTESFormValue()->As<RE::TESFaction>()) {
-				if (auto actor = a_refr->As<RE::Actor>()) {
-					bool bIsPlayer = actor->IsPlayerRef();
-
-					if (actor->IsInFaction(faction)) {
-						rank = Actor_GetFactionRank(actor, faction, bIsPlayer);
-					}
-				}
-			}
-		}
-
-		return rank;
     }
 
     RE::BSString EquippedObjectWeightCondition::GetArgument() const
@@ -3270,5 +3219,164 @@ namespace Conditions
 		}
 
 		return false;
+    }
+
+    void AttackStateCondition::PostInitialize()
+    {
+        ConditionBase::PostInitialize();
+		attackStateComponent->value.getEnumMap = &AttackStateCondition::GetEnumMap;
+    }
+
+    RE::BSString AttackStateCondition::GetArgument() const
+    {
+		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+
+		std::string attackStateName = "(Invalid)";
+		const auto attackState = static_cast<uint32_t>(attackStateComponent->GetNumericValue(nullptr));
+
+		static auto map = GetEnumMap();
+		if (const auto it = map.find(attackState); it != map.end()) {
+			attackStateName = it->second;
+		}
+
+		return std::format("Attack state {} {}", separator, attackStateName).data();
+    }
+
+    RE::BSString AttackStateCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				return GetAttackStateName(GetAttackState(a_refr));
+			}
+		}
+
+		return ConditionBase::GetCurrent(a_refr);
+    }
+
+    bool AttackStateCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		if (a_refr) {
+			return comparisonComponent->GetComparisonResult(static_cast<float>(GetAttackState(a_refr)), attackStateComponent->GetNumericValue(a_refr));
+		}
+
+		return false;
+    }
+
+    RE::ATTACK_STATE_ENUM AttackStateCondition::GetAttackState(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+			    return actor->AsActorState()->GetAttackState();
+			}
+		}
+
+		return RE::ATTACK_STATE_ENUM::kNone;
+    }
+
+    std::string_view AttackStateCondition::GetAttackStateName(RE::ATTACK_STATE_ENUM a_attackState) const
+    {
+		static auto map = GetEnumMap();
+		if (const auto it = map.find(static_cast<int32_t>(a_attackState)); it != map.end()) {
+			return it->second;
+		}
+
+		return "(Invalid)"sv;
+    }
+
+    std::map<int32_t, std::string_view> AttackStateCondition::GetEnumMap()
+    {
+		std::map<int32_t, std::string_view> enumMap;
+		enumMap[0] = "None"sv;
+		enumMap[1] = "Draw"sv;
+		enumMap[2] = "Swing"sv;
+		enumMap[3] = "Hit"sv;
+		enumMap[4] = "Next attack"sv;
+		enumMap[5] = "Follow through"sv;
+		enumMap[6] = "Bash"sv;
+		enumMap[7] = "[Unused?]"sv;
+		enumMap[8] = "Bow draw"sv;
+		enumMap[9] = "Bow attached"sv;
+		enumMap[10] = "Bow drawn"sv;
+		enumMap[11] = "Bow releasing"sv;
+		enumMap[12] = "Bow released"sv;
+		enumMap[13] = "Bow next attack"sv;
+		enumMap[14] = "Bow follow through"sv;
+		enumMap[15] = "Fire"sv;
+		enumMap[16] = "Firing"sv;
+		enumMap[17] = "Fired"sv;
+
+		return enumMap;
+    }
+
+    RE::BSString IsMenuOpenCondition::GetCurrent([[maybe_unused]] RE::TESObjectREFR* a_refr) const
+    {
+		std::string openMenus{};
+		const auto ui = RE::UI::GetSingleton();
+		for (const auto& [menuName, menuEntry] : ui->menuMap) {
+			if (menuEntry.menu && menuEntry.menu->OnStack()) {
+			    if (!openMenus.empty()) {
+                    openMenus += ", ";
+                }
+
+                openMenus += menuName;
+			}
+		}
+
+		return openMenus.data();
+    }
+
+    bool IsMenuOpenCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		return RE::UI::GetSingleton()->IsMenuOpen(textComponent->GetTextValue());
+    }
+
+    RE::BSString TARGETCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+		a_refr = GetRefrToEvaluate(a_refr);
+
+		if (a_refr) {
+		    return Utils::GetFormNameString(a_refr).data();
+		}
+
+        return TargetConditionBase::GetCurrent(a_refr);
+    }
+
+    RE::TESObjectREFR* TARGETCondition::GetRefrToEvaluate(RE::TESObjectREFR* a_refr) const
+    {
+		return GetTarget(a_refr).get();
+    }
+
+    bool TARGETCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		a_refr = GetRefrToEvaluate(a_refr);
+
+        return conditionsComponent->conditionSet->EvaluateAll(a_refr, a_clipGenerator);
+    }
+
+    RE::TESObjectREFRPtr TARGETCondition::GetTarget(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				RE::TESObjectREFRPtr target = nullptr;
+				const auto targetType = static_cast<Utils::TargetType>(targetTypeComponent->GetNumericValue(a_refr));
+				if (Utils::GetCurrentTarget(actor, targetType, target)) {
+					return target;
+				}
+			}
+		}
+
+		return nullptr;
+    }
+
+    RE::TESObjectREFR* PLAYERCondition::GetRefrToEvaluate([[maybe_unused]] RE::TESObjectREFR* a_refr) const
+    {
+		return RE::PlayerCharacter::GetSingleton();
+    }
+
+    bool PLAYERCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const
+    {
+        a_refr = GetRefrToEvaluate(a_refr);
+
+		return conditionsComponent->conditionSet->EvaluateAll(a_refr, a_clipGenerator);
     }
 }

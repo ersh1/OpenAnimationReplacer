@@ -40,6 +40,7 @@ public:
 			UpdateVariantCache();
 		}
 
+		uint16_t GetVariantIndex() const;
 		uint16_t GetVariantIndex(class ActiveClip* a_activeClip) const;
 		void UpdateVariantCache();
 

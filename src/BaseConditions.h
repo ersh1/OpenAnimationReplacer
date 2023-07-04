@@ -727,6 +727,7 @@ namespace Conditions
         size_t GetNumConditions() const { return _conditions.size(); }
 
 		[[nodiscard]] SubMod* GetParentSubMod() const;
+		[[nodiscard]] const ICondition* GetParentCondition() const;
 
     private:
         mutable std::shared_mutex _lock;

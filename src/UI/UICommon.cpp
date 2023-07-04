@@ -33,6 +33,49 @@ namespace UI::UICommon
 		}
     }
 
+    bool TextUnformattedEllipsis(const char* a_text, const char* a_textEnd, float a_maxWidth)
+    {
+		// Accept null ranges
+		if (a_text == a_textEnd) {
+			a_text = a_textEnd = "";
+		}
+
+		// Calculate length
+		if (a_textEnd == nullptr) {
+			a_textEnd = a_text + strlen(a_text);
+		}
+
+		// Calculate max width
+		if (a_maxWidth <= 0.f) {
+			a_maxWidth = ImGui::GetContentRegionAvail().x;
+		}
+
+		static constexpr auto ellipsis = "..."sv;
+
+		const float ellipsisWidth = ImGui::CalcTextSize(ellipsis.data(), nullptr).x;
+        float textWidth = ImGui::CalcTextSize(a_text, a_textEnd).x;
+
+		if (textWidth <= a_maxWidth) {
+		    ImGui::TextUnformatted(a_text, a_textEnd);
+            return false;
+		}
+
+		const std::string fullText(a_text, a_textEnd);
+		
+		while (textWidth + ellipsisWidth > a_maxWidth && a_textEnd != a_text) {
+		    a_textEnd--;
+            textWidth = ImGui::CalcTextSize(a_text, a_textEnd).x;
+		}
+
+		std::string shortenedText(a_text, a_textEnd);
+		shortenedText.append(ellipsis);
+
+		ImGui::TextUnformatted(shortenedText.data(), shortenedText.data() + shortenedText.length());
+		AddTooltip(fullText.data(), ImGuiHoveredFlags_DelayShort);
+
+		return true;
+    }
+
     void DrawConditionEvaluateResult(ConditionEvaluateResult a_result)
     {
         ImGui::SameLine();
@@ -80,21 +123,29 @@ namespace UI::UICommon
     void ButtonWithConfirmationModal(std::string_view a_label, std::string_view a_confirmation, const std::function<void()>& a_func, const ImVec2& a_buttonSize /*= ImVec2(0, 0)*/)
     {
         using namespace ImGui;
-
-        const auto buttonPos = GetCursorScreenPos();
+		const auto& style = GetStyle();
+		
         const auto popupName = std::format("{}?", a_label);
         if (Button(a_label.data(), a_buttonSize)) {
             if (GetIO().KeyCtrl) {
                 // skip confirmation
                 a_func();
             } else {
-                OpenPopup(popupName.data());
-                SetNextWindowPos(buttonPos);
+				auto popupPos = GetCursorScreenPos();
+
+				const auto textHeight = CalcTextSize(a_confirmation.data()).y + style.FramePadding.y * 2.f;
+				const auto popupHeight = textHeight + GetFrameHeightWithSpacing() * 3;
+
+				if (popupPos.y + popupHeight > GetIO().DisplaySize.y) {
+					popupPos.y -= (popupPos.y + popupHeight) - GetIO().DisplaySize.y;
+				}
+				SetNextWindowPos(popupPos);
+
+				OpenPopup(popupName.data());
             }
         }
         AddTooltip("Hold CTRL to skip the confirmation popup");
 
-        SetNextWindowPos(buttonPos);
         if (BeginPopupModal(popupName.data(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
             Text(a_confirmation.data());
             Separator();
@@ -376,5 +427,203 @@ namespace UI::UICommon
         }
 
         return ret;
+    }
+
+    void ScaleAllSizes(ImGuiStyle& a_style, float a_scaleFactor)
+    {
+		a_style.WindowPadding = ImFloor(a_style.WindowPadding * a_scaleFactor);
+		a_style.WindowRounding = ImFloor(a_style.WindowRounding * a_scaleFactor);
+		a_style.WindowMinSize = ImFloor(a_style.WindowMinSize * a_scaleFactor);
+		a_style.ChildRounding = ImFloor(a_style.ChildRounding * a_scaleFactor);
+		a_style.PopupRounding = ImFloor(a_style.PopupRounding * a_scaleFactor);
+		a_style.FramePadding = ImFloor(a_style.FramePadding * a_scaleFactor);
+		a_style.FrameRounding = ImFloor(a_style.FrameRounding * a_scaleFactor);
+		a_style.ItemSpacing = ImFloor(a_style.ItemSpacing * a_scaleFactor);
+		a_style.ItemInnerSpacing = ImFloor(a_style.ItemInnerSpacing * a_scaleFactor);
+		a_style.CellPadding = ImFloor(a_style.CellPadding * a_scaleFactor);
+		a_style.TouchExtraPadding = ImFloor(a_style.TouchExtraPadding * a_scaleFactor);
+		a_style.IndentSpacing = ImFloor(a_style.IndentSpacing * a_scaleFactor);
+		a_style.ColumnsMinSpacing = ImFloor(a_style.ColumnsMinSpacing * a_scaleFactor);
+		a_style.ScrollbarSize = ImFloor(a_style.ScrollbarSize * a_scaleFactor);
+		a_style.ScrollbarRounding = ImFloor(a_style.ScrollbarRounding * a_scaleFactor);
+		a_style.GrabMinSize = ImFloor(a_style.GrabMinSize * a_scaleFactor);
+		a_style.GrabRounding = ImFloor(a_style.GrabRounding * a_scaleFactor);
+		a_style.LogSliderDeadzone = ImFloor(a_style.LogSliderDeadzone * a_scaleFactor);
+		a_style.TabRounding = ImFloor(a_style.TabRounding * a_scaleFactor);
+		a_style.TabMinWidthForCloseButton = (a_style.TabMinWidthForCloseButton != FLT_MAX) ? ImFloor(a_style.TabMinWidthForCloseButton * a_scaleFactor) : FLT_MAX;
+		a_style.DisplayWindowPadding = ImFloor(a_style.DisplayWindowPadding * a_scaleFactor);
+		a_style.DisplaySafeAreaPadding = ImFloor(a_style.DisplaySafeAreaPadding * a_scaleFactor);
+    }
+
+    bool FuzzySearch(char const* a_pattern, char const* a_haystack, int& a_outScore, unsigned char a_matches[], int a_maxMatches, int& a_outMatches)
+    {
+		int recursionCount = 0;
+		int recursionLimit = 10;
+		a_outMatches = 0;
+		return FuzzySearchRecursive(a_pattern, a_haystack, a_outScore, a_haystack, nullptr, a_matches, a_maxMatches, a_outMatches, recursionCount, recursionLimit);
+    }
+
+    bool FuzzySearchRecursive(const char* a_pattern, const char* a_src, int& a_outScore, const char* a_strBegin, const unsigned char a_srcMatches[], unsigned char a_newMatches[], int a_maxMatches, int& a_nextMatch, int& a_recursionCount, int a_recursionLimit)
+    {
+		// Count recursions
+		++a_recursionCount;
+		if (a_recursionCount >= a_recursionLimit) {
+			return false;
+		}
+
+		// Detect end of strings
+		if (*a_pattern == '\0' || *a_src == '\0') {
+			return false;
+		}
+
+		// Recursion params
+		bool recursiveMatch = false;
+		unsigned char bestRecursiveMatches[256];
+		int bestRecursiveScore = 0;
+
+		// Loop through a_pattern and str looking for a match
+		bool firstMatch = true;
+		while (*a_pattern != '\0' && *a_src != '\0') {
+			// Found match
+			if (tolower(*a_pattern) == tolower(*a_src)) {
+				// Supplied matches buffer was too short
+				if (a_nextMatch >= a_maxMatches) {
+					return false;
+				}
+
+				// "Copy-on-Write" a_srcMatches into matches
+				if (firstMatch && a_srcMatches) {
+					memcpy(a_newMatches, a_srcMatches, a_nextMatch);
+					firstMatch = false;
+				}
+
+				// Recursive call that "skips" this match
+				unsigned char recursiveMatches[256];
+				int recursiveScore;
+				int recursiveNextMatch = a_nextMatch;
+				if (FuzzySearchRecursive(a_pattern, a_src + 1, recursiveScore, a_strBegin, a_newMatches, recursiveMatches, sizeof(recursiveMatches), recursiveNextMatch, a_recursionCount, a_recursionLimit)) {
+					// Pick the best recursive score
+					if (!recursiveMatch || recursiveScore > bestRecursiveScore) {
+						memcpy(bestRecursiveMatches, recursiveMatches, 256);
+						bestRecursiveScore = recursiveScore;
+					}
+					recursiveMatch = true;
+				}
+
+				// Advance
+				a_newMatches[a_nextMatch++] = (unsigned char)(a_src - a_strBegin);
+				++a_pattern;
+			}
+			++a_src;
+		}
+
+		// Determine if full a_pattern was matched
+		bool matched = *a_pattern == '\0';
+
+		// Calculate score
+		if (matched) {
+			const int sequentialBonus = 15;   // bonus for adjacent matches
+			const int separatorBonus = 30;    // bonus if match occurs after a separator
+			const int camelBonus = 30;        // bonus if match is uppercase and prev is lower
+			const int firstLetterBonus = 15;  // bonus if the first letter is matched
+
+			const int leadingLetterPenalty = -5;      // penalty applied for every letter in str before the first match
+			const int maxLeadingLetterPenalty = -15;  // maximum penalty for leading letters
+			const int unmatchedLetterPenalty = -1;    // penalty for every letter that doesn't matter
+
+			// Iterate str to end
+			while (*a_src != '\0') {
+				++a_src;
+			}
+
+			// Initialize score
+			a_outScore = 100;
+
+			// Apply leading letter penalty
+			int penalty = leadingLetterPenalty * a_newMatches[0];
+			if (penalty < maxLeadingLetterPenalty) {
+				penalty = maxLeadingLetterPenalty;
+			}
+			a_outScore += penalty;
+
+			// Apply unmatched penalty
+			int unmatched = (int)(a_src - a_strBegin) - a_nextMatch;
+			a_outScore += unmatchedLetterPenalty * unmatched;
+
+			// Apply ordering bonuses
+			for (int i = 0; i < a_nextMatch; ++i) {
+				unsigned char currIdx = a_newMatches[i];
+
+				if (i > 0) {
+					unsigned char prevIdx = a_newMatches[i - 1];
+
+					// Sequential
+					if (currIdx == (prevIdx + 1))
+						a_outScore += sequentialBonus;
+				}
+
+				// Check for bonuses based on neighbor character value
+				if (currIdx > 0) {
+					// Camel case
+					char neighbor = a_strBegin[currIdx - 1];
+					char curr = a_strBegin[currIdx];
+					if (::islower(neighbor) && ::isupper(curr)) {
+						a_outScore += camelBonus;
+					}
+
+					// Separator
+					bool neighborSeparator = neighbor == '_' || neighbor == ' ';
+					if (neighborSeparator) {
+						a_outScore += separatorBonus;
+					}
+				} else {
+					// First letter
+					a_outScore += firstLetterBonus;
+				}
+			}
+		}
+
+		// Return best result
+		if (recursiveMatch && (!matched || bestRecursiveScore > a_outScore)) {
+			// Recursive score is better than "this"
+			memcpy(a_newMatches, bestRecursiveMatches, a_maxMatches);
+			a_outScore = bestRecursiveScore;
+			return true;
+		} else if (matched) {
+			// "this" score is better than recursive
+			return true;
+		} else {
+			// no match
+			return false;
+		}
+    }
+
+    void SetScrollToComboItemJump(ImGuiWindow* a_listbox_window, int a_index)
+    {
+		const ImGuiContext& g = *GImGui;
+		float spacing_y = ImMax(a_listbox_window->WindowPadding.y, g.Style.ItemSpacing.y);
+		float temp_pos = (g.Font->FontSize + g.Style.ItemSpacing.y) * a_index;
+		float new_pos = ImLerp(temp_pos - spacing_y, temp_pos + g.FontSize + g.Style.ItemSpacing.y + spacing_y, 0.5f) - a_listbox_window->Scroll.y;
+		ImGui::SetScrollFromPosY(a_listbox_window, new_pos + 2.50f, 0.5f);
+    }
+
+    void SetScrollToComboItemUp(ImGuiWindow* a_listbox_window, int a_index)
+    {
+		const ImGuiContext& g = *GImGui;
+		float item_pos = (g.FontSize + g.Style.ItemSpacing.y) * a_index;
+		float diff = item_pos - a_listbox_window->Scroll.y;
+		if (diff < 0.0f) {
+			a_listbox_window->Scroll.y += diff - 1.0f;
+		}
+    }
+
+    void SetScrollToComboItemDown(ImGuiWindow* a_listbox_window, int a_index)
+    {
+		const ImGuiContext& g = *GImGui;
+		const float item_pos_lower = (g.FontSize + g.Style.ItemSpacing.y) * (a_index + 1);
+		const float diff = item_pos_lower - a_listbox_window->Size.y - a_listbox_window->Scroll.y;
+		if (diff > 0.0f) {
+			a_listbox_window->Scroll.y += diff + 1.0f;
+		}
     }
 }

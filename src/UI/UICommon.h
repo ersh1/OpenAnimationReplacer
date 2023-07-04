@@ -2,6 +2,8 @@
 
 #include "imgui.h"
 
+#include <imgui_internal.h>
+
 namespace UI
 {
     enum class ConditionEvaluateResult : uint8_t
@@ -35,22 +37,25 @@ namespace UI
         constexpr ImVec4 LOG_REPLACED_COLOR(0.8f, 0.8f, 0.f, 1.f);
         constexpr ImVec4 LOG_INTERRUPTED_COLOR(0.8f, 0.5f, 0.25f, 1.f);
 		constexpr ImVec4 LOG_VARIANT_COLOR(0.8f, 0.4f, 0.8f, 1.f);
+		constexpr ImVec4 DEFAULT_CONDITION_COLOR(1.f, 1.f, 1.f, 1.f);
         constexpr ImVec4 CUSTOM_CONDITION_COLOR(0.5f, 0.7f, 1.f, 1.f);
         constexpr ImVec4 INVALID_CONDITION_COLOR(1.f, 0.3f, 0.3f, 1.f);
 
         void TextUnformattedColored(const ImVec4& a_col, const char* a_text, const char* a_textEnd = nullptr);
         void TextUnformattedDisabled(const char* a_text, const char* a_textEnd = nullptr);
         void TextUnformattedWrapped(const char* a_text, const char* a_textEnd = nullptr);
+		bool TextUnformattedEllipsis(const char* a_text, const char* a_textEnd = nullptr, float a_maxWidth = 0.f);
 
         inline void AddTooltip(const char* a_desc, ImGuiHoveredFlags a_flags = ImGuiHoveredFlags_DelayNormal)
         {
             if (ImGui::IsItemHovered(a_flags)) {
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 8, 8 });
-                ImGui::BeginTooltip();
-                ImGui::PushTextWrapPos(ImGui::GetFontSize() * 50.0f);
-                ImGui::TextUnformatted(a_desc);
-                ImGui::PopTextWrapPos();
-                ImGui::EndTooltip();
+                if (ImGui::BeginTooltip()) {
+					ImGui::PushTextWrapPos(ImGui::GetFontSize() * 50.0f);
+					ImGui::TextUnformatted(a_desc);
+					ImGui::PopTextWrapPos();
+					ImGui::EndTooltip();
+                }
                 ImGui::PopStyleVar();
             }
         }
@@ -97,5 +102,16 @@ namespace UI
         std::string GetKeyName(uint32_t a_keycode);
         std::string GetKeyName(uint32_t a_key[4]);
         bool InputKey(const char* a_label, uint32_t a_key[4]);
+
+		// modified from imgui with removed mouse cursor change
+        void ScaleAllSizes(ImGuiStyle& a_style, float a_scaleFactor);
+
+		// Adapted from https://github.com/khlorz/imgui-combo-filter/ which adapted it from https://github.com/forrestthewoods/lib_fts/blob/master/code/fts_fuzzy_match.h
+		bool FuzzySearch(char const* a_pattern, char const* a_haystack, int& a_outScore, unsigned char a_matches[], int a_maxMatches, int& a_outMatches);
+        bool FuzzySearchRecursive(const char* a_pattern, const char* a_src, int& a_outScore, const char* a_strBegin, const unsigned char a_srcMatches[], unsigned char a_newMatches[], int a_maxMatches, int& a_nextMatch, int& a_recursionCount, int a_recursionLimit);
+
+		void SetScrollToComboItemJump(ImGuiWindow* a_listbox_window, int a_index);
+		void SetScrollToComboItemUp(ImGuiWindow* a_listbox_window, int a_index);
+		void SetScrollToComboItemDown(ImGuiWindow* a_listbox_window, int a_index);
     }
 }

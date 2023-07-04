@@ -3,6 +3,55 @@
 
 namespace OAR_API
 {
+	namespace Animations
+	{
+		ReplacementAnimationInfo AnimationsInterface::GetCurrentReplacementAnimationInfo(RE::hkbClipGenerator* a_clipGenerator) noexcept
+		{
+			ReplacementAnimationInfo info;
+
+			if (const auto activeClip = OpenAnimationReplacer::GetSingleton().GetActiveClip(a_clipGenerator)) {
+				if (const auto replacementAnimation = activeClip->GetReplacementAnimation()) {
+					info.animationPath = replacementAnimation->GetAnimPath();
+					info.projectName = replacementAnimation->GetProjectName();
+
+					if (replacementAnimation->HasVariants()) {
+						replacementAnimation->ForEachVariant([&](const ReplacementAnimation::Variant& a_variant) {
+							if (a_variant.GetIndex() == activeClip->GetCurrentIndex()) {
+								info.variantFilename = a_variant.GetFilename();
+								return RE::BSVisit::BSVisitControl::kStop;
+							}
+							return RE::BSVisit::BSVisitControl::kContinue;
+						});
+					}
+
+					if (const auto parentSubMod = replacementAnimation->GetParentSubMod()) {
+						info.subModName = parentSubMod->GetName();
+						if (const auto parentMod = parentSubMod->GetParentMod()) {
+							info.modName = parentMod->GetName();
+						}
+					}
+				}
+			}
+
+			return info;
+		}
+
+        void AnimationsInterface::ClearRandomFloats(RE::hkbClipGenerator* a_clipGenerator) noexcept
+		{
+			if (const auto clip = OpenAnimationReplacer::GetSingleton().GetActiveClip(a_clipGenerator)) {
+				clip->ClearRandomFloats();
+			}
+		}
+
+        void AnimationsInterface::ClearRandomFloats(RE::TESObjectREFR* a_refr) noexcept
+		{
+			const auto clips = OpenAnimationReplacer::GetSingleton().GetActiveClipsForRefr(a_refr);
+			for (auto& clip : clips) {
+				clip->ClearRandomFloats();
+			}
+		}
+	}
+
     namespace Conditions
     {
         APIResult ConditionsInterface::AddCustomCondition([[maybe_unused]] SKSE::PluginHandle a_pluginHandle, const char* a_pluginName, REL::Version a_pluginVersion, const char* a_conditionName, ::Conditions::ConditionFactory a_conditionFactory) noexcept

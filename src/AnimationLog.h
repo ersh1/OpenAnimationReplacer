@@ -4,13 +4,15 @@ struct AnimationLogEntry
 {
     enum class Event : uint8_t
     {
+		kNone,
+		
         kActivate,
         kEcho,
         kLoop,
         kActivateReplace,
         kEchoReplace,
         kLoopReplace,
-        kInterrupt,
+        kInterrupt
     };
 
     AnimationLogEntry(Event a_event, class ActiveClip* a_activeClip, RE::hkbCharacter* a_character);

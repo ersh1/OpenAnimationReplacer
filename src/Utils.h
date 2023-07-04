@@ -12,7 +12,9 @@ namespace Utils
 		kDialogueTarget,
         kFollowTarget,
         kHeadtrackTarget,
-        kPackageTarget
+        kPackageTarget,
+
+		kAnyTarget
     };
 
     [[nodiscard]] std::string_view TrimWhitespace(std::string_view a_s);
@@ -103,6 +105,13 @@ namespace Utils
     bool ConditionSetHasRandomResult(Conditions::ConditionSet* a_conditionSet);
 
     bool GetCurrentTarget(RE::Actor* a_actor, TargetType a_targetType, RE::TESObjectREFRPtr& a_outPtr);
+	bool GetTarget(RE::Actor* a_actor, RE::TESObjectREFRPtr& a_outPtr);
+	bool GetCombatTarget(RE::Actor* a_actor, RE::TESObjectREFRPtr& a_outPtr);
+	bool GetDialogueTarget(RE::Actor* a_actor, RE::TESObjectREFRPtr& a_outPtr);
+	bool GetFollowTarget(RE::Actor* a_actor, RE::TESObjectREFRPtr& a_outPtr);
+	bool GetHeadtrackTarget(RE::Actor* a_actor, RE::TESObjectREFRPtr& a_outPtr);
+	bool GetPackageTarget(RE::Actor* a_actor, RE::TESObjectREFRPtr& a_outPtr);
+
 	bool GetRelationshipRank(RE::TESNPC* a_npc1, RE::TESNPC* a_npc2, int32_t& a_outRank);
 
     RE::TESForm* GetCurrentFurnitureForm(RE::TESObjectREFR* a_refr, bool a_bCheckBase);

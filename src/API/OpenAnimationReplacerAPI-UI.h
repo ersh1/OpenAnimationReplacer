@@ -8,11 +8,14 @@ namespace OAR_API::UI
     // Available UI interface versions
     enum class InterfaceVersion : uint8_t
     {
-        V1
+        V1, // unsupported
+		V2,
+
+		Latest = V2
     };
 
     // Open Animation Replacer's UI interface
-    class IUIInterface1
+    class IUIInterface2
     {
     public:
         /// <summary>
@@ -40,14 +43,16 @@ namespace OAR_API::UI
         [[nodiscard]] virtual float GetFirstColumnWidth(float a_percent) noexcept = 0;
     };
 
-    using _RequestPluginAPI_UI = IUIInterface1* (*)(InterfaceVersion a_interfaceVersion, const char* a_pluginName, REL::Version a_pluginVersion);
+	using IUIInterface = IUIInterface2;
+
+    using _RequestPluginAPI_UI = IUIInterface* (*)(InterfaceVersion a_interfaceVersion, const char* a_pluginName, REL::Version a_pluginVersion);
 
     /// <summary>
 	/// Request the Open Animation Replacer UI API interface.
 	/// </summary>
 	/// <param name="a_interfaceVersion">The interface version to request</param>
 	/// <returns>The pointer to the API singleton, or nullptr if request failed</returns>
-    IUIInterface1* GetAPI(InterfaceVersion a_interfaceVersion = InterfaceVersion::V1);
+    IUIInterface* GetAPI(InterfaceVersion a_interfaceVersion = InterfaceVersion::Latest);
 
     static inline bool bImGuiContextInitialized = false;
 
@@ -64,4 +69,4 @@ namespace OAR_API::UI
     bool InitializeImGuiContext();
 }
 
-extern OAR_API::UI::IUIInterface1* g_oarUIInterface;
+extern OAR_API::UI::IUIInterface* g_oarUIInterface;

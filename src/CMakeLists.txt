@@ -2,6 +2,8 @@ set(ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/..")
 
 set(SOURCE_DIR "${ROOT_DIR}/src")
 set(SOURCE_FILES
+	"${SOURCE_DIR}/ActiveAnimationPreview.cpp"
+	"${SOURCE_DIR}/ActiveAnimationPreview.h"
 	"${SOURCE_DIR}/ActiveClip.cpp"
 	"${SOURCE_DIR}/ActiveClip.h"
 	"${SOURCE_DIR}/ActiveSynchronizedClip.cpp"
@@ -16,8 +18,11 @@ set(SOURCE_FILES
 	"${SOURCE_DIR}/Conditions.h"
 	"${SOURCE_DIR}/DetectedProblems.cpp"
 	"${SOURCE_DIR}/DetectedProblems.h"
+	"${SOURCE_DIR}/FakeClipGenerator.cpp"
+	"${SOURCE_DIR}/FakeClipGenerator.h"
 	"${SOURCE_DIR}/Hooks.cpp"
 	"${SOURCE_DIR}/Hooks.h"
+	"${SOURCE_DIR}/Jobs.cpp"
 	"${SOURCE_DIR}/Jobs.h"
 	"${SOURCE_DIR}/main.cpp"
 	"${SOURCE_DIR}/ModAPI.cpp"
@@ -38,6 +43,8 @@ set(SOURCE_FILES
 	"${SOURCE_DIR}/Utils.h"
 	"${SOURCE_DIR}/API/OpenAnimationReplacer-ConditionTypes.cpp"
 	"${SOURCE_DIR}/API/OpenAnimationReplacer-ConditionTypes.h"
+	"${SOURCE_DIR}/API/OpenAnimationReplacerAPI-Animations.cpp"
+	"${SOURCE_DIR}/API/OpenAnimationReplacerAPI-Animations.h"
 	"${SOURCE_DIR}/API/OpenAnimationReplacerAPI-Conditions.cpp"
 	"${SOURCE_DIR}/API/OpenAnimationReplacerAPI-Conditions.h"
 	"${SOURCE_DIR}/API/OpenAnimationReplacerAPI-UI.cpp"

@@ -7,6 +7,8 @@ public:
 	[[nodiscard]] ActiveSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context);
 	~ActiveSynchronizedClip();
 
+	void OnActivate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context);
+
 protected:
 	RE::BSSynchronizedClipGenerator* _synchronizedClipGenerator;
 	const uint16_t _originalSynchronizedIndex;

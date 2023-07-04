@@ -890,6 +890,15 @@ namespace Conditions
 		return nullptr;
     }
 
+    const ICondition* ConditionSet::GetParentCondition() const
+    {
+		if (_parentMultiConditionComponent) {
+		    return _parentMultiConditionComponent->GetParentCondition();
+		}
+
+		return nullptr;
+    }
+
     void ConditionBase::Initialize(void* a_value)
     {
         auto& value = *static_cast<rapidjson::Value*>(a_value);

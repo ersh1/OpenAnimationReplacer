@@ -7,7 +7,7 @@
     "fmt",
     {
       "name" : "imgui",
-      "version>=": "1.89.2",
+      "version>=": "1.89.6",
       "features": [ "win32-binding", "dx11-binding" ]
     },
     "mergemapper",

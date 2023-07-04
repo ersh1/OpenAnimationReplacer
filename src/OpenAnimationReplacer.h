@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ActiveAnimationPreview.h"
 #include "ActiveClip.h"
 #include "ActiveSynchronizedClip.h"
 #include "ReplacerMods.h"
@@ -30,12 +31,19 @@ public:
     [[nodiscard]] AnimationReplacements* GetReplacements(RE::hkbCharacter* a_character, uint16_t a_originalIndex) const;
 
     [[nodiscard]] ActiveClip* GetActiveClip(RE::hkbClipGenerator* a_clipGenerator) const;
-    [[nodiscard]] ActiveClip* GetActiveClipFromRefr(RE::TESObjectREFR* a_refr) const;
+    [[nodiscard]] ActiveClip* GetActiveClipForRefr(RE::TESObjectREFR* a_refr) const;
+	[[nodiscard]] ActiveClip* GetActiveClipWithPredicate(std::function<bool(const ActiveClip*)> a_pred) const;
+	[[nodiscard]] std::vector<ActiveClip*> GetActiveClipsForRefr(RE::TESObjectREFR* a_refr) const;
     ActiveClip* AddOrGetActiveClip(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context, bool& a_bOutAdded);
     void RemoveActiveClip(RE::hkbClipGenerator* a_clipGenerator);
 
 	ActiveSynchronizedClip* AddOrGetActiveSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context, bool& a_bOutAdded);
 	void RemoveActiveSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator);
+
+	[[nodiscard]] bool HasActiveAnimationPreviews() const { return !_activeAnimationPreviews.empty(); }
+	[[nodiscard]] ActiveAnimationPreview* GetActiveAnimationPreview(RE::hkbBehaviorGraph* a_behaviorGraph) const;
+	void AddActiveAnimationPreview(RE::hkbBehaviorGraph* a_behaviorGraph, ReplacementAnimation* a_replacementAnimation, std::optional<uint16_t> a_variantIndex = std::nullopt);
+	void RemoveActiveAnimationPreview(RE::hkbBehaviorGraph* a_behaviorGraph);
 
     [[nodiscard]] bool IsOriginalAnimationInterruptible(RE::hkbCharacter* a_character, uint16_t a_originalIndex) const;
     [[nodiscard]] bool ShouldOriginalAnimationReplaceOnEcho(RE::hkbCharacter* a_character, uint16_t a_originalIndex) const;
@@ -119,6 +127,9 @@ protected:
 	mutable SharedLock _activeSynchronizedClipsLock;
 	std::unordered_map<RE::BSSynchronizedClipGenerator*, std::unique_ptr<ActiveSynchronizedClip>> _activeSynchronizedClips;
 
+	mutable SharedLock _activeAnimationPreviewsLock;
+	std::unordered_map<RE::hkbBehaviorGraph*, std::unique_ptr<ActiveAnimationPreview>> _activeAnimationPreviews;
+
     void InitDefaultProjects() const;
     [[nodiscard]] RE::Character* CreateDummyCharacter(RE::TESNPC* a_baseForm) const;
 
@@ -128,7 +139,7 @@ protected:
     ExclusiveLock _factoriesLock;
     bool _bFactoriesInitialized = false;
     std::map<std::string, std::function<std::unique_ptr<Conditions::ICondition>()>> _conditionFactories;
-    std::map<std::string, std::function<std::unique_ptr<Conditions::ICondition>()>> _hiddenConditionFactories;
+	std::map<std::string, std::function<std::unique_ptr<Conditions::ICondition>()>> _hiddenConditionFactories;
 
     mutable SharedLock _customConditionsLock;
     std::unordered_map<std::string, REL::Version> _customConditionPlugins;

@@ -1,12 +1,12 @@
 #pragma once
 
-static float& g_deltaTime = *(float*)REL::VariantID(523660, 410199, 0x30C3A08).address();                                       // 2F6B948, 30064C8, 30C3A08
-static float& g_deltaTimeRealTime = *(float*)REL::VariantID(523661, 410200, 0x30C3A0C).address();                               // 2F6B94C, 30064CC, 30C3A0C
-static uint32_t& g_durationOfApplicationRunTimeMS = *(uint32_t*)REL::VariantID(523662, 410201, 0x30C3A10).address();            // 2F6B950, 30064D0, 30C3A10
-static float& g_globalTimeMultiplier = *(float*)REL::VariantID(511882, 388442, 0x1EC5698).address();                            // 1E05B28, 1E99FD0, 1EC5698
-static RE::ObjectRefHandle& g_nullObjectRefHandle = *(RE::ObjectRefHandle*)REL::VariantID(514164, 400312, 0x1F8319C).address(); // 1EBEABC, 1F592BC, 1F8319C
-static int32_t* g_RelationshipRankTypeIdsByIndex = (int32_t*)REL::VariantID(502260, 369311, 0x1E911A0).address();            // 1DD3EF8, 1E67FE8, 1E911A0
-
+static float& g_deltaTime = *(float*)REL::VariantID(523660, 410199, 0x30C3A08).address();                                        // 2F6B948, 30064C8, 30C3A08
+static float& g_deltaTimeRealTime = *(float*)REL::VariantID(523661, 410200, 0x30C3A0C).address();                                // 2F6B94C, 30064CC, 30C3A0C
+static uint32_t& g_durationOfApplicationRunTimeMS = *(uint32_t*)REL::VariantID(523662, 410201, 0x30C3A10).address();             // 2F6B950, 30064D0, 30C3A10
+static float& g_globalTimeMultiplier = *(float*)REL::VariantID(511882, 388442, 0x1EC5698).address();                             // 1E05B28, 1E99FD0, 1EC5698
+static RE::ObjectRefHandle& g_nullObjectRefHandle = *(RE::ObjectRefHandle*)REL::VariantID(514164, 400312, 0x1F8319C).address();  // 1EBEABC, 1F592BC, 1F8319C
+static int32_t* g_RelationshipRankTypeIdsByIndex = (int32_t*)REL::VariantID(502260, 369311, 0x1E911A0).address();                // 1DD3EF8, 1E67FE8, 1E911A0
+static uint32_t& g_dwTlsIndex = *(uint32_t*)REL::VariantID(520865, 407383, 0x30A8C04).address();                                 // 2F50B74, 2FEB6F4, 30A8C04
 
 using thkbBlendPoses = RE::hkVector4& (*)(uint32_t numData, const RE::hkQsTransform* src, const RE::hkQsTransform* dst, float amount, RE::hkQsTransform* out);
 static REL::Relocation<thkbBlendPoses> hkbBlendPoses{ REL::VariantID(63192, 64112, 0xB4DD80) }; // B12FA0, B38110, B4DD80
@@ -51,13 +51,16 @@ using thkbCharacter_GetAnimationBindingSet = RE::hkbAnimationBindingSet* (*)(RE:
 static REL::Relocation<thkbCharacter_GetAnimationBindingSet> hkbCharacter_GetAnimationBindingSet{ REL::VariantID(57886, 58459, 0xA368F0) }; // 9FBDA0, A205B0, A368F0
 
 using thkaDefaultAnimationControl_SetAnimationBinding = void(*)(RE::hkaDefaultAnimationControl* a_this, RE::hkaAnimationBinding* a_binding);
-static REL::Relocation<thkaDefaultAnimationControl_SetAnimationBinding> hkaDefaultAnimationControl_SetAnimationBinding{ REL::VariantID(63423, 64390, 0xB595A0) }; // B1E7C0,  B43930, B595A0
+static REL::Relocation<thkaDefaultAnimationControl_SetAnimationBinding> hkaDefaultAnimationControl_SetAnimationBinding{ REL::VariantID(63423, 64390, 0xB595A0) }; // B1E7C0, B43930, B595A0
 
-using thkaDefaultAnimationControl_ctor = void(*)(RE::hkaDefaultAnimationControl* a_this, RE::hkaDefaultAnimationControl* a_other);
-static REL::Relocation<thkaDefaultAnimationControl_ctor> hkaDefaultAnimationControl_ctor{ REL::VariantID(63231, 64171, 0xB51D90) }; // B16FB0,  B3C120, B51D90
+using thkaDefaultAnimationControl_ctor = void(*)(RE::hkaDefaultAnimationControl* a_this, RE::hkaAnimationBinding* a_binding, bool a_bEaseIn, int32_t a_maxCycles);
+static REL::Relocation<thkaDefaultAnimationControl_ctor> hkaDefaultAnimationControl_ctor{ REL::VariantID(63230, 64170, 0xB51CB0) };  // B16ED0, B3C040, B51CB0
+
+using thkaDefaultAnimationControl_copyCtor = void (*)(RE::hkaDefaultAnimationControl* a_this, RE::hkaDefaultAnimationControl* a_other);
+static REL::Relocation<thkaDefaultAnimationControl_copyCtor> hkaDefaultAnimationControl_copyCtor{ REL::VariantID(63231, 64171, 0xB51D90) };  // B16FB0, B3C120, B51D90
 
 using thkbCharacterSetup_GetMirroredSkeleton = RE::hkaMirroredSkeleton* (*)(RE::hkbCharacterSetup* a_this);
-static REL::Relocation<thkbCharacterSetup_GetMirroredSkeleton> hkbCharacterSetup_GetMirroredSkeleton{ REL::VariantID(58817, 59480, 0xA5E8C0) }; // A23F10,  A48720, A5E8C0
+static REL::Relocation<thkbCharacterSetup_GetMirroredSkeleton> hkbCharacterSetup_GetMirroredSkeleton{ REL::VariantID(58817, 59480, 0xA5E8C0) }; // A23F10, A48720, A5E8C0
 
 using thkbClipGenerator_UnkUpdateFunc1 = void(*)(RE::hkbClipGenerator* a_this);
 static REL::Relocation<thkbClipGenerator_UnkUpdateFunc1> hkbClipGenerator_UnkUpdateFunc1{ REL::VariantID(58628, 59279, 0xA49FD0) }; // A0F480, A33C90, A49FD0
@@ -97,4 +100,3 @@ static REL::Relocation<tActor_IsTalking> Actor_IsTalking{ REL::VariantID(36277, 
 
 using tTESQuest_GetStageDone = bool (*)(RE::TESQuest* a_this, uint16_t a_stageIndex);
 static REL::Relocation<tTESQuest_GetStageDone> TESQuest_GetStageDone{ REL::VariantID(24483, 25011, 0x3804C0) };  // 370B20, 3881F0, 3804C0
-

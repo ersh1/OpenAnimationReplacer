@@ -6,7 +6,6 @@
 #include "ActiveClip.h"
 #include "Parsing.h"
 #include "DetectedProblems.h"
-#include "AnimationFileHashCache.h"
 #include "UI/UIManager.h"
 #include "Offsets.h"
 
@@ -162,7 +161,7 @@ ActiveClip* OpenAnimationReplacer::GetActiveClip(RE::hkbClipGenerator* a_clipGen
     return nullptr;
 }
 
-ActiveClip* OpenAnimationReplacer::GetActiveClipFromRefr(RE::TESObjectREFR* a_refr) const
+ActiveClip* OpenAnimationReplacer::GetActiveClipForRefr(RE::TESObjectREFR* a_refr) const
 {
     ReadLocker locker(_activeClipsLock);
 
@@ -173,6 +172,34 @@ ActiveClip* OpenAnimationReplacer::GetActiveClipFromRefr(RE::TESObjectREFR* a_re
     }
 
     return nullptr;
+}
+
+ActiveClip* OpenAnimationReplacer::GetActiveClipWithPredicate(std::function<bool(const ActiveClip*)> a_pred) const
+{
+    ReadLocker locker(_activeClipsLock);
+
+    if (const auto search = std::ranges::find_if(_activeClips, [&](const auto& pair) {
+        return a_pred(pair.second.get());
+    }); search != _activeClips.end()) {
+        return search->second.get();
+    }
+
+    return nullptr;
+}
+
+std::vector<ActiveClip*> OpenAnimationReplacer::GetActiveClipsForRefr(RE::TESObjectREFR* a_refr) const
+{
+	std::vector<ActiveClip*> results;
+
+	ReadLocker locker(_activeClipsLock);
+
+	if (const auto search = std::ranges::find_if(_activeClips, [&](const auto& pair) {
+	    return pair.second->GetRefr() == a_refr;
+	}); search != _activeClips.end()) {
+		results.emplace_back(search->second.get());
+	}
+
+	return results;
 }
 
 ActiveClip* OpenAnimationReplacer::AddOrGetActiveClip(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context, bool& a_bOutAdded)
@@ -217,6 +244,31 @@ void OpenAnimationReplacer::RemoveActiveSynchronizedClip(RE::BSSynchronizedClipG
 	WriteLocker locker(_activeSynchronizedClipsLock);
 
 	_activeSynchronizedClips.erase(a_synchronizedClipGenerator);
+}
+
+ActiveAnimationPreview* OpenAnimationReplacer::GetActiveAnimationPreview(RE::hkbBehaviorGraph* a_behaviorGraph) const
+{
+    ReadLocker locker(_activeAnimationPreviewsLock);
+
+    if (const auto search = _activeAnimationPreviews.find(a_behaviorGraph); search != _activeAnimationPreviews.end()) {
+        return search->second.get();
+    }
+
+    return nullptr;
+}
+
+void OpenAnimationReplacer::AddActiveAnimationPreview(RE::hkbBehaviorGraph* a_behaviorGraph, ReplacementAnimation* a_replacementAnimation, std::optional<uint16_t> a_variantIndex /* = std::nullopt*/)
+{
+    WriteLocker locker(_activeAnimationPreviewsLock);
+
+    _activeAnimationPreviews[a_behaviorGraph] = std::make_unique<ActiveAnimationPreview>(a_behaviorGraph, a_replacementAnimation, a_variantIndex);
+}
+
+void OpenAnimationReplacer::RemoveActiveAnimationPreview(RE::hkbBehaviorGraph* a_behaviorGraph)
+{
+    WriteLocker locker(_activeAnimationPreviewsLock);
+
+    _activeAnimationPreviews.erase(a_behaviorGraph);
 }
 
 bool OpenAnimationReplacer::IsOriginalAnimationInterruptible(RE::hkbCharacter* a_character, uint16_t a_originalIndex) const
@@ -491,7 +543,7 @@ uint16_t OpenAnimationReplacer::GetSynchronizedClipsIDOffset(RE::hkbCharacter* a
 }
 
 // the loading functions don't actually need a real clip generator, just access two member variables
-struct FakeClipGenerator
+struct DummyClipGenerator
 {
     uint64_t pad00;
     uint64_t pad08;
@@ -512,10 +564,10 @@ struct FakeClipGenerator
 
 void OpenAnimationReplacer::LoadAnimation(RE::hkbCharacter* a_character, uint16_t a_animationIndex)
 {
-    FakeClipGenerator fakeClipGenerator{};
-    fakeClipGenerator.animationBindingIndex = a_animationIndex;
+	DummyClipGenerator dummyClipGenerator{};
+	dummyClipGenerator.animationBindingIndex = a_animationIndex;
 
-    const auto clipGenerator = reinterpret_cast<RE::hkbClipGenerator*>(&fakeClipGenerator);
+    const auto clipGenerator = reinterpret_cast<RE::hkbClipGenerator*>(&dummyClipGenerator);
 
     RE::AnimationFileManagerSingleton::GetSingleton()->Queue(*reinterpret_cast<RE::hkbContext*>(&a_character), clipGenerator, nullptr);
     //RE::AnimationFileManagerSingleton::GetSingleton()->Unk_02(*reinterpret_cast<RE::hkbContext*>(&a_character), clipGenerator, nullptr);
@@ -523,10 +575,10 @@ void OpenAnimationReplacer::LoadAnimation(RE::hkbCharacter* a_character, uint16_
 
 void OpenAnimationReplacer::UnloadAnimation(RE::hkbCharacter* a_character, uint16_t a_animationIndex)
 {
-    FakeClipGenerator fakeClipGenerator{};
-    const auto clipGenerator = reinterpret_cast<RE::hkbClipGenerator*>(&fakeClipGenerator);
+	DummyClipGenerator dummyClipGenerator{};
+	const auto clipGenerator = reinterpret_cast<RE::hkbClipGenerator*>(&dummyClipGenerator);
 
-    fakeClipGenerator.animationBindingIndex = a_animationIndex;
+    dummyClipGenerator.animationBindingIndex = a_animationIndex;
 
     RE::AnimationFileManagerSingleton::GetSingleton()->Unload(*reinterpret_cast<RE::hkbContext*>(&a_character), clipGenerator, nullptr);
 }
@@ -614,11 +666,8 @@ void OpenAnimationReplacer::InitFactories()
     _conditionFactories.emplace("CurrentFurniture", []() { return std::make_unique<CurrentFurnitureCondition>(); });
     _conditionFactories.emplace("CurrentFurnitureHasKeyword", []() { return std::make_unique<CurrentFurnitureHasKeywordCondition>(); });
 	_conditionFactories.emplace("HasTarget", []() { return std::make_unique<HasTargetCondition>(); });
-	_conditionFactories.emplace("CurrentTarget", []() { return std::make_unique<CurrentTargetCondition>(); });
-	_conditionFactories.emplace("CurrentTargetHasKeyword", []() { return std::make_unique<CurrentTargetHasKeywordCondition>(); });
 	_conditionFactories.emplace("CurrentTargetDistance", []() { return std::make_unique<CurrentTargetDistanceCondition>(); });
 	_conditionFactories.emplace("CurrentTargetRelationship", []() { return std::make_unique<CurrentTargetRelationshipCondition>(); });
-	_conditionFactories.emplace("CurrentTargetFactionRank", []() { return std::make_unique<CurrentTargetFactionRankCondition>(); });
 	_conditionFactories.emplace("EquippedObjectWeight", []() { return std::make_unique<EquippedObjectWeightCondition>(); });
 	_conditionFactories.emplace("CurrentCastingType", []() { return std::make_unique<CurrentCastingTypeCondition>(); });
 	_conditionFactories.emplace("CurrentDeliveryType", []() { return std::make_unique<CurrentDeliveryTypeCondition>(); });
@@ -634,8 +683,12 @@ void OpenAnimationReplacer::InitFactories()
 	_conditionFactories.emplace("IsInSpecifiedScene", []() { return std::make_unique<IsInSpecifiedSceneCondition>(); });
 	_conditionFactories.emplace("IsScenePlaying", []() { return std::make_unique<IsScenePlayingCondition>(); });
 	_conditionFactories.emplace("IsDoingFavor", []() { return std::make_unique<IsDoingFavorCondition>(); });
+	_conditionFactories.emplace("AttackState", []() { return std::make_unique<AttackStateCondition>(); });
+	_conditionFactories.emplace("IsMenuOpen", []() { return std::make_unique<IsMenuOpenCondition>(); });
+	_conditionFactories.emplace("TARGET", []() { return std::make_unique<TARGETCondition>(); });
+	_conditionFactories.emplace("PLAYER", []() { return std::make_unique<PLAYERCondition>(); });
 
-    // Hidden factories - not visible for selection in the UI, used only for mapping legacy names to new conditions
+    // Hidden factories - not visible for selection in the UI, used for mapping legacy names to new conditions etc
     _hiddenConditionFactories.emplace("IsEquippedRight", []() { return std::make_unique<IsEquippedCondition>(false); });
     _hiddenConditionFactories.emplace("IsEquippedLeft", []() { return std::make_unique<IsEquippedCondition>(true); });
     _hiddenConditionFactories.emplace("IsEquippedRightType", []() { return std::make_unique<IsEquippedTypeCondition>(false); });
@@ -656,6 +709,10 @@ void OpenAnimationReplacer::InitFactories()
     _hiddenConditionFactories.emplace("IsFactionRankLessThan", []() { return std::make_unique<FactionRankCondition>(ComparisonOperator::kLess); });
     _hiddenConditionFactories.emplace("IsLevelLessThan", []() { return std::make_unique<LevelCondition>(ComparisonOperator::kLess); });
     _hiddenConditionFactories.emplace("CurrentGameTimeLessThan", []() { return std::make_unique<CurrentGameTimeCondition>(ComparisonOperator::kLess); });
+	// deprecated conditions
+    _hiddenConditionFactories.emplace("CurrentTarget", []() { return std::make_unique<DeprecatedCondition>("CurrentTarget - Use TARGET multi condition with IsForm/IsActorBase instead."); });
+	_hiddenConditionFactories.emplace("CurrentTargetHasKeyword", []() { return std::make_unique<DeprecatedCondition>("CurrentTargetHasKeyword - Use TARGET multi condition with HasKeyword instead."); });
+	_hiddenConditionFactories.emplace("CurrentTargetFactionRank", []() { return std::make_unique<DeprecatedCondition>("CurrentTargetFactionRank - Use TARGET multi condition with FactionRank instead."); });
 
     for (auto& [name, factory] : _customConditionFactories) {
         _conditionFactories.emplace(name, [&]() { return std::unique_ptr<ICondition>(factory()); });

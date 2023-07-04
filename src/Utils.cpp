@@ -193,96 +193,170 @@ namespace Utils
 
     bool GetCurrentTarget(RE::Actor* a_actor, TargetType a_targetType, RE::TESObjectREFRPtr& a_outPtr)
     {
-		using HeadTrackType = RE::HighProcessData::HEAD_TRACK_TYPE;
 		if (a_actor) {
-			if (const auto process = a_actor->GetActorRuntimeData().currentProcess) {
-				switch (a_targetType) {
-				case TargetType::kTarget:
-					{
-						return RE::LookupReferenceByHandle(process->target, a_outPtr);
+			switch (a_targetType) {
+			case TargetType::kTarget:
+				{
+					return GetTarget(a_actor, a_outPtr);
+				}
+			case TargetType::kCombatTarget:
+				{
+					return GetCombatTarget(a_actor, a_outPtr);
+				}
+			case TargetType::kDialogueTarget:
+				{
+					return GetDialogueTarget(a_actor, a_outPtr);
+				}
+			case TargetType::kFollowTarget:
+				{
+					return GetFollowTarget(a_actor, a_outPtr);
+				}
+			case TargetType::kHeadtrackTarget:
+				{
+					return GetHeadtrackTarget(a_actor, a_outPtr);
+				}
+			case TargetType::kPackageTarget:
+				{
+					return GetPackageTarget(a_actor, a_outPtr);
+				}
+			case TargetType::kAnyTarget:
+				{
+					// try each of the following
+					if (GetTarget(a_actor, a_outPtr)) {
+						return true;
 					}
-				case TargetType::kCombatTarget:
-					{
-						const auto& currentCombatTarget = a_actor->GetActorRuntimeData().currentCombatTarget;
-						if (currentCombatTarget) {
-							a_outPtr = currentCombatTarget.get();
-							return true;
-						}
-						return false;
-					}
-				case TargetType::kDialogueTarget:
-				    {
-						if (a_actor->IsPlayerRef()) {
-						    if (const auto menuTopicManager = RE::MenuTopicManager::GetSingleton()) {
-								// seems these work pretty reliably in dialogues
-								if (menuTopicManager->speaker) {
-									a_outPtr = menuTopicManager->speaker.get();
-									return true;
-								}
-								if (menuTopicManager->lastSpeaker) {
-									a_outPtr = menuTopicManager->lastSpeaker.get();
-									return true;
-								}
 
-								// try dialogue headtrack target last (probably TDM only)
-								if (const auto highProcess = process->high) {
-									if (highProcess->headTrackTarget[HeadTrackType::kDialogue] && highProcess->headTracked[HeadTrackType::kDialogue]) {
-										a_outPtr = highProcess->headTrackTarget[HeadTrackType::kDialogue].get();
-										return true;
-									}
-								}
-						    }
-						} else {
-							// try dialogue headtrack target first
-							if (const auto highProcess = process->high) {
-								if (highProcess->headTrackTarget[HeadTrackType::kDialogue] && highProcess->headTracked[HeadTrackType::kDialogue]) {
-									a_outPtr = highProcess->headTrackTarget[HeadTrackType::kDialogue].get();
-									return true;
-								}
-							}
+					if (GetCombatTarget(a_actor, a_outPtr)) {
+						return true;
+					}
 
-							// this alone barely works
-							if (Actor_IsInDialogue(a_actor)) {
-								const auto& dialogueItemTarget = a_actor->GetActorRuntimeData().dialogueItemTarget;
-								if (dialogueItemTarget) {
-									a_outPtr = dialogueItemTarget.get();
-									return true;
-								}
-							}
-						}
-						
-					    return false;
-				    }
-				case TargetType::kFollowTarget:
-					{
-						return RE::LookupReferenceByHandle(process->followTarget, a_outPtr);
+					if (GetDialogueTarget(a_actor, a_outPtr)) {
+                        return true;
+                    }
+
+					if (GetHeadtrackTarget(a_actor, a_outPtr)) {
+						return true;
 					}
-				case TargetType::kHeadtrackTarget:
-					{
-						if (const auto highProcess = process->high) {
-							for (int i = HeadTrackType::kTotal - 1; i >= static_cast<int>(HeadTrackType::kDefault); --i) {
-								if (highProcess->headTrackTarget[i] && highProcess->headTracked[i]) {
-									a_outPtr = highProcess->headTrackTarget[i].get();
-									return true;
-								}
-							}
-						}
-						return false;
+
+					if (GetPackageTarget(a_actor, a_outPtr)) {
+						return true;
 					}
-				case TargetType::kPackageTarget:
-					{
-						const auto& currentPackageTarget = process->currentPackage.target;
-						if (currentPackageTarget) {
-							a_outPtr = currentPackageTarget.get();
-							return true;
-						}
-						return false;
+
+					if (GetFollowTarget(a_actor, a_outPtr)) {
+						return true;
 					}
 				}
 			}
 		}
 
         return false;
+    }
+
+    bool GetTarget([[maybe_unused]] RE::Actor* a_actor, RE::TESObjectREFRPtr& a_outPtr)
+    {
+		if (const auto process = a_actor->GetActorRuntimeData().currentProcess) {
+		    return RE::LookupReferenceByHandle(process->target, a_outPtr);
+		}
+
+		return false;
+    }
+
+    bool GetCombatTarget(RE::Actor* a_actor, RE::TESObjectREFRPtr& a_outPtr)
+    {
+		const auto& currentCombatTarget = a_actor->GetActorRuntimeData().currentCombatTarget;
+		if (currentCombatTarget) {
+			a_outPtr = currentCombatTarget.get();
+			return true;
+		}
+		return false;
+    }
+
+	bool GetDialogueTarget(RE::Actor* a_actor, RE::TESObjectREFRPtr& a_outPtr)
+    {
+		using HeadTrackType = RE::HighProcessData::HEAD_TRACK_TYPE;
+
+		if (const auto process = a_actor->GetActorRuntimeData().currentProcess) {
+		    if (a_actor->IsPlayerRef()) {
+			    if (const auto menuTopicManager = RE::MenuTopicManager::GetSingleton()) {
+				    // seems these work pretty reliably in dialogues
+				    if (menuTopicManager->speaker) {
+					    a_outPtr = menuTopicManager->speaker.get();
+					    return true;
+				    }
+				    if (menuTopicManager->lastSpeaker) {
+					    a_outPtr = menuTopicManager->lastSpeaker.get();
+					    return true;
+				    }
+
+				    // try dialogue headtrack target last (probably TDM only)
+					if (const auto highProcess = process->high) {
+					    if (highProcess->headTrackTarget[HeadTrackType::kDialogue] && highProcess->headTracked[HeadTrackType::kDialogue]) {
+						    a_outPtr = highProcess->headTrackTarget[HeadTrackType::kDialogue].get();
+						    return true;
+					    }
+				    }
+			    }
+		    } else {
+			    // try dialogue headtrack target first
+				if (const auto highProcess = process->high) {
+				    if (highProcess->headTrackTarget[HeadTrackType::kDialogue] && highProcess->headTracked[HeadTrackType::kDialogue]) {
+					    a_outPtr = highProcess->headTrackTarget[HeadTrackType::kDialogue].get();
+					    return true;
+				    }
+			    }
+
+			    // this alone barely works
+			    if (Actor_IsInDialogue(a_actor)) {
+				    const auto& dialogueItemTarget = a_actor->GetActorRuntimeData().dialogueItemTarget;
+				    if (dialogueItemTarget) {
+					    a_outPtr = dialogueItemTarget.get();
+					    return true;
+				    }
+			    }
+		    }
+		}
+
+		return false;
+    }
+
+	bool GetFollowTarget([[maybe_unused]] RE::Actor* a_actor, RE::TESObjectREFRPtr& a_outPtr)
+    {
+		if (const auto process = a_actor->GetActorRuntimeData().currentProcess) {
+			return RE::LookupReferenceByHandle(process->followTarget, a_outPtr);
+		}
+
+		return false;
+    }
+
+	bool GetHeadtrackTarget(RE::Actor* a_actor, RE::TESObjectREFRPtr& a_outPtr)
+    {
+		using HeadTrackType = RE::HighProcessData::HEAD_TRACK_TYPE;
+
+		if (const auto process = a_actor->GetActorRuntimeData().currentProcess) {
+			if (const auto highProcess = process->high) {
+			    for (int i = HeadTrackType::kTotal - 1; i >= static_cast<int>(HeadTrackType::kDefault); --i) {
+				    if (highProcess->headTrackTarget[i] && highProcess->headTracked[i]) {
+					    a_outPtr = highProcess->headTrackTarget[i].get();
+					    return true;
+				    }
+			    }
+		    }
+		}
+
+		return false;
+    }
+
+	bool GetPackageTarget([[maybe_unused]] RE::Actor* a_actor, RE::TESObjectREFRPtr& a_outPtr)
+    {
+		if (const auto process = a_actor->GetActorRuntimeData().currentProcess) {
+			const auto& currentPackageTarget = process->currentPackage.target;
+		    if (currentPackageTarget) {
+			    a_outPtr = currentPackageTarget.get();
+			    return true;
+		    }
+		}
+
+		return false;
     }
 
     bool GetRelationshipRank(RE::TESNPC* a_npc1, RE::TESNPC* a_npc2, int32_t& a_outRank)

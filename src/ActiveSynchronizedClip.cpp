@@ -4,14 +4,19 @@
 
 ActiveSynchronizedClip::ActiveSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context) :
 	_synchronizedClipGenerator(a_synchronizedClipGenerator),
-	_originalSynchronizedIndex(a_synchronizedClipGenerator->synchronizedAnimIndex)
+	_originalSynchronizedIndex(a_synchronizedClipGenerator->synchronizedAnimationBindingIndex)
 {
 	// get the offset and alter the index
-	_synchronizedClipGenerator->synchronizedAnimIndex += OpenAnimationReplacer::GetSingleton().GetSynchronizedClipsIDOffset(a_context.character);
+	_synchronizedClipGenerator->synchronizedAnimationBindingIndex += OpenAnimationReplacer::GetSingleton().GetSynchronizedClipsIDOffset(a_context.character);
 }
 
 ActiveSynchronizedClip::~ActiveSynchronizedClip()
 {
 	// restore original index
-	_synchronizedClipGenerator->synchronizedAnimIndex = _originalSynchronizedIndex;
+	_synchronizedClipGenerator->synchronizedAnimationBindingIndex = _originalSynchronizedIndex;
+}
+
+void ActiveSynchronizedClip::OnActivate([[maybe_unused]] RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, [[maybe_unused]] const RE::hkbContext& a_context)
+{
+
 }

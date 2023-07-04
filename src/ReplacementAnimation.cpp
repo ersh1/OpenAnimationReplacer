@@ -14,6 +14,17 @@ void ReplacementAnimation::Variant::ResetSettings()
 	_bDisabled = false;
 }
 
+uint16_t ReplacementAnimation::Variants::GetVariantIndex() const
+{
+	const float randomWeight = Utils::GetRandomFloat(0.f, 1.f);
+
+	ReadLocker locker(_lock);
+
+	const auto it = std::ranges::lower_bound(_cumulativeWeights, randomWeight);
+	const auto i = std::distance(_cumulativeWeights.begin(), it);
+	return _activeVariants[i]->GetIndex();
+}
+
 uint16_t ReplacementAnimation::Variants::GetVariantIndex(ActiveClip* a_activeClip) const
 {
 	const float randomWeight = a_activeClip->GetVariantRandom(_parentReplacementAnimation);
@@ -131,12 +142,11 @@ bool ReplacementAnimation::ShouldSaveToJson() const
 
 uint16_t ReplacementAnimation::GetIndex() const
 {
-	if (!HasVariants()) {
-		return std::get<uint16_t>(_index);
+	if (HasVariants()) {
+		return std::get<Variants>(_index).GetVariantIndex();
 	}
 
-	// shouldn't ever happen
-	return static_cast<uint16_t>(-1);
+	return std::get<uint16_t>(_index);
 }
 
 uint16_t ReplacementAnimation::GetIndex(ActiveClip* a_activeClip) const

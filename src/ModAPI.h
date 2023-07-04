@@ -1,13 +1,41 @@
 #pragma once
+#include "API/OpenAnimationReplacerAPI-Animations.h"
 #include "API/OpenAnimationReplacerAPI-Conditions.h"
 #include "API/OpenAnimationReplacerAPI-UI.h"
 #include "BaseConditions.h"
 
 namespace OAR_API
 {
+	namespace Animations
+	{
+		class AnimationsInterface : public IAnimationsInterface
+		{
+		public:
+			static AnimationsInterface* GetSingleton() noexcept
+			{
+				static AnimationsInterface singleton;
+				return std::addressof(singleton);
+			}
+
+			// InterfaceVersion1
+			[[nodiscard]] ReplacementAnimationInfo GetCurrentReplacementAnimationInfo(RE::hkbClipGenerator* a_clipGenerator) noexcept override;
+			void ClearRandomFloats(RE::hkbClipGenerator* a_clipGenerator) noexcept override;
+			void ClearRandomFloats(RE::TESObjectREFR* a_refr) noexcept override;
+
+		private:
+			AnimationsInterface() = default;
+			AnimationsInterface(const AnimationsInterface&) = delete;
+			AnimationsInterface(AnimationsInterface&&) = delete;
+			virtual ~AnimationsInterface() = default;
+
+			AnimationsInterface& operator=(const AnimationsInterface&) = delete;
+			AnimationsInterface& operator=(AnimationsInterface&&) = delete;
+        };
+	}
+
     namespace Conditions
     {
-        class ConditionsInterface : public IConditionsInterface2
+        class ConditionsInterface : public IConditionsInterface
         {
         public:
             static ConditionsInterface* GetSingleton() noexcept
@@ -16,10 +44,9 @@ namespace OAR_API
                 return std::addressof(singleton);
             }
 
-            // InterfaceVersion1
+            // InterfaceVersion2
             APIResult AddCustomCondition(SKSE::PluginHandle a_pluginHandle, const char* a_pluginName, REL::Version a_pluginVersion, const char* a_conditionName, ::Conditions::ConditionFactory a_conditionFactory) noexcept override;
             ::Conditions::ConditionFactory GetWrappedConditionFactory() noexcept override;
-
             ::Conditions::ConditionComponentFactory GetConditionComponentFactory(::Conditions::ConditionComponentType a_componentType) noexcept override;
 
         private:
@@ -35,7 +62,7 @@ namespace OAR_API
 
     namespace UI
     {
-        class UIInterface : public IUIInterface1
+        class UIInterface : public IUIInterface
         {
         public:
             static UIInterface* GetSingleton() noexcept
@@ -44,7 +71,7 @@ namespace OAR_API
                 return std::addressof(singleton);
             }
 
-            // InterfaceVersion1
+            // InterfaceVersion2
             void* GetImGuiContext() noexcept override;
             void GetImGuiAllocatorFunctions(void* a_ptrAllocFunc, void* a_ptrFreeFunc, void** a_ptrUserData) noexcept override;
 

@@ -9,8 +9,10 @@ namespace OAR_API::Conditions
     // Available Open Animation Replacer interface versions
     enum class InterfaceVersion : uint8_t
     {
-        V1,
-		V2
+        V1, // unsupported
+		V2,
+
+		Latest = V2
     };
 
     // Error types that may be returned by Open Animation Replacer
@@ -28,6 +30,15 @@ namespace OAR_API::Conditions
         // Failed
         Failed
     };
+
+	struct ReplacementAnimationInfo
+	{
+		std::string animationPath{};
+		std::string projectName{};
+		std::string variantFilename{};
+		std::string subModName{};
+		std::string modName{};
+	};
 
     // Open Animation Replacer's conditions interface
     class IConditionsInterface2
@@ -58,14 +69,16 @@ namespace OAR_API::Conditions
         [[nodiscard]] virtual ::Conditions::ConditionComponentFactory GetConditionComponentFactory(::Conditions::ConditionComponentType a_componentType) noexcept = 0;
     };
 
-    using _RequestPluginAPI_Conditions = IConditionsInterface2* (*)(InterfaceVersion a_interfaceVersion, const char* a_pluginName, REL::Version a_pluginVersion);
+	using IConditionsInterface = IConditionsInterface2;
+
+    using _RequestPluginAPI_Conditions = IConditionsInterface* (*)(InterfaceVersion a_interfaceVersion, const char* a_pluginName, REL::Version a_pluginVersion);
 
     /// <summary>
     /// Request the Open Animation Replacer Conditions API interface.
     /// </summary>
     /// <param name="a_interfaceVersion">The interface version to request</param>
     /// <returns>The pointer to the API singleton, or nullptr if request failed</returns>
-    IConditionsInterface2* GetAPI(InterfaceVersion a_interfaceVersion = InterfaceVersion::V2);
+	IConditionsInterface* GetAPI(InterfaceVersion a_interfaceVersion = InterfaceVersion::Latest);
 
     /// <summary>
     /// A helper function that will try to add a new custom condition to Open Animation Replacer.
@@ -86,4 +99,4 @@ namespace OAR_API::Conditions
     }
 }
 
-extern OAR_API::Conditions::IConditionsInterface2* g_oarConditionsInterface;
+extern OAR_API::Conditions::IConditionsInterface* g_oarConditionsInterface;

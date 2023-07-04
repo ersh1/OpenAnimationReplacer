@@ -25,6 +25,62 @@ namespace UI
             bool bDuplicateName = false;
         };
 
+		struct ConditionInfo
+		{
+			ConditionInfo(std::string_view a_name, std::string_view a_description, ImVec4 a_textColor = ImVec4(1.f, 1.f, 1.f, 1.f), std::string_view a_requiredPlugin = ""sv, std::string_view a_requiredPluginAuthor = ""sv, REL::Version a_requiredPluginVersion = { 0, 0, 0 }) :
+				name(a_name), description(a_description), textColor(a_textColor), requiredPluginName(a_requiredPlugin), requiredPluginAuthor(a_requiredPluginAuthor), requiredVersion(a_requiredPluginVersion) {}
+
+			ConditionInfo(const Conditions::ICondition* a_condition) :
+                name(a_condition->GetName()),
+                description(a_condition->GetDescription()),
+                textColor(a_condition->IsCustomCondition() ? UICommon::CUSTOM_CONDITION_COLOR : UICommon::DEFAULT_CONDITION_COLOR),
+                requiredPluginName(a_condition->GetRequiredPluginName()),
+                requiredPluginAuthor(a_condition->GetRequiredPluginAuthor()),
+                requiredVersion(a_condition->GetRequiredVersion())
+            {}
+
+			std::string name;
+			std::string description;
+			ImVec4 textColor;
+			std::string requiredPluginName;
+			std::string requiredPluginAuthor;
+			REL::Version requiredVersion;
+		};
+
+		struct FilteredConditionInfo
+		{
+			FilteredConditionInfo(int a_index, int a_score) :
+				index(a_index),
+				score(a_score)
+			{}
+
+			int index;
+			int score;
+
+			bool operator<(const FilteredConditionInfo& a_other) const noexcept
+			{
+				return score < a_other.score;
+			}
+		};
+
+		struct ComboFilterData
+		{
+			std::string filterString{};
+			struct
+			{
+				const ConditionInfo* info;
+				int index;
+			} initialValues{ nullptr, -1 };
+			int currentSelection = -1;
+
+			std::vector<FilteredConditionInfo> filteredInfos{};
+			bool filterStatus = false;
+
+			bool SetNewValue(const ConditionInfo* a_conditionInfo, int a_newIndex) noexcept;
+			bool SetNewValue(const ConditionInfo* a_conditionInfo) noexcept;
+			void ResetToInitialValue() noexcept;
+		};
+
     protected:
         bool ShouldDrawImpl() const override;
         void DrawImpl() override;
@@ -40,10 +96,22 @@ namespace UI
         void DrawReplacerMod(ReplacerMod* a_replacerMod, std::unordered_map<std::string, SubModNameFilterResult>& a_filterResults);
         void DrawSubMod(ReplacerMod* a_replacerMod, SubMod* a_subMod, bool a_bAddPathToName = false);
         void DrawReplacementAnimations();
-        void DrawReplacementAnimation(const ReplacementAnimation* a_replacementAnimation);
-        bool DrawConditionSet(Conditions::ConditionSet* a_conditionSet, ConditionEditMode a_editMode, bool a_bDrawLines, const ImVec2& a_drawStartPos);
-        ImRect DrawCondition(std::unique_ptr<Conditions::ICondition>& a_condition, Conditions::ConditionSet* a_conditionSet, ConditionEditMode a_editMode, bool& a_bOutSetDirty);
+        void DrawReplacementAnimation(ReplacementAnimation* a_replacementAnimation);
+		bool DrawConditionSet(Conditions::ConditionSet* a_conditionSet, ConditionEditMode a_editMode, RE::TESObjectREFR* a_refrToEvaluate, bool a_bDrawLines, const ImVec2& a_drawStartPos);
+		ImRect DrawCondition(std::unique_ptr<Conditions::ICondition>& a_condition, Conditions::ConditionSet* a_conditionSet, ConditionEditMode a_editMode, RE::TESObjectREFR* a_refrToEvaluate, bool& a_bOutSetDirty);
         ImRect DrawBlankCondition(Conditions::ConditionSet* a_conditionSet, ConditionEditMode a_editMode);
+
+		void DrawConditionTooltip(const ConditionInfo& a_conditionInfo, ImGuiHoveredFlags a_flags = ImGuiHoveredFlags_DelayNormal) const;
+
+		// ImGui combo filter modified from https://github.com/khlorz/imgui-combo-filter/
+		void CacheConditionInfos();
+        static ComboFilterData* GetComboFilterData(ImGuiID a_comboId);
+        static ComboFilterData* AddComboFilterData(ImGuiID a_comboId);
+		static void ClearComboFilterData(ImGuiID a_comboId);
+		bool ConditionComboFilter(const char* a_comboLabel, int& a_selectedItem, const ConditionInfo* a_currentConditionInfo, ImGuiComboFlags a_flags);
+
+        static bool CanPreviewAnimation(RE::TESObjectREFR* a_refr, const ReplacementAnimation* a_replacementAnimation);
+		static bool IsPreviewingAnimation(RE::TESObjectREFR* a_refr, const ReplacementAnimation* a_replacementAnimation, std::optional<uint16_t> a_variantIndex = std::nullopt);
 
         static int ReferenceInputTextCallback(struct ImGuiInputTextCallbackData* a_data);
 
@@ -61,6 +129,9 @@ namespace UI
         bool TreeNodeCollapsedLeafBehavior(ImGuiID a_id, ImGuiTreeNodeFlags a_flags, const char* a_label) const;
 
         std::string _lastAddNewConditionName;
+
+		std::vector<ConditionInfo> _conditionInfos{};
+
         std::unique_ptr<Conditions::ICondition> _conditionCopy = nullptr;
         std::unique_ptr<Conditions::ConditionSet> _conditionSetCopy = nullptr;
     };

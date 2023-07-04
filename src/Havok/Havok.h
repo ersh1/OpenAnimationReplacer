@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Offsets.h"
+
 namespace RE
 {
     struct hkbGeneratorOutput
@@ -181,38 +183,32 @@ namespace RE
         ~BSSynchronizedClipGenerator() override; // 00
 
         // members
-        uint32_t unk_48;
-        uint32_t unk_4C;
-        hkbClipGenerator* clipGenerator; // 50
-        uint64_t unk_58;
-        uint8_t unk_60;
-        float unk_64;
-        uint32_t unk_68;
-        uint8_t unk_6C;
-        uint8_t unk_6D;
-        uint8_t unk_6E;
-        class BGSSynchronizedAnimationInstance* synchronizedScene; // 70
-        uint32_t unk_78;
-        uint32_t unk_7C;
-        hkVector4 unk_80;
-        hkVector4 unk_90;
-        hkVector4 unk_A0;
-        hkVector4 unk_B0;
-        hkVector4 unk_C0;
-        hkVector4 unk_D0;
-        hkVector4 unk_E0;
-        hkVector4 unk_F0;
-        hkVector4 unk_100;
-        float unk_110;                    // 110
-        hkaAnimationBinding* binding_118; // 118
-        void* unk_120;                    // 120
-        uint16_t synchronizedAnimIndex;   // 128
-        bool unk_12A;                     // 12A
-        uint8_t unk_12B;                  // 12B
-        uint8_t unk_12C;                  // 12C
+		uint32_t unk48;
+		uint32_t unk4C;
+		hkbClipGenerator* clipGenerator;                            // 50
+		hkStringPtr syncAnimPrefix;                                 // 58
+		bool syncClipIgnoreMarkPlacement;                           // 60
+		float getToMarkTime;                                        // 64
+		float markErrorThreshold;                                   // 68
+		bool leadCharacter;                                         // 6C
+		bool reorientSupportChar;                                   // 6D
+		bool applyMotionFromRoot;                                   // 6E
+		class BGSSynchronizedAnimationInstance* synchronizedScene;  // 70
+		uint32_t unk78;
+		uint32_t unk7C;
+		hkQsTransform startingWorldFromModel;              // 80
+		hkQsTransform worldFromModelWithRootMotion;        // B0
+		hkQsTransform unkTransform;                        // E0
+		float getToMarkProgress;                           // 110
+		hkaAnimationBinding* binding;                      // 118
+		void* eventWithPrefixIdToEventWithoutPrefixIdMap;  // 120  hkPointerMap<int, int>*
+		uint16_t synchronizedAnimationBindingIndex;        // 128
+		bool doneReorientingSupportChar;                   // 12A
+		bool unk12B;                                       // 12B
+		bool unk12C;                                       // 12C
     };
     static_assert(sizeof(BSSynchronizedClipGenerator) == 0x130);
-    static_assert(offsetof(BSSynchronizedClipGenerator, synchronizedAnimIndex) == 0x128);
+	static_assert(offsetof(BSSynchronizedClipGenerator, synchronizedAnimationBindingIndex) == 0x128);
 
     class BGSSynchronizedAnimationInstance : public BSSynchronizedClipGenerator::hkbSynchronizedAnimationScene
     {
@@ -337,4 +333,28 @@ namespace RE
         static_assert(offsetof(ProjectDBData, eventNamesToIds) == 0xA0);
         static_assert(offsetof(ProjectDBData, projectData) == 0x160);
     }
+
+	class hkMemoryRouter
+	{
+	public:
+		uint64_t unk00;             // 00
+		uint64_t unk08;             // 08
+		uint64_t unk10;             // 10
+		uint64_t unk18;             // 18
+		uint64_t unk20;             // 20
+		uint64_t unk28;             // 28
+		uint64_t unk30;             // 30
+		uint64_t unk38;             // 38
+		uint64_t unk40;             // 40
+		uint64_t unk48;             // 48
+		hkMemoryAllocator* temp;    // 50
+		hkMemoryAllocator* heap;    // 58
+		hkMemoryAllocator* debug;   // 60
+		hkMemoryAllocator* solver;  // 68
+		void* userData;             // 70
+	};
+	static_assert(offsetof(hkMemoryRouter, heap) == 0x58);
 }
+
+inline RE::hkMemoryRouter& hkGetMemoryRouter() { return *(RE::hkMemoryRouter*)(uintptr_t)SKSE::WinAPI::TlsGetValue(g_dwTlsIndex); }
+inline void* hkHeapAlloc(int numBytes) { return hkGetMemoryRouter().heap->BlockAlloc(numBytes); }

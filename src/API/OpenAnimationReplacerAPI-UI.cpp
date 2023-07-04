@@ -2,11 +2,11 @@
 
 #include <imgui.h>
 
-OAR_API::UI::IUIInterface1* g_oarUIInterface = nullptr;
+OAR_API::UI::IUIInterface* g_oarUIInterface = nullptr;
 
 namespace OAR_API::UI
 {
-    IUIInterface1* GetAPI(const InterfaceVersion a_interfaceVersion /*= InterfaceVersion::V1*/)
+    IUIInterface* GetAPI(const InterfaceVersion a_interfaceVersion /*= InterfaceVersion::Latest*/)
     {
         if (g_oarUIInterface) {
             return g_oarUIInterface;

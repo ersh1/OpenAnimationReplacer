@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AnimationLog.h"
+#include "FakeClipGenerator.h"
 #include "ReplacementAnimation.h"
 
 // a core class of OAR - holds additional data and logic about an active clip generator, created when a clip generator is activated and destroyed when it is deactivated
@@ -25,68 +26,14 @@ public:
         AnimationLogEntry::Event replacementEvent;
 		std::optional<uint16_t> variantIndex = std::nullopt;
     };
-
-	// a fake clip generator to blend from when transitioning between replacer animations of the same clip (on interrupt etc)
-	// replicates the relevant parts of hkbClipGenerator so we basically can do the same thing as the update function does, to progress the clip naturally just like the game does
-    class BlendFromClipGenerator
-    {
-    public:
-        BlendFromClipGenerator(RE::hkbClipGenerator* a_clipGenerator);
-        ~BlendFromClipGenerator();
-
-        void Activate(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context);
-        void Update(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context, float a_deltaTime);
-
-        uint64_t pad00 = 0;
-        uint64_t pad08 = 0;
-        uint64_t pad10 = 0;
-        uint64_t pad18 = 0;
-        uint64_t pad20 = 0;
-        uint64_t pad28 = 0;
-        uint64_t userData = 0;
-        uint64_t pad38 = 0;
-        uint64_t pad40 = 0;
-        uint64_t pad48 = 0;
-        uint64_t pad50 = 0;
-        float cropStartAmountLocalTime;                                           // 058
-        float cropEndAmountLocalTime;                                             // 05C
-        float startTime;                                                          // 060
-        float playbackSpeed;                                                      // 064
-        float enforcedDuration;                                                   // 068
-        float userControlledTimeFraction;                                         // 06C
-        int16_t animationBindingIndex;                                            // 070
-        SKSE::stl::enumeration<RE::hkbClipGenerator::PlaybackMode, uint8_t> mode; // 072
-        uint8_t flags;                                                            // 073
-        uint32_t pad74 = 0;
-        uint64_t pad78 = 0;
-        uint64_t pad80 = 0;
-        RE::hkRefPtr<RE::hkaDefaultAnimationControl> animationControl; // 088
-        uint64_t pad90 = 0;
-        RE::hkaDefaultAnimationControlMapperData* mapperData; // 98
-        RE::hkaAnimationBinding* binding;                     // 0A0
-        uint64_t padA8 = 0;
-        RE::hkQsTransform extractedMotion; // B0
-        uint64_t padE0 = 0;
-        uint64_t padE8 = 0;
-        float localTime;                          // 0F0
-        float time;                               // 0F4
-        float previousUserControlledTimeFraction; // 0F8
-        uint32_t padFC = 0;
-        uint32_t pad100 = 0;
-        bool atEnd;            // 104
-        bool ignoreStartTime;  // 105
-        bool pingPongBackward; // 106
-
-        RE::hkRefPtr<RE::hkbBehaviorGraph> behaviorGraph = nullptr;
-    };
-
+	
 	using DestroyedCallback = std::function<void(ActiveClip* a_destroyedClip)>;
 
     [[nodiscard]] ActiveClip(RE::hkbClipGenerator* a_clipGenerator, RE::hkbCharacter* a_character, RE::hkbBehaviorGraph* a_behaviorGraph);
     ~ActiveClip();
 
 	bool ShouldReplaceAnimation(const ReplacementAnimation* a_newReplacementAnimation, bool a_bTryVariant, std::optional<uint16_t>& a_outVariantIndex);
-    void ReplaceAnimation(ReplacementAnimation* a_replacementAnimation, std::optional<uint16_t> a_variantIndex = std::nullopt);
+	void ReplaceAnimation(ReplacementAnimation* a_replacementAnimation, std::optional<uint16_t> a_variantIndex = std::nullopt);
     void RestoreOriginalAnimation();
     void QueueReplacementAnimation(ReplacementAnimation* a_replacementAnimation, float a_blendTime, AnimationLogEntry::Event a_replacementEvent, std::optional<uint16_t> a_variantIndex = std::nullopt);
     [[nodiscard]] ReplacementAnimation* PopQueuedReplacementAnimation();
@@ -100,6 +47,7 @@ public:
     [[nodiscard]] AnimationReplacements* GetReplacements() const { return _replacements; }
 	[[nodiscard]] uint16_t GetCurrentIndex() const { return _clipGenerator->animationBindingIndex; }
     [[nodiscard]] uint16_t GetOriginalIndex() const { return _originalIndex; }
+    [[nodiscard]] RE::hkbClipGenerator::PlaybackMode GetOriginalMode() const { return _originalMode; }
     [[nodiscard]] uint8_t GetOriginalFlags() const { return _originalFlags; }
     [[nodiscard]] RE::hkbClipGenerator* GetClipGenerator() const { return _clipGenerator; }
     [[nodiscard]] RE::hkbCharacter* GetCharacter() const { return _character; }
@@ -107,12 +55,12 @@ public:
     [[nodiscard]] RE::TESObjectREFR* GetRefr() const { return _refr; }
 
     // interruptible anim
-    [[nodiscard]] bool IsInterruptible() const { return _currentReplacementAnimation ? _currentReplacementAnimation->GetInterruptible() : _bOriginalInterruptible; }
+	[[nodiscard]] bool IsInterruptible() const { return _currentReplacementAnimation ? _currentReplacementAnimation->GetInterruptible() : _bOriginalInterruptible; }
     [[nodiscard]] bool IsBlending() const { return _blendFromClipGenerator != nullptr; }
     [[nodiscard]] bool IsTransitioning() const { return _bTransitioning; }
 	[[nodiscard]] bool ShouldReplaceOnLoop() const { return _currentReplacementAnimation ? _currentReplacementAnimation->GetReplaceOnLoop() : true; }
 	[[nodiscard]] bool ShouldReplaceOnEcho() const { return _currentReplacementAnimation ? _currentReplacementAnimation->GetReplaceOnEcho() : _bOriginalReplaceOnEcho; }
-    [[nodiscard]] bool ShouldKeepRandomResultsOnLoop() const { return _currentReplacementAnimation ? _currentReplacementAnimation->GetKeepRandomResultsOnLoop() : _bOriginalKeepRandomResultsOnLoop; }
+	[[nodiscard]] bool ShouldKeepRandomResultsOnLoop() const { return _currentReplacementAnimation ? _currentReplacementAnimation->GetKeepRandomResultsOnLoop() : _bOriginalKeepRandomResultsOnLoop; }
 	[[nodiscard]] bool ShouldShareRandomResults() const { return _currentReplacementAnimation ? _currentReplacementAnimation->GetShareRandomResults() : false; }
     void SetTransitioning(bool a_bValue) { _bTransitioning = a_bValue; }
     void StartBlend(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context, float a_blendTime);
@@ -141,6 +89,7 @@ protected:
     RE::TESObjectREFR* _refr;
 
     const uint16_t _originalIndex;
+	const RE::hkbClipGenerator::PlaybackMode _originalMode;
     const uint8_t _originalFlags;
     const bool _bOriginalInterruptible;
 	const bool _bOriginalReplaceOnEcho;
@@ -153,7 +102,7 @@ protected:
     float _blendElapsedTime = 0.f;
     float _lastGameTime = 0.f;
 
-    std::unique_ptr<BlendFromClipGenerator> _blendFromClipGenerator = nullptr;
+    std::unique_ptr<FakeClipGenerator> _blendFromClipGenerator = nullptr;
 
     SharedLock _randomLock;
     std::unordered_map<const Conditions::IRandomConditionComponent*, float> _randomFloats{};

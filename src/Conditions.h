@@ -12,6 +12,8 @@ namespace Conditions
     [[nodiscard]] std::unique_ptr<ICondition> DuplicateCondition(const std::unique_ptr<ICondition>& a_conditionToDuplicate);
     [[nodiscard]] std::unique_ptr<ConditionSet> DuplicateConditionSet(ConditionSet* a_conditionSetToDuplicate);
 
+	[[nodiscard]] std::unique_ptr<ICondition> ConvertDeprecatedCondition(std::unique_ptr<Conditions::ICondition>& a_deprecatedCondition, std::string_view a_conditionName, rapidjson::Value& a_value);
+
     class InvalidCondition : public ConditionBase
     {
     public:
@@ -24,7 +26,7 @@ namespace Conditions
 
         [[nodiscard]] RE::BSString GetArgument() const override { return _argument.data(); }
         [[nodiscard]] RE::BSString GetName() const override { return "! INVALID !"sv.data(); }
-        [[nodiscard]] RE::BSString GetDescription() const override { return _argument.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "The condition was not found!"sv.data(); }
         [[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 0, 0, 0 }; }
 
         [[nodiscard]] bool IsValid() const override { return false; }
@@ -33,6 +35,30 @@ namespace Conditions
         bool EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const override { return false; }
         std::string _argument;
     };
+
+	class DeprecatedCondition : public ConditionBase
+	{
+	public:
+		DeprecatedCondition() = default;
+
+		DeprecatedCondition(std::string_view a_argument)
+		{
+			_argument = a_argument;
+		}
+
+		[[nodiscard]] RE::BSString GetArgument() const override { return _argument.data(); }
+		[[nodiscard]] RE::BSString GetName() const override { return "! DEPRECATED !"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "The condition has been deprecated in the current version of Open Animation Replacer. This submod needs to be updated."; }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 0, 0, 0 }; }
+
+		[[nodiscard]] bool IsValid() const override { return false; }
+
+		[[nodiscard]] bool IsDeprecated() const override { return true; }
+
+	protected:
+		bool EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const override { return false; }
+		std::string _argument;
+	};
 
     class ORCondition : public ConditionBase
     {
@@ -1563,58 +1589,6 @@ namespace Conditions
 		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
 	};
 
-	class CurrentTargetCondition : public TargetConditionBase 
-	{
-	public:
-		CurrentTargetCondition()
-		{
-			formComponent = AddComponent<FormConditionComponent>("Form");
-			boolComponent = AddComponent<BoolConditionComponent>("Base", "Enable to check the form's base object.");
-			boolComponent->SetBoolValue(true);
-		}
-
-		[[nodiscard]] RE::BSString GetArgument() const override;
-		[[nodiscard]] RE::BSString GetCurrent(RE::TESObjectREFR* a_refr) const override;
-
-		[[nodiscard]] RE::BSString GetName() const override { return "CurrentTarget"sv.data(); }
-		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the actor's current target matches the specified form."sv.data(); }
-		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 1, 0 }; }
-
-		FormConditionComponent* formComponent;
-		BoolConditionComponent* boolComponent;
-
-	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
-
-		RE::TESForm* GetTargetForm(RE::TESObjectREFR* a_refr) const;
-	};
-
-	class CurrentTargetHasKeywordCondition : public TargetConditionBase
-	{
-	public:
-		CurrentTargetHasKeywordCondition()
-		{
-			keywordComponent = AddComponent<KeywordConditionComponent>("Keyword");
-			boolComponent = AddComponent<BoolConditionComponent>("Base", "Enable to check the form's base object.");
-			boolComponent->SetBoolValue(true);
-		}
-
-		[[nodiscard]] RE::BSString GetArgument() const override;
-		[[nodiscard]] RE::BSString GetCurrent(RE::TESObjectREFR* a_refr) const override;
-
-		[[nodiscard]] RE::BSString GetName() const override { return "CurrentTargetHasKeyword"sv.data(); }
-		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the actor's current target has the specified keyword."sv.data(); }
-		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 1, 0 }; }
-
-		KeywordConditionComponent* keywordComponent;
-		BoolConditionComponent* boolComponent;
-
-	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
-
-		RE::TESForm* GetTargetForm(RE::TESObjectREFR* a_refr) const;
-	};
-
 	class CurrentTargetDistanceCondition : public TargetConditionBase
 	{
 	public:
@@ -1669,34 +1643,6 @@ namespace Conditions
 
 		std::string_view GetRelationshipRankName(int32_t a_relationshipRank) const;
 		static std::map<int32_t, std::string_view> GetRelationshipRankEnumMap();
-	};
-
-	class CurrentTargetFactionRankCondition : public TargetConditionBase
-	{
-	public:
-		CurrentTargetFactionRankCondition()
-		{
-			factionComponent = AddComponent<FormConditionComponent>("Faction", "The faction that should be checked.");
-			comparisonComponent = AddComponent<ComparisonConditionComponent>("Comparison");
-			numericComponent = AddComponent<NumericConditionComponent>("Numeric value");
-		}
-
-		[[nodiscard]] RE::BSString GetArgument() const override;
-		[[nodiscard]] RE::BSString GetCurrent(RE::TESObjectREFR* a_refr) const override;
-
-		[[nodiscard]] RE::BSString GetName() const override { return "CurrentTargetFactionRank"sv.data(); }
-		[[nodiscard]] RE::BSString GetDescription() const override { return "Tests the faction rank of the actor's current target against a numeric value."sv.data(); }
-		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 1, 0 }; }
-
-		FormConditionComponent* factionComponent;
-		ComparisonConditionComponent* comparisonComponent;
-		NumericConditionComponent* numericComponent;
-
-	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
-
-		RE::TESObjectREFRPtr GetTarget(RE::TESObjectREFR* a_refr) const;
-		int32_t GetFactionRank(RE::TESObjectREFR* a_refr) const;
 	};
 
 	class EquippedObjectWeightCondition : public ConditionBase
@@ -1824,7 +1770,6 @@ namespace Conditions
 		CurrentWeatherHasFlagCondition()
 		{
 			weatherFlagComponent = AddComponent<NumericConditionComponent>("Flag", "The current weather must have this flag enabled.");
-			weatherFlagComponent->SetStaticValue(1);
 		}
 
 		void PostInitialize() override;
@@ -2026,6 +1971,108 @@ namespace Conditions
 		[[nodiscard]] RE::BSString GetName() const override { return "IsDoingFavor "sv.data(); }
 		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the ref has been asked to do something by the player."sv.data(); }
 		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 2, 0 }; }
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+	};
+
+	class AttackStateCondition : public ConditionBase
+	{
+	public:
+		AttackStateCondition()
+		{
+			comparisonComponent = AddComponent<ComparisonConditionComponent>("Comparison");
+			attackStateComponent = AddComponent<NumericConditionComponent>("Attack state", "The attack state value used in the comparison.");
+		}
+
+		void PostInitialize() override;
+
+		[[nodiscard]] RE::BSString GetArgument() const override;
+		[[nodiscard]] RE::BSString GetCurrent(RE::TESObjectREFR* a_refr) const override;
+
+		[[nodiscard]] RE::BSString GetName() const override { return "AttackState"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks the actor's attack state."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 3, 0 }; }
+
+		ComparisonConditionComponent* comparisonComponent;
+		NumericConditionComponent* attackStateComponent;
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+
+		RE::ATTACK_STATE_ENUM GetAttackState(RE::TESObjectREFR* a_refr) const;
+
+		std::string_view GetAttackStateName(RE::ATTACK_STATE_ENUM a_attackState) const;
+		static std::map<int32_t, std::string_view> GetEnumMap();
+	};
+
+	class IsMenuOpenCondition : public ConditionBase
+	{
+	public:
+		IsMenuOpenCondition()
+		{
+			textComponent = AddComponent<TextConditionComponent>("Menu name", "The menu name that should be open.\n\nKnown names:\nConsole\nConsole Native UI Menu\nContainerMenu\nCrafting Menu\nCreation Club Menu\nCredits Menu\nCursor Menu\nDialogue Menu\nFader Menu\nFavoritesMenu\nGiftMenu\nHUD Menu\nInventoryMenu\nJournal Menu\nKinect Menu\nLevelUp Menu\nLoading Menu\nLoadWaitSpinner\nLockpicking Menu\nMagicMenu\nMain Menu\nMapMenu\nMessageBoxMenu\nMist Menu\nMod Manager Menu\nRaceSex Menu\nSafeZoneMenu\nSleep/Wait Menu\nStatsMenu\nTitleSequence Menu\nTraining Menu\nTutorial Menu\nTweenMenu");
+		}
+
+		[[nodiscard]] RE::BSString GetArgument() const override { return textComponent->GetArgument(); }
+		[[nodiscard]] RE::BSString GetCurrent(RE::TESObjectREFR* a_refr) const override;
+
+		[[nodiscard]] RE::BSString GetName() const override { return "IsMenuOpen"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if a specific menu is currently open."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 3, 0 }; }
+
+		TextConditionComponent* textComponent;
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+	};
+
+	class TARGETCondition : public TargetConditionBase
+	{
+	public:
+		TARGETCondition()
+		{
+			conditionsComponent = AddComponent<MultiConditionComponent>("Conditions");
+		}
+
+		[[nodiscard]] RE::BSString GetArgument() const override { return conditionsComponent->GetArgument(); }
+		[[nodiscard]] RE::BSString GetCurrent(RE::TESObjectREFR* a_refr) const override;
+
+		[[nodiscard]] RE::BSString GetName() const override { return "TARGET"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if all of the child conditions are true, but evaluates them for the current target instead."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 3, 0 }; }
+
+		[[nodiscard]] bool IsValid() const override { return conditionsComponent->IsValid(); }
+
+		[[nodiscard]] RE::TESObjectREFR* GetRefrToEvaluate(RE::TESObjectREFR* a_refr) const override;
+
+		MultiConditionComponent* conditionsComponent;
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+
+		RE::TESObjectREFRPtr GetTarget(RE::TESObjectREFR* a_refr) const;
+	};
+
+	class PLAYERCondition : public ConditionBase
+	{
+	public:
+		PLAYERCondition()
+		{
+			conditionsComponent = AddComponent<MultiConditionComponent>("Conditions");
+		}
+
+		[[nodiscard]] RE::BSString GetArgument() const override { return conditionsComponent->GetArgument(); }
+
+		[[nodiscard]] RE::BSString GetName() const override { return "PLAYER"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if all of the child conditions are true, but evaluates them for the player instead."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 3, 0 }; }
+
+		[[nodiscard]] bool IsValid() const override { return conditionsComponent->IsValid(); }
+
+		[[nodiscard]] RE::TESObjectREFR* GetRefrToEvaluate(RE::TESObjectREFR* a_refr) const override;
+
+		MultiConditionComponent* conditionsComponent;
 
 	protected:
 		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;

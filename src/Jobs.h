@@ -143,6 +143,30 @@ namespace Jobs
         }
     };
 
+	struct BeginPreviewAnimationJob : GenericJob
+	{
+		BeginPreviewAnimationJob(RE::TESObjectREFR* a_refr, ReplacementAnimation* a_replacementAnimation, std::optional<uint16_t> a_variantIndex = std::nullopt) :
+			refr(a_refr),
+		    replacementAnimation(a_replacementAnimation),
+			variantIndex(a_variantIndex) {}
+
+		RE::TESObjectREFR* refr;
+		ReplacementAnimation* replacementAnimation;
+		std::optional<uint16_t> variantIndex;
+
+		void Run() override;
+	};
+
+	struct StopPreviewAnimationJob : GenericJob
+	{
+		StopPreviewAnimationJob(RE::TESObjectREFR* a_refr) :
+			refr(a_refr) {}
+
+		RE::TESObjectREFR* refr;
+
+		void Run() override;
+	};
+
 	struct RemoveSharedRandomFloatJob : LatentJob
 	{
 		RemoveSharedRandomFloatJob(float a_delay, SubMod* a_subMod, RE::hkbBehaviorGraph* a_behaviorGraph) :

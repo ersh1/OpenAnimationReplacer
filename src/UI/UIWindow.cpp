@@ -138,4 +138,11 @@ namespace UI
             ImGui::SetNextWindowSizeConstraints(_sizeData.sizeMin, _sizeData.sizeMax);
         }
     }
+
+    void UIWindow::ForceSetWidth(float a_width)
+    {
+		_sizeData.size.x = a_width;
+        _sizeData.sizeMin.x = a_width;
+		_sizeData.sizeMax.x = a_width;
+    }
 }

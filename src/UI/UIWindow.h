@@ -51,6 +51,7 @@ namespace UI
 
         void OnShouldDraw(bool a_bShouldDraw);
         void SetWindowDimensions(float a_offsetX = 0.f, float a_offsetY = 0.f, float a_sizeX = -1.f, float a_sizeY = -1.f, WindowAlignment a_alignment = WindowAlignment::kTopLeft, ImVec2 a_sizeMin = ImVec2(0, 0), ImVec2 a_sizeMax = ImVec2(0, 0), ImGuiCond_ a_cond = ImGuiCond_FirstUseEver);
+		void ForceSetWidth(float a_width);
 
         bool _bLastShouldDraw = false;
 

@@ -11,7 +11,7 @@ namespace OAR_API::Animations
 		}
 
 		const auto pluginHandle = GetModuleHandle("OpenAnimationReplacer.dll");
-		const auto requestAPIFunction = static_cast<_RequestPluginAPI_Animations>(GetProcAddress(pluginHandle, "RequestPluginAPI_Animations"));
+		const auto requestAPIFunction = reinterpret_cast<_RequestPluginAPI_Animations>(GetProcAddress(pluginHandle, "RequestPluginAPI_Animations"));
 		if (!requestAPIFunction) {
 			return nullptr;
 		}

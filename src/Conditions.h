@@ -2077,4 +2077,50 @@ namespace Conditions
 	protected:
 		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
 	};
+
+	class LightLevelCondition : public ConditionBase
+	{
+	public:
+		LightLevelCondition(ComparisonOperator a_comparisonOperator = ComparisonOperator::kEqual)
+		{
+			comparisonComponent = AddComponent<ComparisonConditionComponent>("Comparison");
+			numericComponent = AddComponent<NumericConditionComponent>("Numeric value");
+
+			comparisonComponent->comparisonOperator = a_comparisonOperator;
+		}
+
+		[[nodiscard]] RE::BSString GetArgument() const override;
+		[[nodiscard]] RE::BSString GetCurrent(RE::TESObjectREFR* a_refr) const override;
+
+		[[nodiscard]] RE::BSString GetName() const override { return "LightLevel"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Tests the current strength of lighting on this ref against the specified value."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 2, 0, 0 }; }
+
+		ComparisonConditionComponent* comparisonComponent;
+		NumericConditionComponent* numericComponent;
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+	};
+
+	class LocationHasKeywordCondition : public ConditionBase
+	{
+	public:
+		LocationHasKeywordCondition()
+		{
+			keywordComponent = AddComponent<KeywordConditionComponent>("Keyword");
+		}
+
+		[[nodiscard]] RE::BSString GetArgument() const override { return keywordComponent->GetArgument(); }
+		[[nodiscard]] RE::BSString GetCurrent(RE::TESObjectREFR* a_refr) const override;
+
+		[[nodiscard]] RE::BSString GetName() const override { return "LocationHasKeyword"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the current location has the specified keyword."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 2, 0, 0 }; }
+
+		KeywordConditionComponent* keywordComponent;
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+	};
 }

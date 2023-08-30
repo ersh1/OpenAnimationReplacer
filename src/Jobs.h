@@ -145,14 +145,21 @@ namespace Jobs
 
 	struct BeginPreviewAnimationJob : GenericJob
 	{
-		BeginPreviewAnimationJob(RE::TESObjectREFR* a_refr, ReplacementAnimation* a_replacementAnimation, std::optional<uint16_t> a_variantIndex = std::nullopt) :
+		BeginPreviewAnimationJob(RE::TESObjectREFR* a_refr, const ReplacementAnimation* a_replacementAnimation, std::optional<uint16_t> a_variantIndex = std::nullopt) :
 			refr(a_refr),
 		    replacementAnimation(a_replacementAnimation),
 			variantIndex(a_variantIndex) {}
 
+		BeginPreviewAnimationJob(RE::TESObjectREFR* a_refr, const ReplacementAnimation* a_replacementAnimation, std::string_view a_syncAnimationPrefix, std::optional<uint16_t> a_variantIndex = std::nullopt) :
+			refr(a_refr),
+			replacementAnimation(a_replacementAnimation),
+		    syncAnimationPrefix(a_syncAnimationPrefix),
+			variantIndex(a_variantIndex) {}
+
 		RE::TESObjectREFR* refr;
-		ReplacementAnimation* replacementAnimation;
+		const ReplacementAnimation* replacementAnimation;
 		std::optional<uint16_t> variantIndex;
+		std::string syncAnimationPrefix{};
 
 		void Run() override;
 	};

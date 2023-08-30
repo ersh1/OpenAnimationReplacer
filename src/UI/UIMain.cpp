@@ -425,6 +425,12 @@ namespace UI
             ImGui::TextUnformatted("Animation Log Settings");
             ImGui::Spacing();
 
+			if (ImGui::SliderFloat("Log width", &Settings::fAnimationLogWidth, 300.f, 1500.f, "%.0f", ImGuiSliderFlags_AlwaysClamp)) {
+				Settings::WriteSettings();
+			}
+			ImGui::SameLine();
+			UICommon::HelpMarker("Width of the animation log window.");
+
             constexpr uint32_t entriesMin = 1;
             constexpr uint32_t entriesMax = 20;
             if (ImGui::SliderScalar("Max entries", ImGuiDataType_U32, &Settings::uAnimationLogMaxEntries, &entriesMin, &entriesMax, "%d", ImGuiSliderFlags_AlwaysClamp)) {
@@ -811,7 +817,7 @@ namespace UI
 
         // node name
         ImGui::SameLine();
-        if (a_subMod->GetConditionSet()->HasInvalidConditions()) {
+        if (a_subMod->HasInvalidConditions()) {
             UICommon::TextUnformattedColored(UICommon::INVALID_CONDITION_COLOR, a_subMod->GetName().data());
         } else {
             ImGui::TextUnformatted(a_subMod->GetName().data());
@@ -953,27 +959,51 @@ namespace UI
 
             // Submod ignore no triggers flag
             {
-                std::string noTriggersFlagLabel = "Ignore No Triggers flag##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "ignoreNoTriggersFlag";
-                std::string noTriggersTooltip = "If checked, the animation clip flag \"Don't convert annotations to triggers\", set on some animation clips in vanilla, will be ignored. This means that animation triggers (events), included in the replacer animation as annotations, will now run instead of being ignored.";
+                std::string noTriggersFlagLabel = "Ignore \"Don't Convert Annotations To Triggers\" flag##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "ignoreDontConvertAnnotationsToTriggersFlag";
+                std::string noTriggersFlagTooltip = "If checked, the animation clip flag \"Don't convert annotations to triggers\", set on some animation clips in vanilla, will be ignored. This means that animation triggers (events) that included in the replacer animation file itself as annotations will now run, instead of being ignored.";
 
                 if (_editMode != ConditionEditMode::kNone) {
-                    bool tempIgnoreNoTriggersFlag = a_subMod->IsIgnoringNoTriggersFlag();
+                    bool tempIgnoreNoTriggersFlag = a_subMod->IsIgnoringDontConvertAnnotationsToTriggersFlag();
                     if (ImGui::Checkbox(noTriggersFlagLabel.data(), &tempIgnoreNoTriggersFlag)) {
-                        a_subMod->SetIgnoringNoTriggersFlag(tempIgnoreNoTriggersFlag);
+                        a_subMod->SetIgnoringDontConvertAnnotationsToTriggersFlag(tempIgnoreNoTriggersFlag);
                         OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::UpdateSubModJob>(a_subMod, false);
                         a_subMod->SetDirty(true);
                     }
                     ImGui::SameLine();
-                    UICommon::HelpMarker(noTriggersTooltip.data());
-                } else if (a_subMod->IsIgnoringNoTriggersFlag()) {
+					UICommon::HelpMarker(noTriggersFlagTooltip.data());
+                } else if (a_subMod->IsIgnoringDontConvertAnnotationsToTriggersFlag()) {
                     ImGui::BeginDisabled();
-                    bool tempIgnoreNoTriggersFlag = a_subMod->IsIgnoringNoTriggersFlag();
+                    bool tempIgnoreNoTriggersFlag = a_subMod->IsIgnoringDontConvertAnnotationsToTriggersFlag();
                     ImGui::Checkbox(noTriggersFlagLabel.data(), &tempIgnoreNoTriggersFlag);
                     ImGui::EndDisabled();
                     ImGui::SameLine();
-                    UICommon::HelpMarker(noTriggersTooltip.data());
+					UICommon::HelpMarker(noTriggersFlagTooltip.data());
                 }
             }
+
+			// Submod triggers from annotations only
+			{
+				std::string triggersFromAnnotationsOnlyLabel = "Only use triggers from annotations##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "triggersFromAnnotationsOnly";
+				std::string triggersFromAnnotationsOnlyTooltip = "If checked, the triggers \"baked in\" in the animation clips inside the behavior files will be ignored. The only events that will will be those from annotations inside the animation file.\nThe \"Don't convert annotations to triggers\" flag is still respected, so make sure to enable the above setting if necessary.";
+
+				if (_editMode != ConditionEditMode::kNone) {
+					bool tempTriggersFromAnnotationsOnly = a_subMod->IsOnlyUsingTriggersFromAnnotations();
+					if (ImGui::Checkbox(triggersFromAnnotationsOnlyLabel.data(), &tempTriggersFromAnnotationsOnly)) {
+						a_subMod->SetOnlyUsingTriggersFromAnnotations(tempTriggersFromAnnotationsOnly);
+						OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::UpdateSubModJob>(a_subMod, false);
+						a_subMod->SetDirty(true);
+					}
+					ImGui::SameLine();
+					UICommon::HelpMarker(triggersFromAnnotationsOnlyTooltip.data());
+				} else if (a_subMod->IsIgnoringDontConvertAnnotationsToTriggersFlag()) {
+					ImGui::BeginDisabled();
+					bool tempTriggersFromAnnotationsOnly = a_subMod->IsOnlyUsingTriggersFromAnnotations();
+					ImGui::Checkbox(triggersFromAnnotationsOnlyLabel.data(), &tempTriggersFromAnnotationsOnly);
+					ImGui::EndDisabled();
+					ImGui::SameLine();
+					UICommon::HelpMarker(triggersFromAnnotationsOnlyTooltip.data());
+				}
+			}
 
             // Submod interruptible
             {
@@ -1097,11 +1127,58 @@ namespace UI
 
             // Submod animations
             {
+				// list animation files
+				std::string filesTreeNodeLabel = "Animation Files##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "filesNode";
+				if (ImGui::CollapsingHeader(filesTreeNodeLabel.data())) {
+					ImGui::AlignTextToFramePadding();
+					UICommon::TextUnformattedWrapped("This section only lists all the animation files found in the submod. The \"Replacement Animations\" section below lists actual loaded replacement animations per behavior project, and allows configuration.");
+
+					ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2, 2));
+
+					std::string filesTableId = std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "filesTable";
+					if (ImGui::BeginTable(filesTableId.data(), 1, ImGuiTableFlags_BordersOuter)) {
+						const std::filesystem::path submodFullPath = a_subMod->GetPath();
+						a_subMod->ForEachReplacementAnimationFile([&](const ReplacementAnimationFile& a_file) {
+							ImGui::TableNextRow();
+							ImGui::TableSetColumnIndex(0);
+							ImGui::AlignTextToFramePadding();
+
+							const bool bHasVariants = a_file.variants.has_value();
+
+							const std::filesystem::path fileFullPath = a_file.fullPath;
+							const std::filesystem::path relativePath = fileFullPath.lexically_relative(submodFullPath);
+
+							UICommon::TextUnformattedEllipsisShort(a_file.fullPath.data(), relativePath.string().data(), nullptr, ImGui::GetContentRegionAvail().x);
+							if (bHasVariants) {
+								for (const auto& variant : *a_file.variants) {
+									ImGui::TableNextRow();
+									ImGui::TableSetColumnIndex(0);
+									ImGui::AlignTextToFramePadding();
+
+									const std::filesystem::path variantFullPath = variant.fullPath;
+									const std::filesystem::path variantRelativePath = variantFullPath.lexically_relative(submodFullPath);
+
+									ImGui::Indent();
+									UICommon::TextUnformattedEllipsisShort(variant.fullPath.data(), variantRelativePath.string().data(), nullptr, ImGui::GetContentRegionAvail().x);
+									ImGui::Unindent();
+								}
+							}
+						});
+						ImGui::EndTable();
+					}
+					ImGui::PopStyleVar();
+				}
+
                 std::string animationsTreeNodeLabel = "Replacement Animations##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "animationsNode";
                 if (ImGui::CollapsingHeader(animationsTreeNodeLabel.data())) {
+
+					UnloadedAnimationsWarning();
+
                     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2, 2));
+					
                     std::string animationsTableId = std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "animationsTable";
                     if (ImGui::BeginTable(animationsTableId.data(), 1, ImGuiTableFlags_BordersOuter)) {
+						const std::filesystem::path submodFullPath = a_subMod->GetPath();
                         a_subMod->ForEachReplacementAnimation([&](ReplacementAnimation* a_replacementAnimation) {
                             ImGui::TableNextRow();
                             ImGui::TableSetColumnIndex(0);
@@ -1138,26 +1215,16 @@ namespace UI
 
 							float previewButtonWidth = 0.f;
 							if (bCanPreview || bIsPreviewing) {
-								const std::string previewButtonName = bIsPreviewing ? "Stop" : "Preview";
-								const auto& style = ImGui::GetStyle();
-								previewButtonWidth = (ImGui::CalcTextSize(previewButtonName.data()).x + style.FramePadding.x * 2 + style.ItemSpacing.x);
+								previewButtonWidth = GetPreviewButtonsWidth(a_replacementAnimation, bIsPreviewing);
 							}
-							UICommon::TextUnformattedEllipsis(a_replacementAnimation->GetAnimPath().data(), nullptr, ImGui::GetContentRegionAvail().x - previewButtonWidth);
 
-							// preview button
-							if (bIsPreviewing) {
-							    ImGui::SameLine(ImGui::GetContentRegionMax().x - previewButtonWidth);
-                                const std::string label = std::format("Stop##{}", reinterpret_cast<uintptr_t>(a_replacementAnimation));
-                                if (ImGui::Button(label.data())) {
-                                    OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::StopPreviewAnimationJob>(refrToEvaluate);
-                                }
-							} else if (bCanPreview) {
-								ImGui::SameLine(ImGui::GetContentRegionMax().x - previewButtonWidth);
-								const std::string label = std::format("Preview##{}", reinterpret_cast<uintptr_t>(a_replacementAnimation));
-								if (ImGui::Button(label.data())) {
-									OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::BeginPreviewAnimationJob>(refrToEvaluate, a_replacementAnimation);
-								}
-							}
+							const std::filesystem::path fullPath = a_replacementAnimation->GetAnimPath();
+							const std::filesystem::path relativePath = fullPath.lexically_relative(submodFullPath);
+
+							UICommon::TextUnformattedEllipsisShort(a_replacementAnimation->GetAnimPath().data(), relativePath.string().data(), nullptr, ImGui::GetContentRegionAvail().x - previewButtonWidth);
+
+							// preview button(s)
+							DrawPreviewButtons(refrToEvaluate, a_replacementAnimation, previewButtonWidth, bCanPreview, bIsPreviewing);
 
 							// variants
 							if (bHasVariants) {
@@ -1202,33 +1269,23 @@ namespace UI
 
 									ImGui::SameLine();
 									UICommon::TextUnformattedDisabled("Filename:");
+									ImGui::SameLine();
 
 									bIsPreviewing = IsPreviewingAnimation(refrToEvaluate, a_replacementAnimation, a_variant.GetIndex());
 
 									float variantPreviewButtonWidth = 0.f;
 									if (bCanPreview || bIsPreviewing) {
-										const std::string variantPreviewButtonName = bIsPreviewing ? "Stop" : "Preview";
-										const auto& style = ImGui::GetStyle();
-										variantPreviewButtonWidth = (ImGui::CalcTextSize(variantPreviewButtonName.data()).x + style.FramePadding.x * 2 + style.ItemSpacing.x);
-									}
-									ImGui::SameLine();
-									UICommon::TextUnformattedEllipsis(a_variant.GetFilename().data(), nullptr, ImGui::GetContentRegionAvail().x - variantPreviewButtonWidth);
-									
-									// preview variant button
-									if (bIsPreviewing) {
-										ImGui::SameLine(ImGui::GetContentRegionMax().x - variantPreviewButtonWidth - 10.f);
-										const std::string label = std::format("Stop##{}", reinterpret_cast<uintptr_t>(&a_variant));
-										if (ImGui::Button(label.data())) {
-											OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::StopPreviewAnimationJob>(refrToEvaluate);
-										}
-									} else if (bCanPreview) {
-										ImGui::SameLine(ImGui::GetContentRegionMax().x - variantPreviewButtonWidth - 10.f);
-										const std::string label = std::format("Preview##{}", reinterpret_cast<uintptr_t>(&a_variant));
-										if (ImGui::Button(label.data())) {
-											OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::BeginPreviewAnimationJob>(refrToEvaluate, a_replacementAnimation, a_variant.GetIndex());
-										}
+										variantPreviewButtonWidth = GetPreviewButtonsWidth(a_replacementAnimation, bIsPreviewing);
 									}
 
+									std::filesystem::path fullVariantPath = a_replacementAnimation->GetAnimPath();
+								    fullVariantPath /= a_variant.GetFilename();
+
+									UICommon::TextUnformattedEllipsisShort(fullVariantPath.string().data(), a_variant.GetFilename().data(), nullptr, ImGui::GetContentRegionAvail().x - variantPreviewButtonWidth);
+									
+									// preview variant button
+									DrawPreviewButtons(refrToEvaluate, a_replacementAnimation, variantPreviewButtonWidth, bCanPreview, bIsPreviewing, &a_variant);
+									
 									ImGui::Unindent();
 
 									if (bVariantDisabled) {
@@ -1260,17 +1317,40 @@ namespace UI
                 ImVec2 pos = ImGui::GetCursorScreenPos();
                 pos.x += style.FramePadding.x;
                 pos.y += style.FramePadding.y;
+				ImGui::PushID(a_subMod->GetConditionSet());
 				DrawConditionSet(a_subMod->GetConditionSet(), _editMode, UIManager::GetSingleton().GetRefrToEvaluate(), true, pos);
+				ImGui::PopID();
                 ImGui::Unindent();
 
                 ImGui::Spacing();
                 ImGui::PopStyleVar();
             }
 
+			// Submod paired conditions
+			if (a_subMod->HasSynchronizedAnimations()) {
+				std::string pairedConditionsTreeNodeLabel = "Paired Conditions##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "pairedConditionsNode";
+				if (ImGui::CollapsingHeader(pairedConditionsTreeNodeLabel.data(), ImGuiTreeNodeFlags_DefaultOpen)) {
+					ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2, 2));
+
+					ImGui::Indent();
+					const ImGuiStyle& style = ImGui::GetStyle();
+					ImVec2 pos = ImGui::GetCursorScreenPos();
+					pos.x += style.FramePadding.x;
+					pos.y += style.FramePadding.y;
+					ImGui::PushID(a_subMod->GetSynchronizedConditionSet());
+					DrawConditionSet(a_subMod->GetSynchronizedConditionSet(), _editMode, UIManager::GetSingleton().GetRefrToEvaluate(), true, pos);
+					ImGui::PopID();
+					ImGui::Unindent();
+
+					ImGui::Spacing();
+					ImGui::PopStyleVar();
+				}
+			}
+
             if (_editMode != ConditionEditMode::kNone) {
                 if (_editMode == ConditionEditMode::kAuthor && a_replacerMod->IsLegacy()) {
                     // Save migration config
-                    ImGui::BeginDisabled(a_subMod->GetConditionSet()->HasInvalidConditions());
+                    ImGui::BeginDisabled(a_subMod->HasInvalidConditions());
                     UICommon::ButtonWithConfirmationModal("Save author config for migration", "This author config won't be read because this is a legacy mod.\nThe functionality is here for convenience only.\nYou can copy the resulting file to the proper folder when migrating your mods to the new structure.\n\n"sv, [&]() {
                         a_subMod->SaveConfig(_editMode, false);
                     });
@@ -1281,7 +1361,7 @@ namespace UI
                     if (!bIsDirty) {
                         ImGui::BeginDisabled();
                     }
-                    ImGui::BeginDisabled(a_subMod->GetConditionSet()->HasInvalidConditions());
+                    ImGui::BeginDisabled(a_subMod->HasInvalidConditions());
                     if (ImGui::Button(_editMode == ConditionEditMode::kAuthor ? "Save author config" : "Save user config")) {
                         a_subMod->SaveConfig(_editMode);
                     }
@@ -1316,7 +1396,7 @@ namespace UI
                 // copy json to clipboard button
                 if (a_replacerMod->IsLegacy() && _editMode == ConditionEditMode::kAuthor) {
                     ImGui::SameLine();
-                    ImGui::BeginDisabled(a_subMod->GetConditionSet()->HasInvalidConditions());
+                    ImGui::BeginDisabled(a_subMod->HasInvalidConditions());
                     if (ImGui::Button("Copy submod config to clipboard")) {
                         ImGui::LogToClipboard();
                         ImGui::LogText(a_subMod->SerializeToString().data());
@@ -1341,6 +1421,10 @@ namespace UI
         UICommon::HelpMarker("Type a part of an animation path to filter the list of replacement animations.");
 
         ImGui::Separator();
+
+		UnloadedAnimationsWarning();
+
+		ImGui::Spacing();
 
         if (ImGui::BeginChild("Datas")) {
             OpenAnimationReplacer::GetSingleton().ForEachReplacerProjectData([&](RE::hkbCharacterStringData* a_stringData, const auto& a_projectData) {
@@ -1448,26 +1532,12 @@ namespace UI
 
 			float previewButtonWidth = 0.f;
 			if (bCanPreview || bIsPreviewing) {
-				const std::string previewButtonName = bIsPreviewing ? "Stop" : "Preview";
-				const auto& style = ImGui::GetStyle();
-				previewButtonWidth = (ImGui::CalcTextSize(previewButtonName.data()).x + style.FramePadding.x * 2 + style.ItemSpacing.x);
+				previewButtonWidth = GetPreviewButtonsWidth(a_replacementAnimation, bIsPreviewing);
 			}
 			UICommon::TextUnformattedEllipsis(animPath.data(), nullptr, ImGui::GetContentRegionAvail().x - previewButtonWidth);
 
 			// preview button
-			if (bIsPreviewing) {
-				ImGui::SameLine(ImGui::GetContentRegionMax().x - previewButtonWidth);
-				const std::string label = std::format("Stop##{}", reinterpret_cast<uintptr_t>(a_replacementAnimation));
-				if (ImGui::Button(label.data())) {
-					OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::StopPreviewAnimationJob>(refrToEvaluate);
-				}
-			} else if (bCanPreview) {
-				ImGui::SameLine(ImGui::GetContentRegionMax().x - previewButtonWidth);
-				const std::string label = std::format("Preview##{}", reinterpret_cast<uintptr_t>(a_replacementAnimation));
-				if (ImGui::Button(label.data())) {
-					OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::BeginPreviewAnimationJob>(refrToEvaluate, a_replacementAnimation);
-				}
-			}
+			DrawPreviewButtons(refrToEvaluate, a_replacementAnimation, previewButtonWidth, bCanPreview, bIsPreviewing);
 
 			// draw variants
 			if (a_replacementAnimation->HasVariants())
@@ -1492,27 +1562,13 @@ namespace UI
 
 					float variantPreviewButtonWidth = 0.f;
 					if (bCanPreview || bIsPreviewing) {
-						const std::string variantPreviewButtonName = bIsPreviewing ? "Stop" : "Preview";
-						const auto& style = ImGui::GetStyle();
-						variantPreviewButtonWidth = (ImGui::CalcTextSize(variantPreviewButtonName.data()).x + style.FramePadding.x * 2 + style.ItemSpacing.x);
+						variantPreviewButtonWidth = GetPreviewButtonsWidth(a_replacementAnimation, bIsPreviewing);
 					}
 					ImGui::SameLine();
 					UICommon::TextUnformattedEllipsis(a_variant.GetFilename().data(), nullptr, ImGui::GetContentRegionAvail().x - variantPreviewButtonWidth);
 
 					// preview variant button
-					if (bIsPreviewing) {
-						ImGui::SameLine(ImGui::GetContentRegionMax().x - variantPreviewButtonWidth - 10.f);
-						const std::string label = std::format("Stop##{}", reinterpret_cast<uintptr_t>(&a_variant));
-						if (ImGui::Button(label.data())) {
-							OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::StopPreviewAnimationJob>(refrToEvaluate);
-						}
-					} else 	if (bCanPreview) {
-						ImGui::SameLine(ImGui::GetContentRegionMax().x - variantPreviewButtonWidth - 10.f);
-						const std::string label = std::format("Preview##{}", reinterpret_cast<uintptr_t>(&a_variant));
-						if (ImGui::Button(label.data())) {
-							OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::BeginPreviewAnimationJob>(refrToEvaluate, a_replacementAnimation, a_variant.GetIndex());
-						}
-					}
+					DrawPreviewButtons(refrToEvaluate, a_replacementAnimation, variantPreviewButtonWidth, bCanPreview, bIsPreviewing, &a_variant);
 
 					if (bVariantDisabled) {
 						ImGui::PopStyleVar();
@@ -2044,6 +2100,14 @@ namespace UI
 		}
     }
 
+    void UIMain::UnloadedAnimationsWarning()
+    {
+		ImGui::AlignTextToFramePadding();
+		ImGui::TextUnformatted("Animations from behavior projects that are not loaded will not show up here!");
+		ImGui::SameLine();
+		UICommon::HelpMarker("If the ones you're looking for are missing, make sure a character using them has been loaded by the game in this gameplay session.");
+    }
+
     void UIMain::CacheConditionInfos()
     {
         _conditionInfos.clear();
@@ -2359,6 +2423,58 @@ namespace UI
 		}
 
 		return false;
+    }
+
+    float UIMain::GetPreviewButtonsWidth(const ReplacementAnimation* a_replacementAnimation, bool a_bIsPreviewing)
+    {
+		const auto& style = ImGui::GetStyle();
+
+		if (a_bIsPreviewing) {
+			return ImGui::CalcTextSize("Stop").x + style.FramePadding.x * 2 + style.ItemSpacing.x;
+		}
+
+        if (a_replacementAnimation->IsSynchronizedAnimation()) {
+			return (ImGui::CalcTextSize("Preview source").x + style.FramePadding.x * 2 + style.ItemSpacing.x) + (ImGui::CalcTextSize("Preview target").x + style.FramePadding.x * 2 + style.ItemSpacing.x);
+		}
+
+        return (ImGui::CalcTextSize("Preview").x + style.FramePadding.x * 2 + style.ItemSpacing.x);
+    }
+
+    void UIMain::DrawPreviewButtons(RE::TESObjectREFR* a_refr, const ReplacementAnimation* a_replacementAnimation, float a_previewButtonWidth, bool a_bCanPreview, bool a_bIsPreviewing, const ReplacementAnimation::Variant* a_variant)
+    {
+		const float offset = a_variant ? -10.f : 0.f;
+
+		auto obj = a_variant ? reinterpret_cast<const void*>(a_variant) : reinterpret_cast<const void*>(a_replacementAnimation);
+
+        if (a_bIsPreviewing) {
+			ImGui::SameLine(ImGui::GetContentRegionMax().x - a_previewButtonWidth + offset);
+			const std::string label = std::format("Stop##{}", reinterpret_cast<uintptr_t>(obj));
+			if (ImGui::Button(label.data())) {
+				OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::StopPreviewAnimationJob>(a_refr);
+			}
+		} else if (a_bCanPreview) {
+			std::optional<uint16_t> variantIndex = std::nullopt;
+		    if (a_variant) {
+				variantIndex = a_variant->GetIndex();
+		    }
+			ImGui::SameLine(ImGui::GetContentRegionMax().x - a_previewButtonWidth + offset);
+			if (a_replacementAnimation->IsSynchronizedAnimation()) {
+				const std::string sourceLabel = std::format("Preview source##{}", reinterpret_cast<uintptr_t>(obj));
+				if (ImGui::Button(sourceLabel.data())) {
+					OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::BeginPreviewAnimationJob>(a_refr, a_replacementAnimation, Settings::synchronizedClipSourcePrefix, variantIndex);
+				}
+				ImGui::SameLine();
+				const std::string targetLabel = std::format("Preview target##{}", reinterpret_cast<uintptr_t>(obj));
+				if (ImGui::Button(targetLabel.data())) {
+					OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::BeginPreviewAnimationJob>(a_refr, a_replacementAnimation, Settings::synchronizedClipTargetPrefix, variantIndex);
+				}
+			} else {
+				const std::string label = std::format("Preview##{}", reinterpret_cast<uintptr_t>(obj));
+				if (ImGui::Button(label.data())) {
+					OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::BeginPreviewAnimationJob>(a_refr, a_replacementAnimation, variantIndex);
+				}
+			}
+		}
     }
 
     int UIMain::ReferenceInputTextCallback(struct ImGuiInputTextCallbackData* a_data)

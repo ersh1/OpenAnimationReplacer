@@ -6,37 +6,12 @@
 #include <rapidjson/filereadstream.h>
 #include <rapidjson/filewritestream.h>
 #include <rapidjson/prettywriter.h>
-#include <rapidjson/reader.h>
 
 #include "OpenAnimationReplacer.h"
-#include "AnimationFileHashCache.h"
 #include "Settings.h"
 
 namespace Parsing
 {
-    ReplacementAnimationToAdd::ReplacementAnimationToAdd(std::string_view a_fullPath, std::string_view a_animationPath, uint16_t a_originalBindingIndex) :
-        fullPath(a_fullPath),
-        animationPath(a_animationPath),
-        originalBindingIndex(a_originalBindingIndex)
-    {
-        if (Settings::bFilterOutDuplicateAnimations) {
-            hash = AnimationFileHashCache::CalculateHash(fullPath);
-        }
-    }
-
-    ReplacementAnimationToAdd::ReplacementAnimationToAdd(std::string_view a_fullPath, std::string_view a_animationPath, uint16_t a_originalBindingIndex, std::vector<VariantToAdd>& a_variants) :
-		fullPath(a_fullPath),
-		animationPath(a_animationPath),
-		originalBindingIndex(a_originalBindingIndex),
-		variants(std::move(a_variants))
-	{
-		if (Settings::bFilterOutDuplicateAnimations) {
-			for (auto& variant : *variants) {
-				variant.hash = (AnimationFileHashCache::CalculateHash(variant.fullPath));
-			}
-		}
-	}
-
     ConditionsTxtFile::ConditionsTxtFile(const std::filesystem::path& a_fileName) :
         file(a_fileName),
         filename(a_fileName.string())
@@ -78,11 +53,11 @@ namespace Parsing
                     // create and add a new condition
                     if (auto newCondition = Conditions::CreateConditionFromString(a_currentLine)) {
                         conditions->AddCondition(newCondition);
-                    }
 
-                    if (!bEndsWithOR && a_bInOrBlock) {
-                        // end an OR block
-                        return std::move(conditions);
+						if (!bEndsWithOR && a_bInOrBlock) {
+							// end an OR block
+							return std::move(conditions);
+						}
                     }
                 }
             }
@@ -257,9 +232,16 @@ namespace Parsing
             }
 
             // read ignore no triggers flag (optional)
-            if (auto ignoreNoTriggersIt = doc.FindMember("ignoreNoTriggersFlag"); ignoreNoTriggersIt != doc.MemberEnd() && ignoreNoTriggersIt->value.IsBool()) {
-                a_outParseResult.bIgnoreNoTriggersFlag = ignoreNoTriggersIt->value.GetBool();
+			if (auto ignoreDontConvertAnnotationsToTriggersFlagIt = doc.FindMember("ignoreDontConvertAnnotationsToTriggersFlag"); ignoreDontConvertAnnotationsToTriggersFlagIt != doc.MemberEnd() && ignoreDontConvertAnnotationsToTriggersFlagIt->value.IsBool()) {
+				a_outParseResult.bIgnoreDontConvertAnnotationsToTriggersFlag = ignoreDontConvertAnnotationsToTriggersFlagIt->value.GetBool();
+			} else if (auto ignoreNoTriggersIt = doc.FindMember("ignoreNoTriggersFlag"); ignoreNoTriggersIt != doc.MemberEnd() && ignoreNoTriggersIt->value.IsBool()) {  // old name
+				a_outParseResult.bIgnoreDontConvertAnnotationsToTriggersFlag = ignoreNoTriggersIt->value.GetBool();
             }
+
+			// read triggersOnly (optional)
+			if (auto triggersFromAnnotationsOnlyIt = doc.FindMember("triggersFromAnnotationsOnly"); triggersFromAnnotationsOnlyIt != doc.MemberEnd() && triggersFromAnnotationsOnlyIt->value.IsBool()) {
+				a_outParseResult.bTriggersFromAnnotationsOnly = triggersFromAnnotationsOnlyIt->value.GetBool();
+			}
 
             // read interruptible (optional)
             if (auto interruptibleIt = doc.FindMember("interruptible"); interruptibleIt != doc.MemberEnd() && interruptibleIt->value.IsBool()) {
@@ -303,6 +285,27 @@ namespace Parsing
                     a_outParseResult.conditionSet->AddCondition(condition);
                 }
             }
+
+			if (auto pairedConditionsIt = doc.FindMember("pairedConditions"); pairedConditionsIt != doc.MemberEnd() && pairedConditionsIt->value.IsArray()) {
+				for (auto& conditionValue : pairedConditionsIt->value.GetArray()) {
+					auto condition = Conditions::CreateConditionFromJson(conditionValue);
+					if (!condition->IsValid()) {
+						logger::error("Failed to parse paired condition in file: {}", a_jsonPath.string());
+
+						rapidjson::StringBuffer buffer;
+						rapidjson::PrettyWriter writer(buffer);
+						doc.Accept(writer);
+
+						logger::error("Dumping entire json file from memory: {}", buffer.GetString());
+					}
+
+					if (!a_outParseResult.synchronizedConditionSet) {
+						a_outParseResult.synchronizedConditionSet = std::make_unique<Conditions::ConditionSet>();
+					}
+
+					a_outParseResult.synchronizedConditionSet->AddCondition(condition);
+				}
+			}
 
             a_outParseResult.path = a_jsonPath.parent_path().string();
             a_outParseResult.bSuccess = true;
@@ -391,6 +394,10 @@ namespace Parsing
 		constexpr std::string_view substring = "_variants_"sv;
 
         const std::size_t substringStartPos = a_path.find(substring);
+		if (substringStartPos == std::string::npos) {
+			return a_path.data();
+		}
+
 		const std::size_t substringEndPos = substringStartPos + substring.length();
 
         std::string ret(a_path.substr(0, substringStartPos));
@@ -416,118 +423,208 @@ namespace Parsing
         return static_cast<uint16_t>(-1);
     }
 
-    ModParseResult ParseModDirectory(const std::filesystem::directory_entry& a_directory, RE::hkbCharacterStringData* a_stringData)
+	template <typename T>
+	std::future<T> MakeFuture(T& a_t)
+	{
+		std::promise<T> p;
+		p.set_value(std::forward<T>(a_t));
+		return p.get_future();
+	}
+
+    void ParseDirectory(const std::filesystem::directory_entry& a_directory, ParseResults& a_outParseResults)
     {
-        ModParseResult result;
+		static constexpr auto oarFolderName = "openanimationreplacer"sv;
+		static constexpr auto legacyFolderName = "dynamicanimationreplacer"sv;
 
-        // check whether the config json file exists first
-        const auto jsonPath = a_directory.path() / "config.json"sv;
+		std::vector<std::future<void>> futures;
 
-        if (is_regular_file(jsonPath)) {
-            // parse the config json file
-            if (DeserializeMod(jsonPath, result)) {
-                // parse the subfolders
-                if (Settings::bAsyncParsing) {
-                    std::vector<std::future<SubModParseResult>> futures;
-                    for (const auto& entry : std::filesystem::directory_iterator(a_directory)) {
-                        if (is_directory(entry)) {
-                            // we're in a mod subfolder. we have the animations here and a json.
-                            futures.emplace_back(std::async(std::launch::async, ParseModSubdirectory, entry, a_stringData, false));
-                        }
-                    }
+		for (const auto& entry : std::filesystem::directory_iterator(a_directory)) {
+			if (!entry.is_directory()) {
+				continue;
+			}
 
-                    for (auto& future : futures) {
-                        auto subModParseResult = future.get();
-                        if (subModParseResult.bSuccess) {
-                            result.subModParseResults.emplace_back(std::move(subModParseResult));
-                        } /* else {
+			std::string stemString;
+			try {
+				stemString = entry.path().stem().string();
+			} catch (const std::system_error&) {
+				auto path = entry.path().u8string();
+				std::string_view pathSv(reinterpret_cast<const char*>(path.data()), path.size());
+				logger::warn("invalid directory name at {}, skipping", pathSv);
+				continue;
+			}
+
+			if (Utils::CompareStringsIgnoreCase(stemString, oarFolderName)) {
+				// we're in an OAR folder
+				if (Settings::bAsyncParsing) {
+					for (const auto& subEntry : std::filesystem::directory_iterator(entry)) {
+						if (is_directory(subEntry)) {
+							// we're in a mod folder. we have the subfolders here and a json.
+							Locker locker(a_outParseResults.modParseResultsLock);
+							a_outParseResults.modParseResultFutures.emplace_back(std::async(std::launch::async, ParseModDirectory, subEntry));
+						}
+					}
+				} else {
+					for (const auto& subEntry : std::filesystem::directory_iterator(entry)) {
+						if (std::filesystem::is_directory(subEntry)) {
+							// we're in a mod folder. we have the subfolders here and a json.
+							auto modParseResult = ParseModDirectory(subEntry);
+							a_outParseResults.modParseResultFutures.emplace_back(MakeFuture(modParseResult));
+						}
+					}
+				}
+			} else if (Utils::CompareStringsIgnoreCase(stemString, legacyFolderName)) {
+				// we're in the DAR folder
+				for (const auto& subEntry : std::filesystem::directory_iterator(entry)) {
+					if (is_directory(subEntry)) {
+						std::string subEntryStemString;
+						try {
+							subEntryStemString = subEntry.path().stem().string();
+						} catch (const std::system_error&) {
+							auto path = subEntry.path().u8string();
+							std::string_view pathSv(reinterpret_cast<const char*>(path.data()), path.size());
+							logger::warn("invalid directory name at {}, skipping", pathSv);
+							continue;
+						}
+						if (Utils::CompareStringsIgnoreCase(subEntryStemString, "_CustomConditions"sv)) {
+							// we're in the _CustomConditions directory
+							for (const auto& subSubEntry : std::filesystem::directory_iterator(subEntry)) {
+								if (std::filesystem::is_directory(subSubEntry)) {
+									Locker locker(a_outParseResults.legacyParseResultsLock);
+									a_outParseResults.legacyParseResultFutures.emplace_back(std::async(std::launch::async, ParseLegacyCustomConditionsDirectory, subSubEntry));
+								}
+							}
+						} else {
+							// we're probably in a folder with a plugin name
+							for (auto subModParseResults = ParseLegacyPluginDirectory(subEntry); auto& subModParseResult : subModParseResults) {
+								if (subModParseResult.bSuccess) {
+									a_outParseResults.legacyParseResultFutures.emplace_back(MakeFuture(subModParseResult));
+								}
+							}
+						}
+					}
+				}
+			} else {
+			    // recursively parse the subdirectory
+				if (Settings::bAsyncParsing) {
+					                   futures.emplace_back(std::async(std::launch::async, ParseDirectory, entry, std::ref(a_outParseResults)));
+                } else {
+                    ParseDirectory(entry, a_outParseResults);
+				}
+			}
+		}
+
+		if (Settings::bAsyncParsing) {
+			for (auto& future : futures) {
+				future.get();
+			}
+		}
+    }
+
+    ModParseResult ParseModDirectory(const std::filesystem::directory_entry& a_directory)
+    {
+		ModParseResult result;
+
+		// check whether the config json file exists first
+		const auto jsonPath = a_directory.path() / "config.json"sv;
+
+		if (is_regular_file(jsonPath)) {
+			// parse the config json file
+			if (DeserializeMod(jsonPath, result)) {
+				// parse the subfolders
+				if (Settings::bAsyncParsing) {
+					std::vector<std::future<SubModParseResult>> futures;
+					for (const auto& entry : std::filesystem::directory_iterator(a_directory)) {
+						if (is_directory(entry)) {
+							// we're in a mod subfolder. we have the animations here and a json.
+							futures.emplace_back(std::async(std::launch::async, ParseModSubdirectory, entry, false));
+						}
+					}
+
+					for (auto& future : futures) {
+						auto subModParseResult = future.get();
+						if (subModParseResult.bSuccess) {
+							result.subModParseResults.emplace_back(std::move(subModParseResult));
+						}
+					}
+				} else {
+					for (const auto& entry : std::filesystem::directory_iterator(a_directory)) {
+						if (is_directory(entry)) {
+							// we're in a mod subfolder. we have the animations here and a json.
+							auto subModParseResult = ParseModSubdirectory(entry);
+							if (subModParseResult.bSuccess) {
+								result.subModParseResults.emplace_back(std::move(subModParseResult));
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return result;
+    }
+
+    SubModParseResult ParseModSubdirectory(const std::filesystem::directory_entry& a_subDirectory, bool a_bIsLegacy)
+    {
+		SubModParseResult result;
+
+		bool bDeserializeSuccess = false;
+
+		if (a_bIsLegacy) {
+			const auto userJsonPath = a_subDirectory.path() / "user.json"sv;
+			if (is_regular_file(userJsonPath)) {
+				result.configSource = ConfigSource::kUser;
+
+				// parse json
+				bDeserializeSuccess = DeserializeSubMod(userJsonPath, DeserializeMode::kWithoutNameDescription, result);
+			} else {
+				return result;
+			}
+		} else {
+			// check whether the config json file exists first
+			const auto configJsonPath = a_subDirectory.path() / "config.json"sv;
+			if (is_regular_file(configJsonPath)) {
+				result.configSource = ConfigSource::kAuthor;
+
+				// check whether user json exists
+				const auto userJsonPath = a_subDirectory.path() / "user.json"sv;
+				if (is_regular_file(userJsonPath)) {
+					result.configSource = ConfigSource::kUser;
+
+					// read name and description from the author json
+					if (!DeserializeSubMod(configJsonPath, DeserializeMode::kNameDescriptionOnly, result)) {
+						return result;
+					}
+				}
+
+				// parse json
+				if (result.configSource == ConfigSource::kUser) {
+					bDeserializeSuccess = DeserializeSubMod(userJsonPath, DeserializeMode::kWithoutNameDescription, result);
+				} else {
+					bDeserializeSuccess = DeserializeSubMod(configJsonPath, DeserializeMode::kFull, result);
+				}
+			} else {
+				return result;
+			}
+		}
+
+		if (bDeserializeSuccess) {
+			if (result.overrideAnimationsFolder.empty()) {
+				result.animationFiles = ParseAnimationsInDirectory(a_subDirectory, a_bIsLegacy);
+			} else {
+				const auto overridePath = a_subDirectory.path().parent_path() / result.overrideAnimationsFolder;
+				const auto overrideDirectory = std::filesystem::directory_entry(overridePath);
+				if (is_directory(overrideDirectory)) {
+					result.animationFiles = ParseAnimationsInDirectory(overrideDirectory, a_bIsLegacy);
+				} else {
 					result.bSuccess = false;
-				    }*/
-                    }
-                } else {
-                    for (const auto& entry : std::filesystem::directory_iterator(a_directory)) {
-                        if (is_directory(entry)) {
-                            // we're in a mod subfolder. we have the animations here and a json.
-                            auto subModParseResult = ParseModSubdirectory(entry, a_stringData);
-                            if (subModParseResult.bSuccess) {
-                                result.subModParseResults.emplace_back(std::move(subModParseResult));
-                            }
-                        }
-                    }
-                }
-            }
-        }
+				}
+			}
+		}
 
-        return result;
+		return result;
     }
 
-    SubModParseResult ParseModSubdirectory(const std::filesystem::directory_entry& a_subDirectory, RE::hkbCharacterStringData* a_stringData, bool a_bIsLegacy/* = false*/)
-    {
-        SubModParseResult result;
-
-        bool bDeserializeSuccess = false;
-
-        if (a_bIsLegacy) {
-            const auto userJsonPath = a_subDirectory.path() / "user.json"sv;
-            if (is_regular_file(userJsonPath)) {
-                result.configSource = ConfigSource::kUser;
-
-                // parse json
-                bDeserializeSuccess = DeserializeSubMod(userJsonPath, DeserializeMode::kWithoutNameDescription, result);
-            } else {
-                return result;
-            }
-        } else {
-            // check whether the config json file exists first
-            const auto configJsonPath = a_subDirectory.path() / "config.json"sv;
-            if (is_regular_file(configJsonPath)) {
-                result.configSource = ConfigSource::kAuthor;
-
-                // check whether user json exists
-                const auto userJsonPath = a_subDirectory.path() / "user.json"sv;
-                if (is_regular_file(userJsonPath)) {
-                    result.configSource = ConfigSource::kUser;
-
-                    // read name and description from the author json
-                    if (!DeserializeSubMod(configJsonPath, DeserializeMode::kNameDescriptionOnly, result)) {
-                        return result;
-                    }
-                }
-
-                // parse json
-                if (result.configSource == ConfigSource::kUser) {
-                    bDeserializeSuccess = DeserializeSubMod(userJsonPath, DeserializeMode::kWithoutNameDescription, result);
-                } else {
-                    bDeserializeSuccess = DeserializeSubMod(configJsonPath, DeserializeMode::kFull, result);
-                }
-            } else {
-                return result;
-            }
-        }
-
-        if (bDeserializeSuccess) {
-            // check required project name
-            if (result.requiredProjectName.empty() || result.requiredProjectName == a_stringData->name.data()) {
-                if (!result.overrideAnimationsFolder.empty()) {
-                    const auto overridePath = a_subDirectory.path().parent_path() / result.overrideAnimationsFolder;
-                    const auto overrideDirectory = std::filesystem::directory_entry(overridePath);
-                    if (is_directory(overrideDirectory)) {
-						result.animationsToAdd = ParseAnimationsInDirectory(overrideDirectory, a_stringData, a_bIsLegacy);
-                    } else {
-                        result.bSuccess = false;
-                    }
-                } else {
-					result.animationsToAdd = ParseAnimationsInDirectory(a_subDirectory, a_stringData, a_bIsLegacy);
-                }
-            } else {
-                result.bSuccess = false;
-            }
-        }
-
-        return result;
-    }
-
-    SubModParseResult ParseLegacyCustomConditionsDirectory(const std::filesystem::directory_entry& a_directory, RE::hkbCharacterStringData* a_stringData)
+    SubModParseResult ParseLegacyCustomConditionsDirectory(const std::filesystem::directory_entry& a_directory)
     {
         SubModParseResult result;
 
@@ -537,7 +634,7 @@ namespace Parsing
             // check whether the user json file exists, if yes, treat it as a OAR submod
             const auto jsonPath = a_directory.path() / "user.json"sv;
             if (is_regular_file(jsonPath)) {
-                result = ParseModSubdirectory(a_directory, a_stringData, true);
+                result = ParseModSubdirectory(a_directory, true);
                 result.name = std::to_string(result.priority);
                 return result;
             }
@@ -562,7 +659,7 @@ namespace Parsing
 					result.name = std::to_string(priority);
 					result.priority = priority;
 					result.conditionSet = ParseConditionsTxt(txtPath);  // parse conditions.txt
-					result.animationsToAdd = ParseAnimationsInDirectory(a_directory, a_stringData, true);
+					result.animationFiles = ParseAnimationsInDirectory(a_directory, true);
 					result.bKeepRandomResultsOnLoop = Settings::bLegacyKeepRandomResultsByDefault;
 					result.bSuccess = true;
 				} else {
@@ -586,7 +683,7 @@ namespace Parsing
         return result;
     }
 
-    std::vector<SubModParseResult> ParseLegacyPluginDirectory(const std::filesystem::directory_entry& a_directory, RE::hkbCharacterStringData* a_stringData)
+    std::vector<SubModParseResult> ParseLegacyPluginDirectory(const std::filesystem::directory_entry& a_directory)
     {
         std::vector<SubModParseResult> results;
 
@@ -600,7 +697,7 @@ namespace Parsing
                 // check whether the user json file exists, if yes, treat it as a OAR submod
                 auto jsonPath = subEntry.path() / "user.json"sv;
                 if (is_regular_file(jsonPath)) {
-                    auto result = ParseModSubdirectory(subEntry, a_stringData, true);
+                    auto result = ParseModSubdirectory(subEntry, true);
 
                     const std::string fileString = a_directory.path().stem().string();
                     const std::string extensionString = a_directory.path().extension().string();
@@ -654,7 +751,7 @@ namespace Parsing
                         result.name = argument;
                         result.priority = 0;
                         result.conditionSet = std::move(conditionSet);
-                        result.animationsToAdd = ParseAnimationsInDirectory(subEntry, a_stringData, true);
+                        result.animationFiles = ParseAnimationsInDirectory(subEntry, true);
                         result.bKeepRandomResultsOnLoop = Settings::bLegacyKeepRandomResultsByDefault;
                         result.bSuccess = true;
                         result.path = subEntry.path().string();
@@ -672,33 +769,31 @@ namespace Parsing
         return results;
     }
 
-    std::optional<ReplacementAnimationToAdd> ParseReplacementAnimationEntry(RE::hkbCharacterStringData* a_stringData, std::string_view a_fullPath)
+    std::optional<ReplacementAnimationFile> ParseReplacementAnimationEntry(std::string_view a_fullPath)
     {
-		const std::string strippedPath = StripProjectPath(a_fullPath);
-		const std::string originalAnimationPath = StripReplacerPath(strippedPath);
-
-        const auto originalIndex = GetOriginalAnimationBindingIndex(a_stringData, originalAnimationPath);
-        if (originalIndex != static_cast<uint16_t>(-1)) {
-			return ReplacementAnimationToAdd(a_fullPath, strippedPath, originalIndex);
-        }
-
-        return std::nullopt;
+        return ReplacementAnimationFile(a_fullPath);
     }
 
-    std::optional<ReplacementAnimationToAdd> ParseReplacementAnimationVariants(RE::hkbCharacterStringData* a_stringData, std::string_view a_fullVariantsPath)
+    std::optional<ReplacementAnimationFile> ParseReplacementAnimationVariants(std::string_view a_fullVariantsPath)
     {
-		const std::string strippedVariantsPath = StripProjectPath(a_fullVariantsPath);
-		const std::string originalAnimationPath = ConvertVariantsPath(StripReplacerPath(strippedVariantsPath));
+		std::vector<ReplacementAnimationFile::Variant> variants;
 
-		const auto originalIndex = GetOriginalAnimationBindingIndex(a_stringData, originalAnimationPath);
-		if (originalIndex != static_cast<uint16_t>(-1)) {
-			std::vector<ReplacementAnimationToAdd::VariantToAdd> variants;
+		// iterate over all files
+		for (const auto& fileEntry : std::filesystem::directory_iterator(a_fullVariantsPath)) {
+			std::string extensionString;
+			try {
+				extensionString = fileEntry.path().extension().string();
+			} catch (const std::system_error&) {
+				auto path = fileEntry.path().u8string();
+				std::string_view pathSv(reinterpret_cast<const char*>(path.data()), path.size());
+				logger::warn("invalid filename at {}, skipping", pathSv);
+				continue;
+			}
 
-		    // iterate over all files
-			for (const auto& fileEntry : std::filesystem::directory_iterator(a_fullVariantsPath)) {
-				std::string extensionString;
+			if (is_regular_file(fileEntry) && Utils::CompareStringsIgnoreCase(extensionString, ".hkx"sv)) {
+				std::string fullPath;
 				try {
-					extensionString = fileEntry.path().extension().string();
+					fullPath = fileEntry.path().string();
 				} catch (const std::system_error&) {
 					auto path = fileEntry.path().u8string();
 					std::string_view pathSv(reinterpret_cast<const char*>(path.data()), path.size());
@@ -706,30 +801,20 @@ namespace Parsing
 					continue;
 				}
 
-			    if (is_regular_file(fileEntry) && Utils::CompareStringsIgnoreCase(extensionString, ".hkx"sv)) {
-				    std::string fullPath;
-				    try {
-						fullPath = fileEntry.path().string();
-				    } catch (const std::system_error&) {
-						auto path = fileEntry.path().u8string();
-					    std::string_view pathSv(reinterpret_cast<const char*>(path.data()), path.size());
-					    logger::warn("invalid filename at {}, skipping", pathSv);
-					    continue;
-				    }
-
-			        variants.emplace_back(fullPath);
-			    }
+			    variants.emplace_back(fullPath);
 			}
-
-			return ReplacementAnimationToAdd(a_fullVariantsPath, strippedVariantsPath, originalIndex, variants);
 		}
 
-		return std::nullopt;
+		if (variants.empty()) {
+		    return std::nullopt;
+		}
+
+		return ReplacementAnimationFile(a_fullVariantsPath, variants);
     }
 
-    std::vector<ReplacementAnimationToAdd> ParseAnimationsInDirectory(const std::filesystem::directory_entry& a_directory, RE::hkbCharacterStringData* a_stringData, bool a_bIsLegacy/* = false*/)
+    std::vector<ReplacementAnimationFile> ParseAnimationsInDirectory(const std::filesystem::directory_entry& a_directory, bool a_bIsLegacy /* = false*/)
     {
-        std::vector<ReplacementAnimationToAdd> result;
+		std::vector<ReplacementAnimationFile> result;
 
 		if (!a_bIsLegacy) {
 			std::vector<std::string> filenamesToSkip{};
@@ -761,14 +846,14 @@ namespace Parsing
 
 						filenamesToSkip.emplace_back(ConvertVariantsPath(directoryNameString));
 
-						if (auto anim = ParseReplacementAnimationVariants(a_stringData, directoryEntryPath)) {
+						if (auto anim = ParseReplacementAnimationVariants(directoryEntryPath)) {
 							result.emplace_back(*anim);
 						}
 
 					} else {
 						// parse child directory normally
 						// append result
-						auto res = ParseAnimationsInDirectory(fileEntry, a_stringData, a_bIsLegacy);
+						auto res = ParseAnimationsInDirectory(fileEntry, a_bIsLegacy);
 						result.reserve(result.size() + res.size());
 						result.insert(result.end(), std::make_move_iterator(res.begin()), std::make_move_iterator(res.end()));
 					}
@@ -819,7 +904,7 @@ namespace Parsing
 					        continue;
 					    }
 
-					    if (auto anim = ParseReplacementAnimationEntry(a_stringData, fileEntryPath)) {
+					    if (auto anim = ParseReplacementAnimationEntry(fileEntryPath)) {
 						    result.emplace_back(*anim);
 					    }
 					}
@@ -847,7 +932,7 @@ namespace Parsing
 						logger::warn("invalid filename at {}, skipping", pathSv);
 						continue;
 					}
-					if (auto anim = ParseReplacementAnimationEntry(a_stringData, fileEntryPath)) {
+					if (auto anim = ParseReplacementAnimationEntry(fileEntryPath)) {
 						result.emplace_back(*anim);
 					}
 				}

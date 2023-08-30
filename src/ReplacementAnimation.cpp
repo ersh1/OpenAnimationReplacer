@@ -1,7 +1,34 @@
 #include "ReplacementAnimation.h"
 
 #include "ActiveClip.h"
+#include "AnimationFileHashCache.h"
 #include "Parsing.h"
+#include "ReplacerMods.h"
+#include "Settings.h"
+
+ReplacementAnimationFile::ReplacementAnimationFile(std::string_view a_fullPath) :
+	fullPath(a_fullPath)
+{
+	if (Settings::bFilterOutDuplicateAnimations) {
+		hash = AnimationFileHashCache::CalculateHash(fullPath);
+	}
+}
+
+ReplacementAnimationFile::ReplacementAnimationFile(std::string_view a_fullPath, std::vector<Variant>& a_variants) :
+	fullPath(a_fullPath),
+	variants(std::move(a_variants))
+{
+	if (Settings::bFilterOutDuplicateAnimations) {
+		for (auto& variant : *variants) {
+			variant.hash = (AnimationFileHashCache::CalculateHash(variant.fullPath));
+		}
+	}
+}
+
+std::string ReplacementAnimationFile::GetOriginalPath() const
+{
+	return Parsing::ConvertVariantsPath(Parsing::StripReplacerPath(fullPath));
+}
 
 bool ReplacementAnimation::Variant::ShouldSaveToJson() const
 {
@@ -101,7 +128,8 @@ ReplacementAnimation::ReplacementAnimation(uint16_t a_index, uint16_t a_original
 	_priority(a_priority),
 	_path(a_path),
 	_projectName(a_projectName),
-	_conditionSet(a_conditionSet) {}
+	_conditionSet(a_conditionSet)
+{}
 
 ReplacementAnimation::ReplacementAnimation(std::vector<Variant>& a_variants, uint16_t a_originalIndex, int32_t a_priority, std::string_view a_path, std::string_view a_projectName, Conditions::ConditionSet* a_conditionSet) :
 	_originalIndex(a_originalIndex),
@@ -161,6 +189,20 @@ uint16_t ReplacementAnimation::GetIndex(ActiveClip* a_activeClip) const
 SubMod* ReplacementAnimation::GetParentSubMod() const
 {
     return _parentSubMod;
+}
+
+void ReplacementAnimation::MarkAsSynchronizedAnimation(bool a_bSynchronized)
+{
+    _bSynchronized = a_bSynchronized;
+
+	if (_parentSubMod) {
+		_parentSubMod->SetHasSynchronizedAnimations();
+	}
+}
+
+void ReplacementAnimation::SetSynchronizedConditionSet(Conditions::ConditionSet* a_synchronizedConditionSet)
+{
+    _synchronizedConditionSet = a_synchronizedConditionSet;
 }
 
 void ReplacementAnimation::LoadAnimData(const ReplacementAnimData& a_replacementAnimData)
@@ -246,4 +288,16 @@ bool ReplacementAnimation::EvaluateConditions(RE::TESObjectREFR* a_refr, RE::hkb
     }
 
     return _conditionSet->EvaluateAll(a_refr, a_clipGenerator);
+}
+
+bool ReplacementAnimation::EvaluateSynchronizedConditions(RE::TESObjectREFR* a_sourceRefr, RE::TESObjectREFR* a_targetRefr, RE::hkbClipGenerator* a_clipGenerator) const
+{
+    if (IsDisabled()) {
+        return false;
+    }
+
+	const bool bPassingSourceConditions = _conditionSet->IsEmpty() || _conditionSet->EvaluateAll(a_sourceRefr, a_clipGenerator);
+	const bool bPassingTargetConditions = !_synchronizedConditionSet || _synchronizedConditionSet->IsEmpty() || _synchronizedConditionSet->EvaluateAll(a_targetRefr, a_clipGenerator);
+
+    return bPassingSourceConditions && bPassingTargetConditions;
 }

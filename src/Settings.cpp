@@ -38,6 +38,7 @@ void Settings::ReadSettings()
             ReadFloatSetting(ini, "UI", "fAnimationQueueLingerTime", fAnimationQueueLingerTime);
 
             ReadBoolSetting(ini, "UI", "bEnableAnimationLog", bEnableAnimationLog);
+			ReadFloatSetting(ini, "UI", "fAnimationLogWidth", fAnimationLogWidth);
             ReadUInt32Setting(ini, "UI", "uAnimationLogSize", uAnimationLogMaxEntries);
             ReadUInt32Setting(ini, "UI", "uAnimationActivateLogMode", uAnimationActivateLogMode);
             ReadUInt32Setting(ini, "UI", "uAnimationEchoLogMode", uAnimationEchoLogMode);
@@ -100,6 +101,7 @@ void Settings::WriteSettings()
     ini.SetDoubleValue("UI", "fAnimationQueueLingerTime", fAnimationQueueLingerTime);
 
     ini.SetBoolValue("UI", "bEnableAnimationLog", bEnableAnimationLog);
+	ini.SetDoubleValue("UI", "fAnimationLogWidth", fAnimationLogWidth);
     ini.SetLongValue("UI", "uAnimationLogSize", uAnimationLogMaxEntries);
     ini.SetLongValue("UI", "uAnimationActivateLogMode", uAnimationActivateLogMode);
     ini.SetLongValue("UI", "uAnimationEchoLogMode", uAnimationEchoLogMode);

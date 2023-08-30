@@ -48,6 +48,8 @@ namespace Hooks
 
         _hkbClipGenerator_Activate(a_this, a_context);
 
+		activeClip->OnPostActivate(a_this, a_context);
+
         /*if (activeClip->IsInterruptible()) {
             activeClip->LoadInterruptibleReplacements(a_context.character);
         }*/
@@ -88,7 +90,7 @@ namespace Hooks
                 return;
             }
         }
-
+		
         _hkbClipGenerator_Generate(a_this, a_context, a_activeChildrenOutput, a_output, a_timeOffset);
 
         if (activeClip && activeClip->IsBlending()) {
@@ -137,19 +139,25 @@ namespace Hooks
 
     void HavokHooks::BSSynchronizedClipGenerator_Activate(RE::BSSynchronizedClipGenerator* a_this, const RE::hkbContext& a_context)
     {
-		bool bAdded;
-		const auto activeSynchronizedClip = OpenAnimationReplacer::GetSingleton().AddOrGetActiveSynchronizedClip(a_this, a_context, bAdded);
+		const auto activeSynchronizedAnimation = OpenAnimationReplacer::GetSingleton().AddOrGetActiveSynchronizedAnimation(a_this->synchronizedScene, a_context);
 
-		activeSynchronizedClip->OnActivate(a_this, a_context);
+		activeSynchronizedAnimation->OnSynchronizedClipActivate(a_this, a_context);
 
-        _BSSynchronizedClipGenerator_Activate(a_this, a_context);
+		_BSSynchronizedClipGenerator_Activate(a_this, a_context);
     }
 
     void HavokHooks::BSSynchronizedClipGenerator_Deactivate(RE::BSSynchronizedClipGenerator* a_this, const RE::hkbContext& a_context)
     {
 		_BSSynchronizedClipGenerator_Deactivate(a_this, a_context);
 
-		OpenAnimationReplacer::GetSingleton().RemoveActiveSynchronizedClip(a_this);
+		OpenAnimationReplacer::GetSingleton().OnSynchronizedClipDeactivate(a_this, a_context);
+    }
+
+    void HavokHooks::BGSSynchronizedAnimationInstance_dtor(RE::BGSSynchronizedAnimationInstance* a_this)
+    {
+		OpenAnimationReplacer::GetSingleton().RemoveActiveSynchronizedAnimation(a_this);
+
+        _BGSSynchronizedAnimationInstance_dtor(a_this);
     }
 
     void HavokHooks::hkbBehaviorGraph_Update(RE::hkbBehaviorGraph* a_this, const RE::hkbContext& a_context, float a_timestep)
@@ -172,16 +180,19 @@ namespace Hooks
 
     void HavokHooks::LoadClips(RE::hkbCharacterStringData* a_stringData, RE::hkbAnimationBindingSet* a_bindingSet, void* a_assetLoader, RE::hkbBehaviorGraph* a_rootBehavior, const char* a_animationPath, RE::BSTHashMap<RE::BSFixedString, uint32_t>* a_annotationToEventIdMap)
     {
-		// parse the animation directory for all the replacement animations, create all our objects like replacement animations and conditions etc
+		// create replacement animations and insert their paths into the string data
 		// do this before LoadClips actually runs because it reads the animation name array to create all the animation bindings and we need to add our new animations to it before that happens
 
         const auto projectDBData = SKSE::stl::adjust_pointer<RE::BShkbHkxDB::ProjectDBData>(a_annotationToEventIdMap, -0xA0);
-        OpenAnimationReplacer::GetSingleton().CreateReplacementAnimations(a_animationPath, a_stringData, projectDBData);
+		OpenAnimationReplacer::GetSingleton().CreateReplacementAnimations(a_animationPath, a_stringData, projectDBData);
 
         _LoadClips(a_stringData, a_bindingSet, a_assetLoader, a_rootBehavior, a_animationPath, a_annotationToEventIdMap);
+
+		// Build list of synchronized clip indexes
+		OpenAnimationReplacer::GetSingleton().MarkSynchronizedReplacementAnimations(a_stringData, a_rootBehavior);
     }
 
-    bool HavokHooks::CreateSynchronizedClips(RE::hkbBehaviorGraph* a_behaviorGraph, RE::hkbCharacter* a_character, RE::BSTHashMap<RE::BSFixedString, uint32_t>* a_annotationToEventIdMap)
+    bool HavokHooks::CreateSynchronizedClips([[maybe_unused]] RE::hkbBehaviorGraph* a_behaviorGraph, [[maybe_unused]] RE::hkbCharacter* a_character, [[maybe_unused]] RE::BSTHashMap<RE::BSFixedString, uint32_t>* a_annotationToEventIdMap)
     {
 		// check if we maybe went over the limit after everything (synchronized clips add more entries to the binding array) and error out the game because it's in a broken state
         const bool ret = _CreateSynchronizedClips(a_behaviorGraph, a_character, a_annotationToEventIdMap);
@@ -234,13 +245,10 @@ namespace Hooks
 		// this means the game could try to play the wrong animation and break synchronized anims for the project that wasn't loaded first
 		// so instead we save an index offset to our replacer project data, which is unique per project, save the index with the offset subtracted (so they start at 0), and add the correct offset back when the synchronized anim is activated
 
-        REL::Relocation<uintptr_t> BSSynchronizedClipGeneratorVtbl{ RE::VTABLE_BSSynchronizedClipGenerator[0] };
-        _BSSynchronizedClipGenerator_Activate = BSSynchronizedClipGeneratorVtbl.write_vfunc(0x4, BSSynchronizedClipGenerator_Activate);
-		_BSSynchronizedClipGenerator_Deactivate = BSSynchronizedClipGeneratorVtbl.write_vfunc(0x7, BSSynchronizedClipGenerator_Deactivate);
-
 		// xbyak patch to call our function which will replace the value of the synchronized anim index with one that isn't relative to the amount of animations in the project
-        static REL::Relocation<uintptr_t> func{ REL::VariantID(63017, 63942, 0xB40550) }; // B05710, B2A980, B40550  hkbBehaviorGraph::unk
+        static REL::Relocation<uintptr_t> func{ REL::VariantID(63017, 63942, 0xB40550) }; // B05710, B2A980, B40550  hkbBehaviorGraph::CreateSynchronizedClipBindings
 
+		uint8_t patchNop5[] = { 0x90, 0x90, 0x90, 0x90, 0x90 };                                                  // nop
         uint8_t patchNopD[] = { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 }; // nop
 
         auto& trampoline = SKSE::GetTrampoline();
@@ -283,18 +291,18 @@ namespace Hooks
             }
         };
 
-        Patch patch(reinterpret_cast<uintptr_t>(SetSynchronizedClipID));
+        Patch patch(reinterpret_cast<uintptr_t>(OnCreateSynchronizedClipBinding));
         patch.ready();
         SKSE::AllocTrampoline(8 + patch.getSize());
         REL::safe_write<uint8_t>(func.address() + REL::VariantOffset(0x1EE, 0x1D3, 0x1EE).offset(), patchNopD);
         trampoline.write_branch<6>(func.address() + REL::VariantOffset(0x1EE, 0x1D3, 0x1EE).offset(), trampoline.allocate(patch));
     }
 
-    void HavokHooks::SetSynchronizedClipID(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, RE::hkbCharacter* a_character)
+    void HavokHooks::OnCreateSynchronizedClipBinding(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, RE::hkbCharacter* a_character)
     {
         a_synchronizedClipGenerator->synchronizedAnimationBindingIndex -= OpenAnimationReplacer::GetSingleton().GetSynchronizedClipsIDOffset(a_character);
     }
-
+	
     void HavokHooks::PatchUnsignedAnimationBindingIndex()
     {
 		// patch all the places I could find where the game treats the animation binding index as int16 to treat it as uint16 instead

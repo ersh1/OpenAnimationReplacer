@@ -45,6 +45,7 @@ struct Settings
     static inline float fAnimationQueueLingerTime = 5.f;
 
     static inline bool bEnableAnimationLog = false;
+	static inline float fAnimationLogWidth = 650.f;
     static inline uint32_t uAnimationLogMaxEntries = 10;
     static inline uint32_t uAnimationActivateLogMode = 2;
     static inline uint32_t uAnimationEchoLogMode = 0;
@@ -72,8 +73,12 @@ struct Settings
     static inline uint16_t maxAnimLimitIncreased = 0xFFFE;
     static uint16_t GetMaxAnimLimit();
     static void ClampAnimLimit();
-
+	
     constexpr static inline std::string_view iniPath = "Data/SKSE/Plugins/OpenAnimationReplacer.ini";
     constexpr static inline std::string_view imguiIni = "Data/SKSE/Plugins/OpenAnimationReplacer_ImGui.ini";
     constexpr static inline std::string_view animationFileHashCachePath = "Data/SKSE/Plugins/OpenAnimationReplacer_animFileHashCache.bin";
+
+    constexpr static inline std::string_view synchronizedClipSourcePrefix = "NPC";
+    constexpr static inline std::string_view synchronizedClipTargetPrefix = "2_";
+
 };

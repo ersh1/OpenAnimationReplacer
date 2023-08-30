@@ -1004,7 +1004,7 @@ namespace Conditions
     void RandomCondition::InitializeLegacy(const char* a_argument)
     {
         numericComponent->value.ParseLegacy(a_argument);
-        comparisonComponent->SetComparisonOperator(ComparisonOperator::kLess);
+        comparisonComponent->SetComparisonOperator(ComparisonOperator::kLessEqual);
         randomComponent->SetMinValue(0.f);
         randomComponent->SetMaxValue(1.f);
     }
@@ -1023,9 +1023,9 @@ namespace Conditions
         const float v = numericComponent->GetNumericValue(a_refr);
 
         float randomFloat;
-        if (!randomComponent->GetRandomFloat(a_clipGenerator, randomFloat)) {
-            return true;
-        }
+		if (!randomComponent->GetRandomFloat(a_clipGenerator, randomFloat)) {
+			return true;
+		}
 
         return comparisonComponent->GetComparisonResult(randomFloat, v);
     }
@@ -1331,9 +1331,9 @@ namespace Conditions
 
             numericComponent->value.ParseLegacy(firstArg);
             factionComponent->form.ParseLegacy(secondArg);
+        } else {
+			logger::error("Invalid argument: {}", argument);
         }
-
-        logger::error("Invalid argument: {}", argument);
     }
 
     RE::BSString FactionRankCondition::GetArgument() const
@@ -3379,4 +3379,59 @@ namespace Conditions
 
 		return conditionsComponent->conditionSet->EvaluateAll(a_refr, a_clipGenerator);
     }
+
+    RE::BSString LightLevelCondition::GetArgument() const
+    {
+		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+
+		return std::format("Light level {} {}", separator, numericComponent->value.GetArgument()).data();
+    }
+
+    RE::BSString LightLevelCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				return std::to_string(Actor_GetLightLevel(actor)).data();
+			}
+		}
+
+		return ""sv.data();
+    }
+
+    bool LightLevelCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				return comparisonComponent->GetComparisonResult(Actor_GetLightLevel(actor), numericComponent->GetNumericValue(a_refr));
+			}
+		}
+
+		return false;
+    }
+
+	RE::BSString LocationHasKeywordCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+	{
+		if (a_refr) {
+			if (const auto currentLocation = a_refr->GetCurrentLocation()) {
+				if (const auto keywordForm = currentLocation->As<RE::BGSKeywordForm>()) {
+					return Utils::GetFormKeywords(keywordForm).data();
+				}
+			}
+		}
+
+		return ConditionBase::GetCurrent(a_refr);
+	}
+
+	bool LocationHasKeywordCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	{
+		if (a_refr) {
+			if (const auto currentLocation = a_refr->GetCurrentLocation()) {
+				if (const auto keywordForm = currentLocation->As<RE::BGSKeywordForm>()) {
+					return keywordComponent->HasKeyword(keywordForm);
+				}
+			}
+		}
+
+		return false;
+	}
 }

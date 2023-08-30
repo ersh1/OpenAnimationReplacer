@@ -3,49 +3,75 @@
 #include <ranges>
 
 #include "DetectedProblems.h"
+#include "Offsets.h"
 #include "OpenAnimationReplacer.h"
 #include "Settings.h"
 
-void SubMod::AddReplacementAnimations(RE::hkbCharacterStringData* a_stringData, RE::BShkbHkxDB::ProjectDBData* a_projectDBData, const std::vector<Parsing::ReplacementAnimationToAdd>& a_animationsToAdd)
+bool SubMod::AddReplacementAnimation(std::string_view a_animPath, uint16_t a_originalIndex, ReplacerProjectData* a_replacerProjectData, RE::hkbCharacterStringData* a_stringData)
 {
-    const auto replacerProjectData = OpenAnimationReplacer::GetSingleton().GetOrAddReplacerProjectData(a_stringData, a_projectDBData);
+	bool bAdded = false;
 
-    for (auto& replacementAnimToAdd : a_animationsToAdd) {
-		if (auto newReplacementAnimation = CreateReplacementAnimation(replacerProjectData, a_stringData, replacementAnimToAdd)) {
-            newReplacementAnimation->_parentSubMod = this;
-            {
-                WriteLocker locker(_dataLock);
-                _replacementAnimations.emplace_back(newReplacementAnimation.get());
+    if (const auto search = _replacementAnimationFiles.find(a_animPath.data()); search != _replacementAnimationFiles.end()) {
 
-                // sort replacement animations by path
-                std::ranges::sort(_replacementAnimations, [](const auto& a_lhs, const auto& a_rhs) {
-                    return a_lhs->_path < a_rhs->_path;
-                });
-            }
+	    std::unique_ptr<ReplacementAnimation> newReplacementAnimation = nullptr;
 
-            replacerProjectData->AddReplacementAnimation(a_stringData, replacementAnimToAdd.originalBindingIndex, newReplacementAnimation);
-        }
-    }
-}
-
-std::unique_ptr<ReplacementAnimation> SubMod::CreateReplacementAnimation(ReplacerProjectData* a_replacerProjectData, RE::hkbCharacterStringData* a_stringData, const Parsing::ReplacementAnimationToAdd& a_anim)
-{
-	if (a_anim.variants) {
-		std::vector<ReplacementAnimation::Variant> variants;
-		for (auto& variantToAdd : *a_anim.variants) {
-			if (uint16_t newIndex = a_replacerProjectData->TryAddAnimationToAnimationBundleNames(variantToAdd.fullPath, variantToAdd.hash); newIndex != static_cast<uint16_t>(-1)) {
-				variants.emplace_back(newIndex, Utils::GetFileNameWithExtension(variantToAdd.fullPath));
+		auto& animFile = search->second;
+		if (animFile.variants) {
+			std::vector<ReplacementAnimation::Variant> variants;
+			for (auto& variantToAdd : *animFile.variants) {
+				if (uint16_t newIndex = a_replacerProjectData->TryAddAnimationToAnimationBundleNames(variantToAdd.fullPath, variantToAdd.hash); newIndex != static_cast<uint16_t>(-1)) {
+					variants.emplace_back(newIndex, Utils::GetFileNameWithExtension(variantToAdd.fullPath));
+				}
 			}
+
+			newReplacementAnimation = std::make_unique<ReplacementAnimation>(variants, a_originalIndex, _priority, animFile.fullPath, a_stringData->name.data(), _conditionSet.get());
+		} else if (uint16_t newIndex = a_replacerProjectData->TryAddAnimationToAnimationBundleNames(animFile.fullPath, animFile.hash); newIndex != static_cast<uint16_t>(-1)) {
+			newReplacementAnimation = std::make_unique<ReplacementAnimation>(newIndex, a_originalIndex, _priority, animFile.fullPath, a_stringData->name.data(), _conditionSet.get());
 		}
 
-		return std::make_unique<ReplacementAnimation>(variants, a_anim.originalBindingIndex, _priority, a_anim.animationPath, a_stringData->name.data(), _conditionSet.get());
-	}
+		if (newReplacementAnimation) {
+			bAdded = true;
+			newReplacementAnimation->_parentSubMod = this;
 
-	if (uint16_t newIndex = a_replacerProjectData->TryAddAnimationToAnimationBundleNames(a_anim.animationPath, a_anim.hash); newIndex != static_cast<uint16_t>(-1)) {
-		return std::make_unique<ReplacementAnimation>(newIndex, a_anim.originalBindingIndex, _priority, a_anim.animationPath, a_stringData->name.data(), _conditionSet.get());
+			{
+				WriteLocker locker(_dataLock);
+				_replacementAnimations.emplace_back(newReplacementAnimation.get());
+
+				// sort replacement animations by path
+				std::ranges::sort(_replacementAnimations, [](const auto& a_lhs, const auto& a_rhs) {
+					return a_lhs->_path < a_rhs->_path;
+				});
+			}
+
+			// load anim data
+			const auto animDataSearch = std::ranges::find_if(_replacementAnimDatas, [&](const ReplacementAnimData& a_replacementAnimData) {
+				return a_replacementAnimData.projectName == a_stringData->name.data() && a_replacementAnimData.path == a_animPath;
+            });
+
+			if (animDataSearch != _replacementAnimDatas.end()) {
+			    newReplacementAnimation->LoadAnimData(*animDataSearch);
+            }
+
+			a_replacerProjectData->AddReplacementAnimation(a_stringData, a_originalIndex, newReplacementAnimation);
+			AddReplacerProject(a_replacerProjectData);
+		}
+    }
+
+	return bAdded;
+}
+
+void SubMod::SetAnimationFiles(const std::vector<ReplacementAnimationFile>& a_animationFiles)
+{
+	auto& openAnimationReplacer = OpenAnimationReplacer::GetSingleton();
+
+	WriteLocker locker(_dataLock);
+
+	for (const auto& animFile : a_animationFiles) {
+		auto originalPath = animFile.GetOriginalPath();
+
+		_replacementAnimationFiles.emplace(originalPath, animFile);
+		openAnimationReplacer.CacheAnimationPathSubMod(originalPath, this);
 	}
-	
-	return nullptr;
 }
 
 void SubMod::LoadParseResult(const Parsing::SubModParseResult& a_parseResult)
@@ -58,17 +84,23 @@ void SubMod::LoadParseResult(const Parsing::SubModParseResult& a_parseResult)
     _description = a_parseResult.description;
     _priority = a_parseResult.priority;
     _bDisabled = a_parseResult.bDisabled;
+	_replacementAnimDatas = a_parseResult.replacementAnimDatas;
     _overrideAnimationsFolder = a_parseResult.overrideAnimationsFolder;
     _requiredProjectName = a_parseResult.requiredProjectName;
-    _bIgnoreNoTriggersFlag = a_parseResult.bIgnoreNoTriggersFlag;
+    _bIgnoreDontConvertAnnotationsToTriggersFlag = a_parseResult.bIgnoreDontConvertAnnotationsToTriggersFlag;
+	_bTriggersFromAnnotationsOnly = a_parseResult.bTriggersFromAnnotationsOnly;
     _bInterruptible = a_parseResult.bInterruptible;
 	_bReplaceOnLoop = a_parseResult.bReplaceOnLoop;
 	_bReplaceOnEcho = a_parseResult.bReplaceOnEcho;
     _bKeepRandomResultsOnLoop = a_parseResult.bKeepRandomResultsOnLoop;
 	_bShareRandomResults = a_parseResult.bShareRandomResults;
     _conditionSet->MoveConditions(a_parseResult.conditionSet.get());
+	if (a_parseResult.synchronizedConditionSet) {
+		SetHasSynchronizedAnimations();
+		_synchronizedConditionSet->MoveConditions(a_parseResult.synchronizedConditionSet.get());
+	}
 	
-	LoadReplacementAnimationDatas(a_parseResult.replacementAnimDatas);
+	LoadReplacementAnimationDatas(_replacementAnimDatas);
 
     SetDirtyRecursive(false);
 }
@@ -100,7 +132,8 @@ void SubMod::UpdateAnimations() const
     for (const auto& anim : _replacementAnimations) {
         anim->SetPriority(_priority);
         anim->SetDisabledByParent(_bDisabled);
-        anim->SetIgnoreNoTriggersFlag(_bIgnoreNoTriggersFlag);
+        anim->SetIgnoreDontConvertAnnotationsToTriggersFlag(_bIgnoreDontConvertAnnotationsToTriggersFlag);
+		anim->SetTriggersFromAnnotationsOnly(_bTriggersFromAnnotationsOnly);
         anim->SetInterruptible(_bInterruptible);
 		anim->SetReplaceOnLoop(_bReplaceOnLoop);
 		anim->SetReplaceOnEcho(_bReplaceOnEcho);
@@ -140,6 +173,22 @@ void SubMod::DeleteUserConfig() const
     if (is_regular_file(jsonPath)) {
         std::filesystem::remove(jsonPath);
     }
+}
+
+bool SubMod::HasInvalidConditions() const
+{
+    return _conditionSet->HasInvalidConditions() || (_synchronizedConditionSet && _synchronizedConditionSet->HasInvalidConditions());
+}
+
+void SubMod::SetHasSynchronizedAnimations()
+{
+	if (!_synchronizedConditionSet) {
+		_synchronizedConditionSet = std::make_unique<Conditions::ConditionSet>(this);
+
+		for (auto& anim : _replacementAnimations) {
+		    anim->SetSynchronizedConditionSet(_synchronizedConditionSet.get());
+        }
+	}
 }
 
 bool SubMod::ReloadConfig()
@@ -353,11 +402,17 @@ void SubMod::Serialize(rapidjson::Document& a_doc, ConditionEditMode a_editMode)
         a_doc.AddMember("requiredProjectName", requiredProjectNameValue, allocator);
     }
 
-    // write ignore no triggers flag
-    if (_bIgnoreNoTriggersFlag) {
-        rapidjson::Value ignoreNoTriggersValue(_bIgnoreNoTriggersFlag);
-        a_doc.AddMember("ignoreNoTriggersFlag", ignoreNoTriggersValue, allocator);
+    // write ignore DONT_CONVERT_ANNOTATIONS_TO_TRIGGERS flag
+    if (_bIgnoreDontConvertAnnotationsToTriggersFlag) {
+        rapidjson::Value ignoreNoTriggersValue(_bIgnoreDontConvertAnnotationsToTriggersFlag);
+        a_doc.AddMember("ignoreDontConvertAnnotationsToTriggersFlag", ignoreNoTriggersValue, allocator);
     }
+
+	// write triggers from annotations only
+	if (_bTriggersFromAnnotationsOnly) {
+		rapidjson::Value triggersOnlyValue(_bTriggersFromAnnotationsOnly);
+		a_doc.AddMember("triggersFromAnnotationsOnly", triggersOnlyValue, allocator);
+	}
 
     // write interruptible
     if (_bInterruptible) {
@@ -391,8 +446,13 @@ void SubMod::Serialize(rapidjson::Document& a_doc, ConditionEditMode a_editMode)
 
     // write conditions
     rapidjson::Value conditionArrayValue = _conditionSet->Serialize(allocator);
-
     a_doc.AddMember("conditions", conditionArrayValue, allocator);
+
+	// write paired conditions
+	if (_synchronizedConditionSet) {
+	    rapidjson::Value pairedConditionArrayValue = _synchronizedConditionSet->Serialize(allocator);
+        a_doc.AddMember("pairedConditions", pairedConditionArrayValue, allocator);
+	}
 }
 
 std::string SubMod::SerializeToString() const
@@ -434,7 +494,8 @@ void SubMod::ResetToLegacy()
     _bDisabled = false;
     _overrideAnimationsFolder = "";
     _requiredProjectName = "";
-    _bIgnoreNoTriggersFlag = false;
+    _bIgnoreDontConvertAnnotationsToTriggersFlag = false;
+	_bTriggersFromAnnotationsOnly = false;
     _bInterruptible = false;
 	_bReplaceOnLoop = true;
 	_bReplaceOnEcho = false;
@@ -453,7 +514,8 @@ void SubMod::ResetReplacementAnimationsToLegacy()
 	for (const auto& anim : _replacementAnimations) {
 		anim->SetDisabled(false);
 		anim->ResetVariants();
-		anim->SetIgnoreNoTriggersFlag(_bIgnoreNoTriggersFlag);
+		anim->SetIgnoreDontConvertAnnotationsToTriggersFlag(_bIgnoreDontConvertAnnotationsToTriggersFlag);
+		anim->SetTriggersFromAnnotationsOnly(_bTriggersFromAnnotationsOnly);
 		anim->SetInterruptible(_bInterruptible);
 		anim->SetReplaceOnLoop(_bReplaceOnLoop);
 		anim->SetReplaceOnEcho(_bReplaceOnEcho);
@@ -465,6 +527,14 @@ void SubMod::ResetReplacementAnimationsToLegacy()
 
 void SubMod::AddReplacerProject(ReplacerProjectData* a_replacerProject)
 {
+    {
+		ReadLocker locker(_dataLock);
+
+		if (std::ranges::find(_replacerProjects, a_replacerProject) != _replacerProjects.end()) {
+		    return;
+		}
+    }
+
     WriteLocker locker(_dataLock);
 
     _replacerProjects.emplace_back(a_replacerProject);
@@ -490,6 +560,21 @@ void SubMod::ForEachReplacementAnimation(const std::function<void(ReplacementAni
 
     for (auto& replacementAnimation : _replacementAnimations) {
         a_func(replacementAnimation);
+    }
+}
+
+void SubMod::ForEachReplacementAnimationFile(const std::function<void(const ReplacementAnimationFile&)>& a_func) const
+{
+	ReadLocker locker(_dataLock);
+
+	std::map<std::string, const ReplacementAnimationFile*> sortedReplacementAnimationFiles;
+
+    for (const auto& entry : _replacementAnimationFiles) {
+		sortedReplacementAnimationFiles.emplace(entry.first.string(), &entry.second);
+    }
+
+	for (const auto& entry : sortedReplacementAnimationFiles | std::views::values) {
+	    a_func(*entry);
     }
 }
 
@@ -734,6 +819,21 @@ ReplacementAnimation* AnimationReplacements::EvaluateConditionsAndGetReplacement
     return nullptr;
 }
 
+ReplacementAnimation* AnimationReplacements::EvaluateSynchronizedConditionsAndGetReplacementAnimation(RE::TESObjectREFR* a_sourceRefr, RE::TESObjectREFR* a_targetRefr, RE::hkbClipGenerator* a_clipGenerator) const
+{
+	ReadLocker locker(_lock);
+
+	if (!_replacements.empty()) {
+		for (auto& replacementAnimation : _replacements) {
+			if (replacementAnimation->EvaluateSynchronizedConditions(a_sourceRefr, a_targetRefr, a_clipGenerator)) {
+				return replacementAnimation.get();
+			}
+		}
+	}
+
+	return nullptr;
+}
+
 void AnimationReplacements::AddReplacementAnimation(std::unique_ptr<ReplacementAnimation>& a_replacementAnimation)
 {
     WriteLocker locker(_lock);
@@ -816,6 +916,17 @@ void AnimationReplacements::TestKeepRandomResultsOnLoop()
     }
 
     _bOriginalKeepRandomResultsOnLoop = false;
+}
+
+void AnimationReplacements::MarkAsSynchronizedAnimation(bool a_bSynchronized)
+{
+	_bSynchronized = a_bSynchronized;
+
+	ReadLocker locker(_lock);
+
+	for (const auto& replacementAnimation : _replacements) {
+		replacementAnimation->MarkAsSynchronizedAnimation(a_bSynchronized);
+	}
 }
 
 ReplacementAnimation* ReplacerProjectData::EvaluateConditionsAndGetReplacementAnimation(RE::hkbClipGenerator* a_clipGenerator, uint16_t a_originalIndex, RE::TESObjectREFR* a_refr) const
@@ -919,6 +1030,37 @@ void ReplacerProjectData::QueueReplacementAnimations(RE::hkbCharacter* a_charact
     OpenAnimationReplacer::bIsPreLoading = false;
 
     animationsToQueue.clear();
+}
+
+void ReplacerProjectData::MarkSynchronizedReplacementAnimations(RE::hkbGenerator* a_rootGenerator)
+{
+	if (!a_rootGenerator) {
+	    return;
+	}
+
+	RE::hkbNode::GetChildrenFlagBits getChildrenFlags = RE::hkbNode::GetChildrenFlagBits::kGeneratorsOnly;
+
+	RE::UnkIteratorStruct iter;
+	UnkNodeIterator_ctor(&iter, getChildrenFlags, a_rootGenerator);
+
+	std::unordered_set<uint16_t> synchronizedClipIndexes;
+
+    if (auto node = UnkNodeIterator_GetNext(&iter)) {
+	    do {
+			const auto classType = node->GetClassType();
+			if (classType->name == *g_str_BSSynchronizedClipGenerator) {
+				const auto synchronizedClipGenerator = static_cast<RE::BSSynchronizedClipGenerator*>(node);
+				synchronizedClipIndexes.emplace(synchronizedClipGenerator->clipGenerator->animationBindingIndex);
+			}
+			node = UnkNodeIterator_GetNext(&iter);
+	    } while (node);
+	}
+
+	for (const auto& index : synchronizedClipIndexes) {
+	    if (const auto replacementAnimations = GetAnimationReplacements(index)) {
+	        replacementAnimations->MarkAsSynchronizedAnimation(true);
+        }
+	}
 }
 
 AnimationReplacements* ReplacerProjectData::GetAnimationReplacements(uint16_t a_originalIndex) const

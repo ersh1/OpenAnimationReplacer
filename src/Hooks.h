@@ -25,6 +25,14 @@ namespace Hooks
             _hkbClipGenerator_Generate = hkbClipGeneratorVtbl.write_vfunc(0x17, hkbClipGenerator_Generate);
             _hkbClipGenerator_StartEcho = hkbClipGeneratorVtbl.write_vfunc(0x1B, hkbClipGenerator_StartEcho);
 
+			// Hook synchronized clip related stuff
+			REL::Relocation<uintptr_t> BSSynchronizedClipGeneratorVtbl{ RE::VTABLE_BSSynchronizedClipGenerator[0] };
+			_BSSynchronizedClipGenerator_Activate = BSSynchronizedClipGeneratorVtbl.write_vfunc(0x4, BSSynchronizedClipGenerator_Activate);
+			_BSSynchronizedClipGenerator_Deactivate = BSSynchronizedClipGeneratorVtbl.write_vfunc(0x7, BSSynchronizedClipGenerator_Deactivate);
+
+			REL::Relocation<uintptr_t> BGSSynchronizedAnimationInstanceVtbl{ RE::VTABLE_BGSSynchronizedAnimationInstance[0] };
+			_BGSSynchronizedAnimationInstance_dtor = BGSSynchronizedAnimationInstanceVtbl.write_vfunc(0x0, BGSSynchronizedAnimationInstance_dtor);
+
             // Potentially reset random condition results on loop, and re-evaluate conditions
             const REL::Relocation<uintptr_t> loopHook{ REL::VariantID(58603, 59253, 0xA46DC0) }; // A0C270, A30A80, A46DC0  hkbClipGenerator::Update
             SKSE::AllocTrampoline(14);
@@ -75,6 +83,7 @@ namespace Hooks
         static void hkbClipGenerator_computeBeginAndEndLocalTime(RE::hkbClipGenerator* a_this, float a_timestep, float& a_outBeginLocalTime, float& a_outEndLocalTime, int32_t& a_outLoops, bool& a_outEndOfClip);
         static void BSSynchronizedClipGenerator_Activate(RE::BSSynchronizedClipGenerator* a_this, const RE::hkbContext& a_context);
         static void BSSynchronizedClipGenerator_Deactivate(RE::BSSynchronizedClipGenerator* a_this, const RE::hkbContext& a_context);
+		static void BGSSynchronizedAnimationInstance_dtor(RE::BGSSynchronizedAnimationInstance* a_this);
 		static void hkbBehaviorGraph_Update(RE::hkbBehaviorGraph* a_this, const RE::hkbContext& a_context, float a_timestep);
 		static void hkbBehaviorGraph_Generate(RE::hkbBehaviorGraph* a_this, const RE::hkbContext& a_context, const RE::hkbGeneratorOutput** a_activeChildrenOutput, RE::hkbGeneratorOutput& a_output, float a_timeOffset);
 
@@ -94,6 +103,7 @@ namespace Hooks
         static inline REL::Relocation<decltype(hkbClipGenerator_computeBeginAndEndLocalTime)> _hkbClipGenerator_computeBeginAndEndLocalTime;
         static inline REL::Relocation<decltype(BSSynchronizedClipGenerator_Activate)> _BSSynchronizedClipGenerator_Activate;
         static inline REL::Relocation<decltype(BSSynchronizedClipGenerator_Deactivate)> _BSSynchronizedClipGenerator_Deactivate;
+		static inline REL::Relocation<decltype(BGSSynchronizedAnimationInstance_dtor)> _BGSSynchronizedAnimationInstance_dtor;
 		static inline REL::Relocation<decltype(hkbBehaviorGraph_Update)> _hkbBehaviorGraph_Update;
 		static inline REL::Relocation<decltype(hkbBehaviorGraph_Generate)> _hkbBehaviorGraph_Generate;
 
@@ -106,7 +116,7 @@ namespace Hooks
 
         static void PatchSynchronizedClips();
         static void PatchUnsignedAnimationBindingIndex();
-        static void SetSynchronizedClipID(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, RE::hkbCharacter* a_character);
+        static void OnCreateSynchronizedClipBinding(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, RE::hkbCharacter* a_character);
     };
 
     class UIHooks

@@ -296,7 +296,7 @@ namespace Conditions
         [[nodiscard]] RE::BSString GetDefaultDescription() const override { return DEFAULT_DESCRIPTION; }
 
         // Returns true if the given clip generator is active. This means that the random float is going to be stable for this clip and won't be randomized again on each evaluation until explicitly reset
-        virtual bool GetRandomFloat(RE::hkbClipGenerator* a_clipGenerator, float& a_outFloat) const = 0;
+		virtual bool GetRandomFloat(RE::hkbClipGenerator* a_clipGenerator, float& a_outFloat) const = 0;
         [[nodiscard]] virtual float GetMinValue() const = 0;
         [[nodiscard]] virtual float GetMaxValue() const = 0;
         virtual void SetMinValue(float a_min) = 0;

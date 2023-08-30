@@ -1,9 +1,76 @@
 #pragma once
 
-#include "Offsets.h"
+static uint32_t& g_dwTlsIndex = *(uint32_t*)REL::VariantID(520865, 407383, 0x30A8C04).address();  // 2F50B74, 2FEB6F4, 30A8C04
 
 namespace RE
 {
+    class hkClass
+    {
+    public:
+		enum class FlagValues
+		{
+		    kNone = 0,
+			kNotSerializable = 1
+		};
+
+        const char* name;                              // 00
+		const hkClass* parent;                         // 08
+		int32_t objectSize;                            // 10
+		int32_t numImplementedInterfaces;              // 14
+		class hkClassEnum* declaredEnums;              // 18
+		int32_t numDeclaredEnums;                      // 20
+		uint32_t pad24;                                // 24
+		class hkClassMember* declaredMembers;          // 28
+		int32_t numDeclaredMembers;                    // 30
+		uint32_t pad34;                                // 34
+		void* defaults;                                // 38
+		class hkCustomAttributes* attributes;          // 40
+		stl::enumeration<FlagValues, uint32_t> flags;  // 08
+		int32_t describedVersion;                      // 4C
+    };
+	static_assert(sizeof(hkClass) == 0x50);
+
+	template <class Key, class Value>
+	class hkMapBase
+	{
+	public:
+		struct Pair
+		{
+			Key key;
+			Value value;
+		};
+
+		Pair* _data;            // 00
+		int32_t _sizeAndFlags;  // 08
+		int32_t _hashMod;       // 0C
+	};
+
+	template <class Key, class Value>
+	class hkMap : public hkMapBase<Key, Value>
+	{
+	public:
+	};
+
+	template <class Key, class Value, class Allocator = void>
+	class hkPointerMap
+	{
+	protected:
+		hkMap<Key, Value> _map;  // 00
+	};
+	static_assert(sizeof(hkPointerMap<void*, void*>) == 0x10);
+
+	template <class T>
+	class hkQueue
+	{
+	public:
+		T* _data;                // 00
+		int32_t _capacity;       // 08
+		int32_t _head;           // 0C
+		int32_t _tail;           // 10
+		int32_t _elementsInUse;  // 14
+	};
+	static_assert(sizeof(hkQueue<void*>) == 0x18);
+
     struct hkbGeneratorOutput
     {
         enum class StandardTracks
@@ -87,9 +154,9 @@ namespace RE
             [[nodiscard]] hkQsTransform* GetDataQsTransform() const { return reinterpret_cast<hkQsTransform*>(data); }
             [[nodiscard]] const int8_t* GetIndices() const;
             [[nodiscard]] bool IsValid() const { return header->onFraction > 0.f; }
-            [[nodiscard]] int GetNumData() const { return header->numData; }
-            [[nodiscard]] int GetCapacity() const { return header->capacity; }
-            [[nodiscard]] int GetElementSizeBytes() const { return header->elementSizeBytes; }
+            [[nodiscard]] int16_t GetNumData() const { return header->numData; }
+            [[nodiscard]] int16_t GetCapacity() const { return header->capacity; }
+            [[nodiscard]] int16_t GetElementSizeBytes() const { return header->elementSizeBytes; }
             [[nodiscard]] TrackTypes GetType() const { return *header->type; }
             [[nodiscard]] float GetOnFraction() const { return header->onFraction; }
             [[nodiscard]] bool IsPalette() const { return header->flags.any(TrackFlags::TRACK_FLAG_PALETTE); }
@@ -140,16 +207,36 @@ namespace RE
         inline static constexpr auto VTABLE = VTABLE_hkbAnimationBindingWithTriggers;
 
         struct Trigger
-        {
-            float time;
-            int32_t eventId;
-        };
+		{
+			Trigger(float a_time, int32_t a_eventId, hkbEventPayload* a_payload) :
+                time(a_time),
+                eventId(a_eventId),
+                payload(a_payload)
+            {}
+
+			float time = 0.f;                             // 00
+			uint32_t pad04 = 0;                           // 04
+			int32_t eventId = -1;                         // 08
+			hkRefPtr<hkbEventPayload> payload = nullptr;  // 10
+		};
+		static_assert(offsetof(Trigger, eventId) == 0x8);
+		static_assert(sizeof(Trigger) == 0x18);
 
         // members
         hkRefPtr<hkaAnimationBinding> binding; // 10
         hkArray<Trigger> triggers;             // 18
     };
     static_assert(sizeof(hkbAnimationBindingWithTriggers) == 0x28);
+
+	class hkbSymbolIdMap : public hkReferencedObject
+	{
+	public:
+		inline static constexpr auto RTTI = RTTI_hkbSymbolIdMap;
+		inline static constexpr auto VTABLE = VTABLE_hkbSymbolIdMap;
+
+		hkArray<int32_t> internalToExternalMap;
+		hkPointerMap<int32_t, int32_t> externalToInternalMap;
+	};
 
     class BSSynchronizedClipGenerator : public hkbGenerator
     {
@@ -196,50 +283,126 @@ namespace RE
 		class BGSSynchronizedAnimationInstance* synchronizedScene;  // 70
 		uint32_t unk78;
 		uint32_t unk7C;
-		hkQsTransform startingWorldFromModel;              // 80
-		hkQsTransform worldFromModelWithRootMotion;        // B0
-		hkQsTransform unkTransform;                        // E0
-		float getToMarkProgress;                           // 110
-		hkaAnimationBinding* binding;                      // 118
-		void* eventWithPrefixIdToEventWithoutPrefixIdMap;  // 120  hkPointerMap<int, int>*
-		uint16_t synchronizedAnimationBindingIndex;        // 128
-		bool doneReorientingSupportChar;                   // 12A
-		bool unk12B;                                       // 12B
-		bool unk12C;                                       // 12C
+		hkQsTransform startingWorldFromModel;                                        // 80
+		hkQsTransform worldFromModelWithRootMotion;                                  // B0
+		hkQsTransform unkTransform;                                                  // E0
+		float getToMarkProgress;                                                     // 110
+		hkaAnimationBinding* binding;                                                // 118
+		hkPointerMap<int32_t, int32_t>* eventWithPrefixIdToEventWithoutPrefixIdMap;  // 120  hkPointerMap<int, int>*
+		uint16_t synchronizedAnimationBindingIndex;                                  // 128
+		bool doneReorientingSupportChar;                                             // 12A
+		bool unk12B;                                                                 // 12B
+		bool unk12C;                                                                 // 12C
     };
     static_assert(sizeof(BSSynchronizedClipGenerator) == 0x130);
 	static_assert(offsetof(BSSynchronizedClipGenerator, synchronizedAnimationBindingIndex) == 0x128);
 
+	namespace BSSynchronizedClipGeneratorUtils
+	{
+		class FindEventFunctor
+		{
+		public:
+			inline static constexpr auto RTTI = RTTI_BSSynchronizedClipGeneratorUtils__FindEventFunctor;
+			inline static constexpr auto VTABLE = VTABLE_BSSynchronizedClipGeneratorUtils__FindEventFunctor;
+
+			virtual ~FindEventFunctor() = default;  // 00
+
+			virtual void Unk_01([[maybe_unused]] const char* a_key) {}  // 01
+		};
+		static_assert(sizeof(FindEventFunctor) == 0x8);
+
+		class BSHashMapEventFindFunctor : public FindEventFunctor
+		{
+		public:
+			inline static constexpr auto RTTI = RTTI___BSHashMapEventFindFunctor;
+			inline static constexpr auto VTABLE = VTABLE___BSHashMapEventFindFunctor;
+
+			BSHashMapEventFindFunctor() { stl::emplace_vtable(this); }
+
+			~BSHashMapEventFindFunctor() override {} // 00
+
+			// override (FindEventFunctor)
+			void Unk_01([[maybe_unused]] const char* a_key) override {}  // 01
+
+			// members
+			BSTHashMap<BSFixedString, uint32_t>* map;  // 08
+        };
+		static_assert(sizeof(BSHashMapEventFindFunctor) == 0x10);
+	}
+	
     class BGSSynchronizedAnimationInstance : public BSSynchronizedClipGenerator::hkbSynchronizedAnimationScene
     {
     public:
+		struct SynchronizedAnimationRef
+		{
+			ActorHandle refHandle;                          // 00
+			uint32_t pad04;                                 // 04
+			BSSynchronizedClipGenerator* synchronizedClip;  // 08
+			hkbCharacter* character;                        // 10
+		};
+		static_assert(sizeof(SynchronizedAnimationRef) == 0x18);
+
         inline static constexpr auto RTTI = RTTI_BGSSynchronizedAnimationInstance;
         inline static constexpr auto VTABLE = VTABLE_BGSSynchronizedAnimationInstance;
 
         ~BGSSynchronizedAnimationInstance() override; // 00
 
-        // members
-        uint64_t unk18;                                    // 18
-        uint64_t unk20;                                    // 20
-        uint64_t unk28;                                    // 28
-        BSSynchronizedClipGenerator* sourceClipGenerator;  // 30
-        hkbCharacter* sourceCharacter;                     // 38
-        uint32_t unk40;                                    // 40
-        uint32_t unk44;                                    // 44
-        BSSynchronizedClipGenerator* sourceClipGenerator2; // 48
-        hkbCharacter* sourceCharacter2;                    // 50
-        uint32_t unk58;                                    // 58
-        uint32_t unk5C;                                    // 5C
-        BSSynchronizedClipGenerator* targetClipGenerator;  // 60
-        hkbCharacter* targetCharacter;                     // 68
-        uint64_t unk70;                                    // 70
-        uint64_t unk78;                                    // 78
-        uint64_t unk80;                                    // 80
-        uint64_t unk88;                                    // 88
-        uint64_t unk90;                                    // 90
-        uint64_t unk98;                                    // 98
+		bool HasRef(const RE::ObjectRefHandle& a_handle)
+		{
+			using func_t = decltype(&BGSSynchronizedAnimationInstance::HasRef);
+			REL::Relocation<func_t> func{ REL::VariantID(32031, 32784, 0x4FB080) };  // 4EAE10, 503680, 4FB080
+			return func(this, a_handle);
+		}
+
+		float unk18;                                       // 18
+		uint32_t numCharacters;                            // 1C
+		BSTSmallArray<SynchronizedAnimationRef, 3> refs;   // 20
+		BSTSmallArray<ObjectRefHandle, 2> refHandles;      // 78
+		uint32_t numActiveClips;                           // 90
+		uint32_t unk94;                                    // 94
+		uint32_t lastTimestampMs;                          // 98
+		uint32_t pad9C;                                    // 9C
     };
     static_assert(sizeof(BGSSynchronizedAnimationInstance) == 0xA0);
+
+    class SynchronizedAnimationManager
+	{
+	public:
+		// members
+		uint64_t unk00;                                                             // 00
+		BSTArray<BGSSynchronizedAnimationInstance> synchronizedAnimationInstances;  // 08
+		BSReadWriteLock lock;                                                       // 20
+		uint64_t unk28;                                                             // 28
+	};
+
+	class hkbEventPayload : public hkReferencedObject
+	{
+	public:
+		inline static constexpr auto RTTI = RTTI_hkbEventPayload;
+		inline static constexpr auto VTABLE = VTABLE_hkbEventPayload;
+
+	};
+	static_assert(sizeof(hkbEventPayload) == 0x10);
+
+	class hkbStringEventPayload : public hkbEventPayload
+	{
+	public:
+		inline static constexpr auto RTTI = RTTI_hkbStringEventPayload;
+		inline static constexpr auto VTABLE = VTABLE_hkbStringEventPayload;
+
+		// members
+		hkStringPtr data;  // 10
+	};
+	static_assert(sizeof(hkbStringEventPayload) == 0x18);
+
+	class hkbEventQueue
+	{
+	public:
+	    hkQueue<hkbEvent> queue;  // 00
+		hkbSymbolIdMap* symbolIdMap;  // 18
+		bool isInternal;  // 20
+	};
+	static_assert(sizeof(hkbEventQueue) == 0x28);
 
     class hkResource : public hkReferencedObject
     {
@@ -269,8 +432,9 @@ namespace RE
             inline static constexpr auto VTABLE = VTABLE_BShkbHkxDB__DBData;
 
             // members
-            hkArray<hkResource*> loadedData; // 20
+            uint64_t unk20;  // 20
         };
+		static_assert(sizeof(DBData) == 0x28);
 
         struct HashedData
         {
@@ -308,8 +472,8 @@ namespace RE
             uint32_t unk64;
             uint32_t unk68;
             uint32_t unk6C;
-            uint8_t variableNamesToIds[0x30];       // 70 - BSTHashMap<char *, hkInt32> // variable name -> event id
-            uint8_t eventNamesToIds[0x30];          // A0 - BSTHashMap<char *, hkInt32> // event name -> event id. This one is read from when handling anim events.
+			BSTHashMap<BSFixedString, uint32_t> variableNamesToIds; // variable name -> event id
+            BSTHashMap<BSFixedString, uint32_t> eventNamesToIds;    // event name -> event id. This one is read from when handling anim events.
             BSTArray<char*> eventNames;             // D0 - all anim events (~2000 total)
             BSTArray<char*> unkE8;                  // E8 - state names?
             uint64_t unk100;                        // 100
@@ -332,7 +496,26 @@ namespace RE
         };
         static_assert(offsetof(ProjectDBData, eventNamesToIds) == 0xA0);
         static_assert(offsetof(ProjectDBData, projectData) == 0x160);
+		static_assert(sizeof(ProjectDBData) == 0x180);
     }
+
+	struct UnkIteratorStruct
+    {
+		ScrapHeap* scrapHeap_00;
+		uint64_t unk_08;
+		uint64_t unk_10;
+		uint64_t unk_18;
+		void* unk_20;
+		uint64_t unk_28;
+		uint64_t unk_30;
+		uint32_t unk_38;
+		uint32_t unk_3C;
+		uint64_t unk_40;
+		void* unk_48;
+		uint64_t unk_50;
+		uint32_t getChildrenFlags_58;
+		uint32_t unk_5C;
+    };
 
 	class hkMemoryRouter
 	{

@@ -51,6 +51,42 @@ namespace std
 	};
 }
 
+// Case-insensitive hash function for std::filesystem::path
+struct CaseInsensitivePathHash
+{
+	size_t operator()(const std::filesystem::path& a_path) const
+	{
+		std::string lowerStr = a_path.string();
+		std::ranges::transform(lowerStr, lowerStr.begin(), [](char c) {
+			return static_cast<char>(std::tolower(c));
+		});
+		return std::hash<std::string>()(lowerStr);
+	}
+};
+
+// Case-insensitive key equality function for std::filesystem::path
+struct CaseInsensitivePathEqual
+{
+	bool operator()(const std::filesystem::path& a_lhs, const std::filesystem::path& a_rhs) const
+	{
+		std::string lhsStr = a_lhs.string();
+		std::string rhsStr = a_rhs.string();
+
+		if (lhsStr.length() != rhsStr.length()) {
+			return false;
+		}
+
+		std::ranges::transform(lhsStr, lhsStr.begin(), [](char c) {
+			return static_cast<char>(std::tolower(c));
+		});
+		std::ranges::transform(rhsStr, rhsStr.begin(), [](char c) {
+			return static_cast<char>(std::tolower(c));
+		});
+
+		return lhsStr == rhsStr;
+	}
+};
+
 using ExclusiveLock = std::mutex;
 using Locker = std::lock_guard<ExclusiveLock>;
 

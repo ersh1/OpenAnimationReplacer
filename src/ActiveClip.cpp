@@ -55,7 +55,7 @@ bool ActiveClip::ShouldReplaceAnimation(const ReplacementAnimation* a_newReplace
 	return false;
 }
 
-void ActiveClip::ReplaceAnimation(ReplacementAnimation* a_replacementAnimation, std::optional<uint16_t> a_variantIndex /* = std::nullopt*/)
+void ActiveClip::ReplaceAnimation(const ReplacementAnimation* a_replacementAnimation, std::optional<uint16_t> a_variantIndex /* = std::nullopt*/)
 {
     if (_currentReplacementAnimation) {
         RestoreOriginalAnimation();
@@ -68,7 +68,7 @@ void ActiveClip::ReplaceAnimation(ReplacementAnimation* a_replacementAnimation, 
 		const uint16_t newBindingIndex = a_variantIndex ? *a_variantIndex : _currentReplacementAnimation->GetIndex(this);
 		_clipGenerator->animationBindingIndex = newBindingIndex;  // this is the most important part - this is what actually replaces the animation
         // the animation binding index is the index of an entry inside hkbCharacterStringData->animationNames, which contains the actual path to the animation file or one of the replacements
-		if (_currentReplacementAnimation->GetIgnoreNoTriggersFlag()) {
+		if (_currentReplacementAnimation->GetIgnoreDontConvertAnnotationsToTriggersFlag()) {
 			_clipGenerator->flags &= ~0x10;
 		}
     }
@@ -79,6 +79,9 @@ void ActiveClip::RestoreOriginalAnimation()
     _clipGenerator->animationBindingIndex = _originalIndex;
 	_clipGenerator->mode = _originalMode;
     _clipGenerator->flags = _originalFlags;
+	if (_originalTriggers) {
+		_clipGenerator->originalTriggers = _originalTriggers;
+	}
     if (_currentReplacementAnimation) {
         _currentReplacementAnimation = nullptr;
     }
@@ -181,17 +184,48 @@ void ActiveClip::PreGenerate([[maybe_unused]] RE::hkbClipGenerator* a_clipGenera
 
 void ActiveClip::OnActivate(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context)
 {
-    if (!IsTransitioning()) {
+    if (!IsTransitioning() && !IsSynchronizedClip()) {
         // don't try to replace animation while transitioning interruptible anims as we already replaced it, this should only run on the actual Activate called by the game
+		// also don't run this for synchronized clips as they are handled by OnActivateSynchronized
         if (const auto replacements = OpenAnimationReplacer::GetSingleton().GetReplacements(a_context.character, a_clipGenerator->animationBindingIndex)) {
             SetReplacements(replacements);
             const RE::BShkbAnimationGraph* animGraph = SKSE::stl::adjust_pointer<RE::BShkbAnimationGraph>(a_context.character, -0xC0);
-            RE::Actor* actor = animGraph->holder;
-            if (const auto replacementAnimation = replacements->EvaluateConditionsAndGetReplacementAnimation(actor, a_clipGenerator)) {
+            RE::TESObjectREFR* refr = animGraph->holder;
+			// try to get refr from root node if holder is null - e.g. animated weapons
+			if (!refr) {
+				refr = Utils::GetRefrFromObject(animGraph->rootNode);
+			}
+            if (const auto replacementAnimation = replacements->EvaluateConditionsAndGetReplacementAnimation(refr, a_clipGenerator)) {
                 ReplaceAnimation(replacementAnimation);
             }
         }
     }
+}
+
+void ActiveClip::OnPostActivate(RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] const RE::hkbContext& a_context)
+{
+	if (_currentReplacementAnimation) {
+		// handle "triggers from annotations only" setting
+		if (_currentReplacementAnimation->GetTriggersFromAnnotationsOnly()) {
+			// backup original triggers
+		    _originalTriggers = a_clipGenerator->originalTriggers;
+
+			// remove non-annotation triggers from both arrays (originalTriggers and triggers)
+			if (a_clipGenerator->originalTriggers && !a_clipGenerator->originalTriggers->triggers.empty()) {
+				RemoveNonAnnotationTriggersFromClipTriggerArray(a_clipGenerator->originalTriggers);
+			}
+
+			if (a_clipGenerator->triggers && !a_clipGenerator->triggers->triggers.empty()) {
+				RemoveNonAnnotationTriggersFromClipTriggerArray(a_clipGenerator->triggers);
+			}
+		}
+	}
+}
+
+void ActiveClip::OnActivateSynchronized(AnimationReplacements* a_replacements, const ReplacementAnimation* a_replacementAnimation, std::optional<uint16_t> a_variantIndex)
+{
+	SetReplacements(a_replacements);
+	ReplaceAnimation(a_replacementAnimation, a_variantIndex);
 }
 
 void ActiveClip::OnGenerate([[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] const RE::hkbContext& a_context, RE::hkbGeneratorOutput& a_output)
@@ -222,7 +256,7 @@ void ActiveClip::OnGenerate([[maybe_unused]] RE::hkbClipGenerator* a_clipGenerat
 
                 float lerpAmount = std::clamp(Utils::InterpEaseInOut(0.f, 1.f, _blendElapsedTime / _blendDuration, 2), 0.f, 1.f);
 
-                auto numBlend = std::min(poseTrack.GetNumData(), blendFromAnimation->numberOfTransformTracks);
+                auto numBlend = std::min(poseTrack.GetNumData(), static_cast<int16_t>(blendFromAnimation->numberOfTransformTracks));
                 hkbBlendPoses(numBlend, sampledTransformTracks.data(), poseOut, lerpAmount, poseOut);
             }
         }
@@ -334,4 +368,23 @@ void ActiveClip::RegisterDestroyedCallback(std::weak_ptr<DestroyedCallback>& a_c
 	});
 
 	_destroyedCallbacks.emplace_back(a_callback);
+}
+
+void ActiveClip::RemoveNonAnnotationTriggersFromClipTriggerArray(RE::hkRefPtr<RE::hkbClipTriggerArray>& a_clipTriggerArray)
+{
+    // create a new array
+	auto newClipTriggerArray = static_cast<RE::hkbClipTriggerArray*>(hkHeapAlloc(sizeof(RE::hkbClipTriggerArray)));
+	memset(newClipTriggerArray, 0, sizeof(RE::hkbClipTriggerArray));
+	newClipTriggerArray->memSizeAndFlags = static_cast<uint16_t>(0xFFFF);
+	SKSE::stl::emplace_vtable(newClipTriggerArray);
+
+	// only copy triggers that are annotations
+	for (const auto& trigger : a_clipTriggerArray->triggers) {
+		if (trigger.isAnnotation) {
+			newClipTriggerArray->triggers.push_back(trigger);
+		}
+	}
+
+	// replace old array with new
+	a_clipTriggerArray = RE::hkRefPtr(newClipTriggerArray);
 }

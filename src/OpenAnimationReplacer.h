@@ -2,7 +2,7 @@
 
 #include "ActiveAnimationPreview.h"
 #include "ActiveClip.h"
-#include "ActiveSynchronizedClip.h"
+#include "ActiveSynchronizedAnimation.h"
 #include "ReplacerMods.h"
 #include "Jobs.h"
 
@@ -15,10 +15,12 @@ public:
         return singleton;
     }
 
-    void OnDataLoaded() const;
+    void OnDataLoaded();
 
     [[nodiscard]] ReplacementAnimation* GetReplacementAnimation(RE::hkbCharacterStringData* a_stringData, RE::hkbClipGenerator* a_clipGenerator, uint16_t a_originalIndex, RE::TESObjectREFR* a_refr) const;
     [[nodiscard]] ReplacementAnimation* GetReplacementAnimation(RE::hkbCharacter* a_character, RE::hkbClipGenerator* a_clipGenerator, uint16_t a_originalIndex) const;
+	[[nodiscard]] bool HasProcessedData(RE::hkbCharacterStringData* a_stringData) const;
+	void MarkDataAsProcessed(RE::hkbCharacterStringData* a_stringData);
     [[nodiscard]] bool HasReplacementData(RE::hkbCharacterStringData* a_stringData) const;
     bool RemoveReplacementData(RE::hkbCharacterStringData* a_stringData);
     ReplacerMod* GetReplacerMod(std::string_view a_path) const;
@@ -37,19 +39,24 @@ public:
     ActiveClip* AddOrGetActiveClip(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context, bool& a_bOutAdded);
     void RemoveActiveClip(RE::hkbClipGenerator* a_clipGenerator);
 
-	ActiveSynchronizedClip* AddOrGetActiveSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context, bool& a_bOutAdded);
-	void RemoveActiveSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator);
+	[[nodiscard]] ActiveSynchronizedAnimation* GetActiveSynchronizedAnimationForRefr(RE::TESObjectREFR* a_refr) const;
+	ActiveSynchronizedAnimation* AddOrGetActiveSynchronizedAnimation(RE::BGSSynchronizedAnimationInstance* a_synchronizedAnimationInstance, const RE::hkbContext& a_context);
+	void RemoveActiveSynchronizedAnimation(RE::BGSSynchronizedAnimationInstance* a_synchronizedAnimationInstance);
+	void OnSynchronizedClipDeactivate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context);
 
 	[[nodiscard]] bool HasActiveAnimationPreviews() const { return !_activeAnimationPreviews.empty(); }
 	[[nodiscard]] ActiveAnimationPreview* GetActiveAnimationPreview(RE::hkbBehaviorGraph* a_behaviorGraph) const;
-	void AddActiveAnimationPreview(RE::hkbBehaviorGraph* a_behaviorGraph, ReplacementAnimation* a_replacementAnimation, std::optional<uint16_t> a_variantIndex = std::nullopt);
+	void AddActiveAnimationPreview(RE::hkbBehaviorGraph* a_behaviorGraph, const ReplacementAnimation* a_replacementAnimation, std::string_view a_syncAnimationPrefix, std::optional<uint16_t> a_variantIndex = std::nullopt);
 	void RemoveActiveAnimationPreview(RE::hkbBehaviorGraph* a_behaviorGraph);
 
     [[nodiscard]] bool IsOriginalAnimationInterruptible(RE::hkbCharacter* a_character, uint16_t a_originalIndex) const;
     [[nodiscard]] bool ShouldOriginalAnimationReplaceOnEcho(RE::hkbCharacter* a_character, uint16_t a_originalIndex) const;
     [[nodiscard]] bool ShouldOriginalAnimationKeepRandomResultsOnLoop(RE::hkbCharacter* a_character, uint16_t a_originalIndex) const;
 
-    void CreateReplacementAnimations(const char* a_path, RE::hkbCharacterStringData* a_stringData, RE::BShkbHkxDB::ProjectDBData* a_projectDBData);
+	void CreateReplacerMods();
+	void CreateReplacementAnimations(const char* a_path, RE::hkbCharacterStringData* a_stringData, RE::BShkbHkxDB::ProjectDBData* a_projectDBData);
+
+	void CacheAnimationPathSubMod(std::string_view a_path, SubMod* a_subMod);
 
     [[nodiscard]] ReplacerProjectData* GetReplacerProjectData(RE::hkbCharacterStringData* a_stringData) const;
     [[nodiscard]] ReplacerProjectData* GetOrAddReplacerProjectData(RE::hkbCharacterStringData* a_stringData, RE::BShkbHkxDB::ProjectDBData* a_projectDBData);
@@ -60,6 +67,8 @@ public:
     void SetSynchronizedClipsIDOffset(RE::hkbCharacterStringData* a_stringData, uint16_t a_offset);
     [[nodiscard]] uint16_t GetSynchronizedClipsIDOffset(RE::hkbCharacterStringData* a_stringData) const;
     [[nodiscard]] uint16_t GetSynchronizedClipsIDOffset(RE::hkbCharacter* a_character) const;
+
+	void MarkSynchronizedReplacementAnimations(RE::hkbCharacterStringData* a_stringData, RE::hkbBehaviorGraph* a_rootBehavior);
 
     static void LoadAnimation(RE::hkbCharacter* a_character, uint16_t a_animationIndex);
     static void UnloadAnimation(RE::hkbCharacter* a_character, uint16_t a_animationIndex);
@@ -112,20 +121,24 @@ public:
 protected:
     ExclusiveLock _parseLock;
     mutable SharedLock _dataLock;
+	std::unordered_set<RE::hkbCharacterStringData*> _processedDatas;
     std::unordered_map<RE::hkbCharacterStringData*, std::unique_ptr<ReplacerProjectData>> _replacerProjectDatas;
 
     mutable SharedLock _modLock;
 	std::unordered_map<std::string, std::unique_ptr<ReplacerMod>> _replacerMods;
 	std::unique_ptr<ReplacerMod> _legacyReplacerMod = nullptr;
 
+	mutable SharedLock _animationPathToSubModsLock;
+	std::unordered_map<std::filesystem::path, std::unordered_set<SubMod*>, CaseInsensitivePathHash, CaseInsensitivePathEqual> _animationPathToSubModsMap;
+
 	mutable SharedLock _replacerModNameLock;
 	std::unordered_map<std::string, ReplacerMod*> _replacerModNameMap;
-
+	
     mutable SharedLock _activeClipsLock;
     std::unordered_map<RE::hkbClipGenerator*, std::unique_ptr<ActiveClip>> _activeClips;
 
-	mutable SharedLock _activeSynchronizedClipsLock;
-	std::unordered_map<RE::BSSynchronizedClipGenerator*, std::unique_ptr<ActiveSynchronizedClip>> _activeSynchronizedClips;
+	mutable SharedLock _activeSynchronizedAnimationsLock;
+	std::unordered_map<RE::BGSSynchronizedAnimationInstance*, std::unique_ptr<ActiveSynchronizedAnimation>> _activeSynchronizedAnimations;
 
 	mutable SharedLock _activeAnimationPreviewsLock;
 	std::unordered_map<RE::hkbBehaviorGraph*, std::unique_ptr<ActiveAnimationPreview>> _activeAnimationPreviews;
@@ -133,8 +146,8 @@ protected:
     void InitDefaultProjects() const;
     [[nodiscard]] RE::Character* CreateDummyCharacter(RE::TESNPC* a_baseForm) const;
 
-    void AddModParseResult(Parsing::ModParseResult& a_parseResult, RE::hkbCharacterStringData* a_stringData, RE::BShkbHkxDB::ProjectDBData* a_projectDBData);
-    void AddSubModParseResult(ReplacerMod* a_replacerMod, Parsing::SubModParseResult& a_parseResult, RE::hkbCharacterStringData* a_stringData, RE::BShkbHkxDB::ProjectDBData* a_projectDBData);
+    void AddModParseResult(Parsing::ModParseResult& a_parseResult);
+    void AddSubModParseResult(ReplacerMod* a_replacerMod, Parsing::SubModParseResult& a_parseResult);
 
     ExclusiveLock _factoriesLock;
     bool _bFactoriesInitialized = false;

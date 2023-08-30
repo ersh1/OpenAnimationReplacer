@@ -12,9 +12,10 @@ namespace UI
 
     void UIAnimationLog::DrawImpl()
     {
-        SetWindowDimensions(0.f, 30.f, ANIMATION_LOG_WIDTH, -1.f, WindowAlignment::kTopRight, ImVec2(ANIMATION_LOG_WIDTH, -1), ImVec2(ANIMATION_LOG_WIDTH, -1));
+		SetWindowDimensions(0.f, 30.f, Settings::fAnimationLogWidth, -1.f, WindowAlignment::kTopRight, ImVec2(Settings::fAnimationLogWidth, -1), ImVec2(Settings::fAnimationLogWidth, -1));
+		ForceSetWidth(Settings::fAnimationLogWidth);
 
-        constexpr ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove;
+        constexpr ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
 
         if (ImGui::Begin("Animation Log", nullptr, windowFlags)) {
             if (UIManager::GetSingleton().GetRefrToEvaluate() != nullptr) {
@@ -68,6 +69,11 @@ namespace UI
         case Event::kActivate:
             UICommon::TextUnformattedColored(UICommon::LOG_ACTIVATED_COLOR, "Activate");
             break;
+		case Event::kActivateSynchronized:
+			UICommon::TextUnformattedColored(UICommon::LOG_ACTIVATED_COLOR, "Activate");
+			ImGui::SameLine();
+			UICommon::TextUnformattedColored(UICommon::LOG_SYNCHRONIZED_COLOR, "Paired");
+			break;
         case Event::kEcho:
             UICommon::TextUnformattedColored(UICommon::LOG_ECHO_COLOR, "Echo");
             break;
@@ -79,6 +85,13 @@ namespace UI
             ImGui::SameLine();
             UICommon::TextUnformattedColored(UICommon::LOG_REPLACED_COLOR, "[Replaced]");
             break;
+		case Event::kActivateReplaceSynchronized:
+			UICommon::TextUnformattedColored(UICommon::LOG_ACTIVATED_COLOR, "Activate");
+			ImGui::SameLine();
+			UICommon::TextUnformattedColored(UICommon::LOG_SYNCHRONIZED_COLOR, "Paired");
+			ImGui::SameLine();
+			UICommon::TextUnformattedColored(UICommon::LOG_REPLACED_COLOR, "[Replaced]");
+			break;
         case Event::kEchoReplace:
             UICommon::TextUnformattedColored(UICommon::LOG_ECHO_COLOR, "Echo");
             ImGui::SameLine();
@@ -108,12 +121,14 @@ namespace UI
         ImGui::SameLine(ImGui::GetContentRegionMax().x - ImGui::CalcTextSize(projectText.data()).x);
         UICommon::TextUnformattedDisabled(projectText.data());
 
+		const std::string clipText = std::format("Clip: {} ", a_logEntry.clipName);
+		const float clipTextWidth = ImGui::CalcTextSize(clipText.data()).x;
+
 		UICommon::TextUnformattedDisabled("Name:");
 		ImGui::SameLine();
-		ImGui::TextUnformatted(a_logEntry.animationName.data());
-
-		const std::string clipText = std::format("Clip: {} ", a_logEntry.clipName);
-		ImGui::SameLine(ImGui::GetContentRegionMax().x - ImGui::CalcTextSize(clipText.data()).x);
+		UICommon::TextUnformattedEllipsis(a_logEntry.animationName.data(), nullptr, ImGui::GetContentRegionAvail().x - clipTextWidth);
+		
+		ImGui::SameLine(ImGui::GetContentRegionMax().x - clipTextWidth);
 		UICommon::TextUnformattedDisabled(clipText.data());
 
         if (a_logEntry.bOriginal) {
@@ -128,9 +143,15 @@ namespace UI
             ImGui::TextUnformatted(a_logEntry.subModName.data());
             //ImGui::Text(std::format("{} / {}", a_logEntry.modName, a_logEntry.subModName).data());
         }
+
+		float variantTextWidth = 0.f;
+		if (a_logEntry.bVariant) {
+			variantTextWidth = ImGui::CalcTextSize(a_logEntry.variantFilename.data()).x + ImGui::GetStyle().ItemSpacing.x;
+		}
+
         UICommon::TextUnformattedDisabled("Path:");
         ImGui::SameLine();
-        ImGui::TextUnformatted(a_logEntry.animPath.data());
+		UICommon::TextUnformattedEllipsis(a_logEntry.animPath.data(), nullptr, ImGui::GetContentRegionAvail().x - variantTextWidth);
 
 		if (a_logEntry.bVariant) {
 			ImGui::SameLine();

@@ -1,7 +1,5 @@
 #pragma once
 
-#include "Parsing.h"
-
 struct CachedAnimationHash
 {
     CachedAnimationHash(uint64_t a_lastWriteTime, uint64_t a_fileSize, std::string_view a_hash) :

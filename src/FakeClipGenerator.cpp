@@ -2,6 +2,7 @@
 
 #include "Offsets.h"
 #include "ReplacementAnimation.h"
+#include "Settings.h"
 #include "Havok/Havok.h"
 
 FakeClipGenerator::FakeClipGenerator(RE::hkbClipGenerator* a_clipGenerator) :
@@ -27,8 +28,9 @@ FakeClipGenerator::FakeClipGenerator(RE::hkbClipGenerator* a_clipGenerator) :
 	pingPongBackward(a_clipGenerator->pingPongBackward)
 {}
 
-FakeClipGenerator::FakeClipGenerator(RE::hkbBehaviorGraph* a_behaviorGraph, ReplacementAnimation* a_replacementAnimation, std::optional<uint16_t> a_variantIndex /* = std::nullopt*/)
+FakeClipGenerator::FakeClipGenerator(RE::hkbBehaviorGraph* a_behaviorGraph, const ReplacementAnimation* a_replacementAnimation, std::string_view a_syncAnimationPrefix, std::optional<uint16_t> a_variantIndex /* = std::nullopt*/)
 {
+	syncAnimationPrefix = a_syncAnimationPrefix;
 	animationBindingIndex = a_variantIndex.has_value() ? *a_variantIndex : a_replacementAnimation->GetIndex();
 	mode = RE::hkbClipGenerator::PlaybackMode::kModeLooping;
 
@@ -94,16 +96,27 @@ void FakeClipGenerator::Activate(const RE::hkbContext& a_context)
 	}
 
 	const RE::BShkbAnimationGraph* graph = reinterpret_cast<RE::BShkbAnimationGraph*>(behaviorGraph->userData);
+	const auto& setup = graph->characterInstance.setup;
 	auto animationBindingSet = static_cast<RE::hkbAnimationBindingSet*>(graph->characterInstance.animationBindingSet.get());
 	if (!animationBindingSet) {
-		if (const auto& setup = graph->characterInstance.setup) {
-			animationBindingSet = setup->animationBindingSet.get();
-		}
+	    animationBindingSet = setup->animationBindingSet.get();
 	}
 
 	const auto animationBindingWithTriggers = animationBindingSet->bindings[animationBindingIndex];
-	binding = animationBindingWithTriggers->binding.get();
 
+	// for synchronized animations - create new animation binding with transformTrackToBoneIndices filled out based on the prefix
+	if (!syncAnimationPrefix.empty()) {
+		std::string animPrefix;
+		if (syncAnimationPrefix == Settings::synchronizedClipSourcePrefix) {
+			animPrefix = ""; // the function expects it to be empty
+		} else {
+		    animPrefix = syncAnimationPrefix;
+		}
+		binding = hkaSkeleton_CreateSynchronizedClipBinding(setup->animationSkeleton.get(), animationBindingWithTriggers->binding.get(), animPrefix.data());
+	} else {
+		binding = animationBindingWithTriggers->binding.get();
+	}
+	
 	// create new animation control
 	auto animControl = static_cast<RE::hkaDefaultAnimationControl*>(hkHeapAlloc(sizeof(RE::hkaDefaultAnimationControl)));
 	RE::hkRefPtr animControlPtr(animControl);

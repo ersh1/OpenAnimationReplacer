@@ -69,9 +69,15 @@ AnimationLogEntry::AnimationLogEntry(Event a_event, ActiveClip* a_activeClip, RE
         case Event::kActivate:
             eventString = "Activated"sv;
             break;
+		case Event::kActivateSynchronized:
+			eventString = "Activated paired"sv;
+			break;
         case Event::kActivateReplace:
             eventString = "Activated (Replaced)"sv;
             break;
+		case Event::kActivateReplaceSynchronized:
+			eventString = "Activated paired (Replaced)"sv;
+			break;
         case Event::kEcho:
             eventString = "Echo"sv;
             break;
@@ -168,6 +174,7 @@ bool AnimationLog::ShouldLogAnimationsForActiveClip(ActiveClip* a_activeClip, An
 
             switch (a_logEvent) {
 			case AnimationLogEntry::Event::kActivate:
+			case AnimationLogEntry::Event::kActivateSynchronized:
 				return shouldLog(static_cast<Settings::AnimationLogMode>(Settings::uAnimationActivateLogMode));
 			case AnimationLogEntry::Event::kEcho:
 				return shouldLog(static_cast<Settings::AnimationLogMode>(Settings::uAnimationEchoLogMode));

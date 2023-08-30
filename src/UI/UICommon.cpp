@@ -33,7 +33,7 @@ namespace UI::UICommon
 		}
     }
 
-    bool TextUnformattedEllipsis(const char* a_text, const char* a_textEnd, float a_maxWidth)
+    bool TextUnformattedEllipsisNoTooltip(const char* a_text, const char* a_textEnd, float a_maxWidth)
     {
 		// Accept null ranges
 		if (a_text == a_textEnd) {
@@ -53,25 +53,98 @@ namespace UI::UICommon
 		static constexpr auto ellipsis = "..."sv;
 
 		const float ellipsisWidth = ImGui::CalcTextSize(ellipsis.data(), nullptr).x;
-        float textWidth = ImGui::CalcTextSize(a_text, a_textEnd).x;
+		float textWidth = ImGui::CalcTextSize(a_text, a_textEnd).x;
 
 		if (textWidth <= a_maxWidth) {
-		    ImGui::TextUnformatted(a_text, a_textEnd);
-            return false;
+			ImGui::TextUnformatted(a_text, a_textEnd);
+			return false;
 		}
 
 		const std::string fullText(a_text, a_textEnd);
-		
+
 		while (textWidth + ellipsisWidth > a_maxWidth && a_textEnd != a_text) {
-		    a_textEnd--;
-            textWidth = ImGui::CalcTextSize(a_text, a_textEnd).x;
+			a_textEnd--;
+			textWidth = ImGui::CalcTextSize(a_text, a_textEnd).x;
 		}
 
 		std::string shortenedText(a_text, a_textEnd);
 		shortenedText.append(ellipsis);
 
 		ImGui::TextUnformatted(shortenedText.data(), shortenedText.data() + shortenedText.length());
-		AddTooltip(fullText.data(), ImGuiHoveredFlags_DelayShort);
+
+		return true;
+    }
+
+    bool TextUnformattedEllipsis(const char* a_text, const char* a_textEnd, float a_maxWidth)
+    {
+		// Accept null ranges
+		if (a_text == a_textEnd) {
+			a_text = a_textEnd = "";
+		}
+
+		// Calculate length
+		if (a_textEnd == nullptr) {
+			a_textEnd = a_text + strlen(a_text);
+		}
+
+		const std::string fullText(a_text, a_textEnd);
+
+		if (TextUnformattedEllipsisNoTooltip(a_text, a_textEnd, a_maxWidth)) {
+			AddTooltip(fullText.data(), ImGuiHoveredFlags_DelayShort);
+			return true;
+		}
+		
+		return false;
+    }
+
+    bool TextUnformattedEllipsisShort(const char* a_fullText, const char* a_shortText, const char* a_shortTextEnd, float a_maxWidth)
+    {
+		// Accept null ranges
+		if (a_shortText == a_shortTextEnd) {
+			a_shortText = a_shortTextEnd = "";
+		}
+
+		// Calculate length
+		if (a_shortTextEnd == nullptr) {
+			a_shortTextEnd = a_shortText + strlen(a_shortText);
+		}
+
+		const bool bResult = TextUnformattedEllipsisNoTooltip(a_shortText, a_shortTextEnd, a_maxWidth);
+
+		AddTooltip(a_fullText, ImGuiHoveredFlags_DelayShort);
+
+		return bResult;
+    }
+
+    bool TextUnformattedEllipsisShort(const char* a_shortText, const char* a_fullText, float a_maxWidth)
+    {
+        const char* shortTextEnd = a_shortText + strlen(a_shortText);
+
+		// Calculate max width
+		if (a_maxWidth <= 0.f) {
+			a_maxWidth = ImGui::GetContentRegionAvail().x;
+		}
+
+		static constexpr auto ellipsis = "..."sv;
+
+		const float ellipsisWidth = ImGui::CalcTextSize(ellipsis.data(), nullptr).x;
+		float textWidth = ImGui::CalcTextSize(a_shortText, shortTextEnd).x;
+
+		if (textWidth <= a_maxWidth) {
+			ImGui::TextUnformatted(a_shortText, shortTextEnd);
+			return false;
+		}
+
+		while (textWidth + ellipsisWidth > a_maxWidth && shortTextEnd != a_shortText) {
+			shortTextEnd--;
+			textWidth = ImGui::CalcTextSize(a_shortText, shortTextEnd).x;
+		}
+
+		std::string shortenedText(a_shortText, shortTextEnd);
+		shortenedText.append(ellipsis);
+
+		ImGui::TextUnformatted(shortenedText.data(), shortenedText.data() + shortenedText.length());
+		AddTooltip(a_fullText, ImGuiHoveredFlags_DelayShort);
 
 		return true;
     }
@@ -82,7 +155,7 @@ namespace UI::UICommon
         ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x - 15.f);
         ImVec2 indicatorCenter = ImGui::GetCursorScreenPos();
         const float offset = ImGui::GetTextLineHeightWithSpacing() * 0.25f;
-        indicatorCenter.y += offset * 2;
+        indicatorCenter.y += offset * 2.f;
         ImDrawList* drawList = ImGui::GetWindowDrawList();
         switch (a_result) {
         case ConditionEvaluateResult::kSuccess:
@@ -118,6 +191,35 @@ namespace UI::UICommon
         }
         }
         ImGui::NewLine();
+    }
+
+    void DrawWarningIcon()
+    {
+		static constexpr float SQRT3 = 1.73205080757f;
+
+		const float offsetX = (ImGui::GetTextLineHeight() * 2.f / SQRT3) * 0.5f;
+		const float offsetY = ImGui::GetTextLineHeight() * 0.5f;
+		const auto screenPos = ImGui::GetCursorScreenPos();
+
+		ImVec2 iconCenter = ImGui::GetCursorScreenPos();
+		iconCenter.x += offsetX;
+		iconCenter.y += ImGui::GetTextLineHeight() * 0.5f;
+
+		ImDrawList* drawList = ImGui::GetWindowDrawList();
+		// draw triangle
+		const ImVec2 p0 = ImVec2(iconCenter.x - offsetX, iconCenter.y + offsetY);
+		const ImVec2 p1 = ImVec2(iconCenter.x, iconCenter.y - offsetY);
+		const ImVec2 p2 = ImVec2(iconCenter.x + offsetX, iconCenter.y + offsetY);
+		drawList->AddTriangleFilled(p0, p1, p2, ImGui::GetColorU32(YELLOW_COLOR));
+
+		// draw an exclamation point inside
+		const ImVec2 dotPos = ImVec2(iconCenter.x, iconCenter.y + offsetY * 0.70f);
+		drawList->AddCircleFilled(dotPos, offsetX * 0.15f, ImGui::GetColorU32(BLACK_COLOR));
+		const ImVec2 rectMin = ImVec2(iconCenter.x - offsetX * 0.1f, iconCenter.y + offsetY * 0.3f);
+		const ImVec2 rectMax = ImVec2(iconCenter.x + offsetX * 0.1f, iconCenter.y - offsetY * 0.45f);
+		drawList->AddRectFilled(rectMin, rectMax, ImGui::GetColorU32(BLACK_COLOR));
+		
+		ImGui::SetCursorScreenPos(ImVec2(screenPos.x + (offsetX * 2.f) + ImGui::GetStyle().ItemSpacing.x, screenPos.y));
     }
 
     void ButtonWithConfirmationModal(std::string_view a_label, std::string_view a_confirmation, const std::function<void()>& a_func, const ImVec2& a_buttonSize /*= ImVec2(0, 0)*/)

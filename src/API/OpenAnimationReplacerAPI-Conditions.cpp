@@ -11,7 +11,7 @@ namespace OAR_API::Conditions
         }
 
         const auto pluginHandle = GetModuleHandle("OpenAnimationReplacer.dll");
-        const auto requestAPIFunction = static_cast<_RequestPluginAPI_Conditions>(GetProcAddress(pluginHandle, "RequestPluginAPI_Conditions"));
+		const auto requestAPIFunction = reinterpret_cast<_RequestPluginAPI_Conditions>(GetProcAddress(pluginHandle, "RequestPluginAPI_Conditions"));
         if (!requestAPIFunction) {
             return nullptr;
         }

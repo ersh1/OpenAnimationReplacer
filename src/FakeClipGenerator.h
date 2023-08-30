@@ -2,11 +2,14 @@
 
 // a fake clip generator to blend from when transitioning between replacer animations of the same clip (on interrupt etc), or to preview animations
 // replicates the relevant parts of hkbClipGenerator so we basically can do the same thing as the update function does, to progress the clip naturally just like the game does
+
+class ReplacementAnimation;
+
 class FakeClipGenerator
 {
 public:
 	FakeClipGenerator(RE::hkbClipGenerator* a_clipGenerator);
-	FakeClipGenerator(RE::hkbBehaviorGraph* a_behaviorGraph, class ReplacementAnimation* a_replacementAnimation, std::optional<uint16_t> a_variantIndex = std::nullopt);
+	FakeClipGenerator(RE::hkbBehaviorGraph* a_behaviorGraph, const ReplacementAnimation* a_replacementAnimation, std::string_view a_syncAnimationPrefix, std::optional<uint16_t> a_variantIndex = std::nullopt);
 	~FakeClipGenerator();
 
 	void Activate(const RE::hkbContext& a_context);
@@ -53,4 +56,5 @@ public:
 	bool pingPongBackward = false;  // 106
 
 	RE::hkRefPtr<RE::hkbBehaviorGraph> behaviorGraph = nullptr;
+	std::string syncAnimationPrefix{};
 };

@@ -47,6 +47,14 @@ namespace Utils
         return a_s;
     }
 
+    std::string_view TrimPrefix(std::string_view a_s, std::string_view a_prefix)
+    {
+        if (a_s.starts_with(a_prefix)) {
+            return a_s.substr(a_prefix.size());
+        }
+        return a_s;
+    }
+
     std::string_view GetFileNameWithExtension(std::string_view a_s)
     {
 		const size_t slashIndex = a_s.find_last_of('\\');
@@ -148,6 +156,21 @@ namespace Utils
 		}
 
         return "(Not found)"sv;
+    }
+
+    RE::TESObjectREFR* GetRefrFromObject(RE::NiAVObject* a_object)
+    {
+        if (a_object) {
+			if (const auto refr = a_object->GetUserData()) {
+			    return refr;
+			}
+
+            if (a_object->parent) {
+                return GetRefrFromObject(a_object->parent);
+            }
+        }
+
+        return nullptr;
     }
 
     bool ConditionHasRandomResult(Conditions::ICondition* a_condition)

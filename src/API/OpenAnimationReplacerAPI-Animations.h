@@ -15,11 +15,11 @@ namespace OAR_API::Animations
 
 	struct ReplacementAnimationInfo
 	{
-		std::string animationPath{};
-		std::string projectName{};
-		std::string variantFilename{};
-		std::string subModName{};
-		std::string modName{};
+		RE::BSString animationPath{};
+		RE::BSString projectName{};
+		RE::BSString variantFilename{};
+		RE::BSString subModName{};
+		RE::BSString modName{};
 	};
 
 	class IAnimationsInterface1

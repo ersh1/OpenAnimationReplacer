@@ -12,11 +12,13 @@
 #include <future>
 #include <ranges>
 
-void OpenAnimationReplacer::OnDataLoaded() const
+void OpenAnimationReplacer::OnDataLoaded()
 {
     if (Settings::bShowWelcomeBanner) {
         UI::UIManager::GetSingleton().DisplayWelcomeBanner();
     }
+
+	CreateReplacerMods();
 
     if (Settings::bLoadDefaultBehaviorsInMainMenu && !Settings::bDisablePreloading) {
         InitDefaultProjects();
@@ -50,6 +52,20 @@ ReplacementAnimation* OpenAnimationReplacer::GetReplacementAnimation(RE::hkbChar
     }
 
     return nullptr;
+}
+
+bool OpenAnimationReplacer::HasProcessedData(RE::hkbCharacterStringData* a_stringData) const
+{
+	ReadLocker locker(_dataLock);
+
+	return _processedDatas.contains(a_stringData);
+}
+
+void OpenAnimationReplacer::MarkDataAsProcessed(RE::hkbCharacterStringData* a_stringData)
+{
+    WriteLocker locker(_dataLock);
+
+    _processedDatas.insert(a_stringData);
 }
 
 bool OpenAnimationReplacer::HasReplacementData(RE::hkbCharacterStringData* a_stringData) const
@@ -226,24 +242,48 @@ void OpenAnimationReplacer::RemoveActiveClip(RE::hkbClipGenerator* a_clipGenerat
     }
 }
 
-ActiveSynchronizedClip* OpenAnimationReplacer::AddOrGetActiveSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context, bool& a_bOutAdded)
+ActiveSynchronizedAnimation* OpenAnimationReplacer::GetActiveSynchronizedAnimationForRefr(RE::TESObjectREFR* a_refr) const
 {
-	WriteLocker locker(_activeSynchronizedClipsLock);
+    ReadLocker locker(_activeSynchronizedAnimationsLock);
 
-	auto [newClipIt, result] = _activeSynchronizedClips.try_emplace(a_synchronizedClipGenerator, nullptr);
+    if (const auto search = std::ranges::find_if(_activeSynchronizedAnimations, [&](const auto& pair) {
+        return pair.second->HasRef(a_refr);
+    }); search != _activeSynchronizedAnimations.end()) {
+        return search->second.get();
+    }
+
+    return nullptr;
+}
+
+ActiveSynchronizedAnimation* OpenAnimationReplacer::AddOrGetActiveSynchronizedAnimation(RE::BGSSynchronizedAnimationInstance* a_synchronizedAnimationInstance, const RE::hkbContext& a_context)
+{
+	WriteLocker locker(_activeSynchronizedAnimationsLock);
+
+	auto [newClipIt, result] = _activeSynchronizedAnimations.try_emplace(a_synchronizedAnimationInstance, nullptr);
 	if (result) {
-		newClipIt->second = std::make_unique<ActiveSynchronizedClip>(a_synchronizedClipGenerator, a_context);
+		newClipIt->second = std::make_unique<ActiveSynchronizedAnimation>(a_synchronizedAnimationInstance, a_context);
 	}
 
-	a_bOutAdded = result;
 	return newClipIt->second.get();
 }
 
-void OpenAnimationReplacer::RemoveActiveSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator)
+void OpenAnimationReplacer::RemoveActiveSynchronizedAnimation(RE::BGSSynchronizedAnimationInstance* a_synchronizedAnimationInstance)
 {
-	WriteLocker locker(_activeSynchronizedClipsLock);
+	WriteLocker locker(_activeSynchronizedAnimationsLock);
 
-	_activeSynchronizedClips.erase(a_synchronizedClipGenerator);
+	_activeSynchronizedAnimations.erase(a_synchronizedAnimationInstance);
+}
+
+void OpenAnimationReplacer::OnSynchronizedClipDeactivate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context)
+{
+	ReadLocker locker(_activeSynchronizedAnimationsLock);
+
+    if (const auto synchronizedAnimationInstance = a_synchronizedClipGenerator->synchronizedScene) {
+		auto search = _activeSynchronizedAnimations.find(synchronizedAnimationInstance);
+		if (search != _activeSynchronizedAnimations.end()) {
+			search->second->OnSynchronizedClipDeactivate(a_synchronizedClipGenerator, a_context);
+		}
+    }
 }
 
 ActiveAnimationPreview* OpenAnimationReplacer::GetActiveAnimationPreview(RE::hkbBehaviorGraph* a_behaviorGraph) const
@@ -257,11 +297,11 @@ ActiveAnimationPreview* OpenAnimationReplacer::GetActiveAnimationPreview(RE::hkb
     return nullptr;
 }
 
-void OpenAnimationReplacer::AddActiveAnimationPreview(RE::hkbBehaviorGraph* a_behaviorGraph, ReplacementAnimation* a_replacementAnimation, std::optional<uint16_t> a_variantIndex /* = std::nullopt*/)
+void OpenAnimationReplacer::AddActiveAnimationPreview(RE::hkbBehaviorGraph* a_behaviorGraph, const ReplacementAnimation* a_replacementAnimation, std::string_view a_syncAnimationPrefix, std::optional<uint16_t> a_variantIndex /* = std::nullopt*/)
 {
     WriteLocker locker(_activeAnimationPreviewsLock);
 
-    _activeAnimationPreviews[a_behaviorGraph] = std::make_unique<ActiveAnimationPreview>(a_behaviorGraph, a_replacementAnimation, a_variantIndex);
+    _activeAnimationPreviews[a_behaviorGraph] = std::make_unique<ActiveAnimationPreview>(a_behaviorGraph, a_replacementAnimation, a_syncAnimationPrefix, a_variantIndex);
 }
 
 void OpenAnimationReplacer::RemoveActiveAnimationPreview(RE::hkbBehaviorGraph* a_behaviorGraph)
@@ -316,135 +356,161 @@ bool OpenAnimationReplacer::ShouldOriginalAnimationKeepRandomResultsOnLoop(RE::h
     return false;
 }
 
-template <typename T>
-std::future<T> MakeFuture(T& a_t)
+void OpenAnimationReplacer::CreateReplacerMods()
 {
-    std::promise<T> p;
-    p.set_value(std::forward<T>(a_t));
-    return p.get_future();
+	// parse the meshes directory for all the mods/submods, create objects
+
+#ifndef NDEBUG
+	logger::debug("Creating replacer mods...");
+	auto startTime = std::chrono::high_resolution_clock::now();
+#endif
+
+	if (!AreFactoriesInitialized()) {
+		InitFactories();
+	}
+
+#ifndef NDEBUG
+	auto factoriesInitedTime = std::chrono::high_resolution_clock::now();
+#endif
+
+	constexpr auto meshesPath = "data\\meshes\\"sv;
+
+	Parsing::ParseResults parseResults;
+	Parsing::ParseDirectory(std::filesystem::directory_entry(meshesPath), parseResults);
+
+#ifndef NDEBUG
+	auto endOfParsingTime = std::chrono::high_resolution_clock::now();
+#endif
+
+	if (parseResults.modParseResultFutures.empty() && parseResults.legacyParseResultFutures.empty()) {
+		return;
+	}
+
+	// add all parsed mods
+	for (auto& future : parseResults.modParseResultFutures) {
+		auto modParseResult = future.get();
+		AddModParseResult(modParseResult);
+	}
+
+#ifndef NDEBUG
+	auto endOfModsTime = std::chrono::high_resolution_clock::now();
+#endif
+
+	// add all parsed legacy mods
+	for (auto& future : parseResults.legacyParseResultFutures) {
+		if (auto subModParseResult = future.get(); subModParseResult.bSuccess) {
+			auto replacerMod = GetOrCreateLegacyReplacerMod();
+			AddSubModParseResult(replacerMod, subModParseResult);
+		}
+	}
+
+#ifndef NDEBUG
+	auto endOfLegacyModsTime = std::chrono::high_resolution_clock::now();
+#endif
+
+	auto& detectedProblems = DetectedProblems::GetSingleton();
+	detectedProblems.CheckForSubModsSharingPriority();
+	detectedProblems.CheckForSubModsWithInvalidConditions();
+
+#ifndef NDEBUG
+	auto endTime = std::chrono::high_resolution_clock::now();
+
+	logger::debug("Time taken:");
+	logger::debug("  Parsing: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfParsingTime - startTime).count());
+	logger::debug("  Adding mods: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfModsTime - endOfParsingTime).count());
+	logger::debug("  Adding legacy mods: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfLegacyModsTime - endOfModsTime).count());
+	logger::debug("  Checking for problems: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endTime - endOfLegacyModsTime).count());
+	logger::debug("  Total: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count());
+#endif
 }
 
-void OpenAnimationReplacer::CreateReplacementAnimations(const char* a_path, RE::hkbCharacterStringData* a_stringData, RE::BShkbHkxDB::ProjectDBData* a_projectDBData)
+void OpenAnimationReplacer::CreateReplacementAnimations([[maybe_unused]] const char* a_path, RE::hkbCharacterStringData* a_stringData, RE::BShkbHkxDB::ProjectDBData* a_projectDBData)
 {
-    if (a_stringData) {
-        if (HasReplacementData(a_stringData)) {
-            return;
-        }
+	if (!a_stringData || HasProcessedData(a_stringData) || a_stringData->animationNames.empty()) {
+	    return;
+	}
 
-        Locker locker(_parseLock);
+#ifndef NDEBUG
+    logger::debug("Creating replacement animations for {}...", a_path);
+	auto startTime = std::chrono::high_resolution_clock::now();
+#endif
 
-        if (!AreFactoriesInitialized()) {
-            InitFactories();
-        }
+	constexpr auto meshesPath = "data\\meshes\\"sv;
+	const auto projectPath = std::filesystem::path(meshesPath) / a_path;
 
-        std::string projectPath;
-        projectPath = "Data\\Meshes\\"sv;
-        projectPath.append(a_path);
+	Locker parseLocker(_parseLock);
 
-        std::string legacyPath = projectPath;
-        legacyPath.append("Animations\\DynamicAnimationReplacer\\"sv);
+	// create replacer project data and replacer animations
+	ReplacerProjectData* projectData = nullptr;
 
-        std::string replacementsPath = projectPath;
-        replacementsPath.append("Animations\\OpenAnimationReplacer\\"sv);
+	const auto& animationBundleNames = a_stringData->animationNames;
 
-        std::vector<std::future<Parsing::ModParseResult>> modFutures;
-        std::vector<std::future<Parsing::SubModParseResult>> legacyFutures;
+	ReadLocker locker(_animationPathToSubModsLock);
 
-        if (std::filesystem::is_directory(replacementsPath)) {
-            // we're in the OAR folder
-            if (Settings::bAsyncParsing) {
-                for (const auto& entry : std::filesystem::directory_iterator(replacementsPath)) {
-                    if (is_directory(entry)) {
-                        // we're in a mod folder. we have the subfolders here and a json.
-                        modFutures.emplace_back(std::async(std::launch::async, Parsing::ParseModDirectory, entry, a_stringData));
-                    }
-                }
-            } else {
-                for (const auto& entry : std::filesystem::directory_iterator(replacementsPath)) {
-                    if (is_directory(entry)) {
-                        // we're in a mod folder. we have the subfolders here and a json.
-                        auto modParseResult = Parsing::ParseModDirectory(entry, a_stringData);
-                        modFutures.emplace_back(MakeFuture(modParseResult));
-                    }
-                }
-            }
-        }
+	std::unordered_set<SubMod*> subModsToUpdate{};
 
-        if (std::filesystem::is_directory(legacyPath)) {
-            // we're in the DAR folder
-            for (const auto& entry : std::filesystem::directory_iterator(legacyPath)) {
-                if (is_directory(entry)) {
-                    std::string stemString;
-                    try {
-                        stemString = entry.path().stem().string();
-                    } catch (const std::system_error&) {
-                        auto path = entry.path().u8string();
-                        std::string_view pathSv(reinterpret_cast<const char*>(path.data()), path.size());
-                        logger::warn("invalid directory name at {}, skipping", pathSv);
-                        continue;
-                    }
-                    if (Utils::CompareStringsIgnoreCase(stemString, "_CustomConditions"sv)) {
-                        // we're in the _CustomConditions directory
-                        for (const auto& subEntry : std::filesystem::directory_iterator(entry)) {
-                            if (is_directory(subEntry)) {
-                                legacyFutures.emplace_back(std::async(std::launch::async, Parsing::ParseLegacyCustomConditionsDirectory, subEntry, a_stringData));
-                            }
-                        }
-                    } else {
-                        // we're probably in a folder with a plugin name
-                        for (auto subModParseResults = Parsing::ParseLegacyPluginDirectory(entry, a_stringData); auto& subModParseResult : subModParseResults) {
-                            if (subModParseResult.bSuccess) {
-                                legacyFutures.emplace_back(MakeFuture(subModParseResult));
-                            }
-                        }
-                    }
-                }
-            }
-        }
+	const auto numOriginalAnims = a_stringData->animationNames.size();
 
-        if (modFutures.empty() && legacyFutures.empty()) {
-            return;
-        }
+	for (auto i = 0; i < numOriginalAnims; ++i) {
+		const auto& originalAnimation = animationBundleNames[i];
 
-        // add all parsed mods
-        for (auto& future : modFutures) {
-            auto modParseResult = future.get();
-            AddModParseResult(modParseResult, a_stringData, a_projectDBData);
-        }
+		// normalize the path to handle ".." in shared killmove paths etc.
+		const auto originalAnimationPath = (projectPath / originalAnimation.data()).lexically_normal();
 
-        // add all parsed legacy mods
-        for (auto& future : legacyFutures) {
-            if (auto subModParseResult = future.get(); subModParseResult.bSuccess) {
-                auto replacerMod = GetOrCreateLegacyReplacerMod();
-                AddSubModParseResult(replacerMod, subModParseResult, a_stringData, a_projectDBData);
-            }
-        }
+		const auto& search = _animationPathToSubModsMap.find(originalAnimationPath);
+		if (search != _animationPathToSubModsMap.end()) {
+			if (!projectData) {
+				projectData = GetOrAddReplacerProjectData(a_stringData, a_projectDBData);
+			}
 
-        // Save synchronized clip offset
-        SetSynchronizedClipsIDOffset(a_stringData, static_cast<uint16_t>(a_stringData->animationNames.size()));
+			for (const auto& subMod : search->second) {
+				subMod->AddReplacementAnimation(originalAnimationPath.string(), static_cast<uint16_t>(i), projectData, a_stringData);
+				subModsToUpdate.emplace(subMod);
+			}
+		}
+	}
 
-        // If we just added any replacement anims, do stuff
-        if (HasReplacementData(a_stringData)) {
-            InitializeReplacementAnimations(a_stringData);
+#ifndef NDEBUG
+	auto endOfParsingTime = std::chrono::high_resolution_clock::now();
+#endif
 
-            auto& detectedProblems = DetectedProblems::GetSingleton();
-            detectedProblems.CheckForSubModsSharingPriority();
-            detectedProblems.CheckForSubModsWithInvalidConditions();
+	for (auto& subMod : subModsToUpdate) {
+		subMod->UpdateAnimations();
+	}
 
-            if (Settings::bFilterOutDuplicateAnimations) {
-                if (auto projectData = GetReplacerProjectData(a_stringData)) {
-                    logger::info("Filtered out {} duplicate animations in project {}", projectData->GetFilteredDuplicateCount(), projectData->stringData->name.data());
-                }
-            }
+#ifndef NDEBUG
+	auto endOfUpdatingTime = std::chrono::high_resolution_clock::now();
+#endif
 
-            /*if (Settings::bCacheAnimationFileHashes) {
-                auto& animationFileHashCache = AnimationFileHashCache::GetSingleton();
-                if (animationFileHashCache.IsDirty()) {
-                    animationFileHashCache.WriteCacheToDisk();
-                }
-            }*/
+	MarkDataAsProcessed(a_stringData);
+
+    if (projectData && !projectData->replacementIndexToOriginalIndexMap.empty()) {
+		SetSynchronizedClipsIDOffset(a_stringData, static_cast<uint16_t>(a_stringData->animationNames.size()));
+
+        InitializeReplacementAnimations(a_stringData);
+
+        if (Settings::bFilterOutDuplicateAnimations) {
+			logger::info("Filtered out {} duplicate animations in project {}", projectData->GetFilteredDuplicateCount(), projectData->stringData->name.data());
         }
     }
+
+#ifndef NDEBUG
+	auto endTime = std::chrono::high_resolution_clock::now();
+
+	logger::debug("Time taken:");
+	logger::debug("  Parsing: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfParsingTime - startTime).count());
+	logger::debug("  Updating animations in submods: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfUpdatingTime - endOfParsingTime).count());
+	logger::debug("  Initializing replacment animations: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endTime - endOfUpdatingTime).count());
+	logger::debug("  Total: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count());
+#endif
+}
+
+void OpenAnimationReplacer::CacheAnimationPathSubMod(std::string_view a_path, SubMod* a_subMod)
+{
+    WriteLocker locker(_animationPathToSubModsLock);
+
+	auto& entry = _animationPathToSubModsMap[a_path];
+	entry.emplace(a_subMod);
 }
 
 ReplacerProjectData* OpenAnimationReplacer::GetReplacerProjectData(RE::hkbCharacterStringData* a_stringData) const
@@ -540,6 +606,14 @@ uint16_t OpenAnimationReplacer::GetSynchronizedClipsIDOffset(RE::hkbCharacter* a
     }
 
     return 0;
+}
+
+void OpenAnimationReplacer::MarkSynchronizedReplacementAnimations(RE::hkbCharacterStringData* a_stringData, RE::hkbBehaviorGraph* a_rootBehavior)
+{
+	if (const auto search = _replacerProjectDatas.find(a_stringData); search != _replacerProjectDatas.end()) {
+		auto& replacerProjectData = search->second;
+		replacerProjectData->MarkSynchronizedReplacementAnimations(a_rootBehavior);
+	}
 }
 
 // the loading functions don't actually need a real clip generator, just access two member variables
@@ -687,6 +761,8 @@ void OpenAnimationReplacer::InitFactories()
 	_conditionFactories.emplace("IsMenuOpen", []() { return std::make_unique<IsMenuOpenCondition>(); });
 	_conditionFactories.emplace("TARGET", []() { return std::make_unique<TARGETCondition>(); });
 	_conditionFactories.emplace("PLAYER", []() { return std::make_unique<PLAYERCondition>(); });
+	_conditionFactories.emplace("LightLevel", []() { return std::make_unique<LightLevelCondition>(); });
+	_conditionFactories.emplace("LocationHasKeyword", []() { return std::make_unique<LocationHasKeywordCondition>(); });
 
     // Hidden factories - not visible for selection in the UI, used for mapping legacy names to new conditions etc
     _hiddenConditionFactories.emplace("IsEquippedRight", []() { return std::make_unique<IsEquippedCondition>(false); });
@@ -888,38 +964,28 @@ RE::Character* OpenAnimationReplacer::CreateDummyCharacter(RE::TESNPC* a_baseFor
     return nullptr;
 }
 
-void OpenAnimationReplacer::AddModParseResult(Parsing::ModParseResult& a_parseResult, RE::hkbCharacterStringData* a_stringData, RE::BShkbHkxDB::ProjectDBData* a_projectDBData)
+void OpenAnimationReplacer::AddModParseResult(Parsing::ModParseResult& a_parseResult)
 {
-    // Get replacer mod or create it if it doesn't exist
-    auto replacerMod = GetReplacerMod(a_parseResult.path);
-    if (!replacerMod) {
-        auto newReplacerMod = std::make_unique<ReplacerMod>(a_parseResult.path, a_parseResult.name, a_parseResult.author, a_parseResult.description, false);
-        replacerMod = newReplacerMod.get();
-        AddReplacerMod(a_parseResult.path, newReplacerMod);
-    }
+	// Get replacer mod or create it if it doesn't exist
+	auto replacerMod = GetReplacerMod(a_parseResult.path);
+	if (!replacerMod) {
+		auto newReplacerMod = std::make_unique<ReplacerMod>(a_parseResult.path, a_parseResult.name, a_parseResult.author, a_parseResult.description, false);
+		replacerMod = newReplacerMod.get();
+		AddReplacerMod(a_parseResult.path, newReplacerMod);
+	}
 
-    for (auto& subModParseResult : a_parseResult.subModParseResults) {
-        // Get submod or create it if it doesn't exist
-        AddSubModParseResult(replacerMod, subModParseResult, a_stringData, a_projectDBData);
-    }
+	for (auto& subModParseResult : a_parseResult.subModParseResults) {
+		// Get submod or create it if it doesn't exist
+		AddSubModParseResult(replacerMod, subModParseResult);
+	}
 }
 
-void OpenAnimationReplacer::AddSubModParseResult(ReplacerMod* a_replacerMod, Parsing::SubModParseResult& a_parseResult, RE::hkbCharacterStringData* a_stringData, RE::BShkbHkxDB::ProjectDBData* a_projectDBData)
+void OpenAnimationReplacer::AddSubModParseResult(ReplacerMod* a_replacerMod, Parsing::SubModParseResult& a_parseResult)
 {
-    auto subMod = a_replacerMod->GetSubMod(a_parseResult.path);
-    if (!subMod) {
-        auto newSubMod = std::make_unique<SubMod>();
-        newSubMod->LoadParseResult(a_parseResult);
-        subMod = newSubMod.get();
-        a_replacerMod->AddSubMod(newSubMod);
-    }
-
-    // add new replacement anims
-    subMod->AddReplacementAnimations(a_stringData, a_projectDBData, a_parseResult.animationsToAdd);
-    subMod->AddReplacerProject(GetOrAddReplacerProjectData(a_stringData, a_projectDBData));
-
-	// do this again because the call in LoadParseResult was too early
-	subMod->LoadReplacementAnimationDatas(a_parseResult.replacementAnimDatas);
-
-	subMod->UpdateAnimations();
+	if (!a_replacerMod->HasSubMod(a_parseResult.path)) {
+		auto newSubMod = std::make_unique<SubMod>();
+		newSubMod->SetAnimationFiles(a_parseResult.animationFiles);
+		newSubMod->LoadParseResult(a_parseResult);
+		a_replacerMod->AddSubMod(newSubMod);
+	}
 }

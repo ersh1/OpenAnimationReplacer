@@ -21,6 +21,7 @@ namespace Utils
     [[nodiscard]] std::string_view TrimQuotes(std::string_view a_s);
     [[nodiscard]] std::string_view TrimSquareBrackets(std::string_view a_s);
     [[nodiscard]] std::string_view TrimHexPrefix(std::string_view a_s);
+	[[nodiscard]] std::string_view TrimPrefix(std::string_view a_s, std::string_view a_prefix);
     [[nodiscard]] std::string_view GetFileNameWithExtension(std::string_view a_s);
     [[nodiscard]] std::string_view GetFileNameWithoutExtension(std::string_view a_s);
 
@@ -95,6 +96,8 @@ namespace Utils
     }
 
     [[nodiscard]] std::string_view GetActorValueName(RE::ActorValue a_actorValue);
+
+	RE::TESObjectREFR* GetRefrFromObject(RE::NiAVObject* a_object);
 
     inline void ErrorTooManyAnimations()
     {

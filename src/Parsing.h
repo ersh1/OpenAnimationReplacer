@@ -3,6 +3,8 @@
 #include "Conditions.h"
 #include "ReplacementAnimation.h"
 
+#include <future>
+
 struct ReplacementAnimData
 {
 	struct Variant
@@ -65,28 +67,7 @@ namespace Parsing
         kNameDescriptionOnly,
         kWithoutNameDescription
     };
-
-    struct ReplacementAnimationToAdd
-    {
-		struct VariantToAdd
-		{
-			VariantToAdd(std::string_view a_fullPath) :
-				fullPath(a_fullPath) {}
-
-			std::string fullPath;
-			std::optional<std::string> hash = std::nullopt;
-		};
-
-        ReplacementAnimationToAdd(std::string_view a_fullPath, std::string_view a_animationPath, uint16_t a_originalBindingIndex);
-		ReplacementAnimationToAdd(std::string_view a_fullPath, std::string_view a_animationPath, uint16_t a_originalBindingIndex, std::vector<VariantToAdd>& a_variants);
-
-        std::string fullPath;
-        std::string animationPath;
-        uint16_t originalBindingIndex;
-        std::optional<std::string> hash = std::nullopt;
-		std::optional<std::vector<VariantToAdd>> variants = std::nullopt;
-    };
-
+	
     struct ConditionsTxtFile
     {
     public:
@@ -116,14 +97,16 @@ namespace Parsing
         std::vector<ReplacementAnimData> replacementAnimDatas{};
         std::string overrideAnimationsFolder;
         std::string requiredProjectName;
-        bool bIgnoreNoTriggersFlag = false;
+        bool bIgnoreDontConvertAnnotationsToTriggersFlag = false;
+		bool bTriggersFromAnnotationsOnly = false;
         bool bInterruptible = false;
 		bool bReplaceOnLoop = true;
 		bool bReplaceOnEcho = false;
         bool bKeepRandomResultsOnLoop = false;
 		bool bShareRandomResults = false;
         std::unique_ptr<Conditions::ConditionSet> conditionSet;
-        std::vector<ReplacementAnimationToAdd> animationsToAdd;
+		std::unique_ptr<Conditions::ConditionSet> synchronizedConditionSet;
+		std::vector<ReplacementAnimationFile> animationFiles;
 
         ConfigSource configSource = ConfigSource::kAuthor;
     };
@@ -140,6 +123,15 @@ namespace Parsing
         std::string description;
     };
 
+	struct ParseResults
+	{
+		ExclusiveLock modParseResultsLock;
+		std::vector<std::future<ModParseResult>> modParseResultFutures;
+
+		ExclusiveLock legacyParseResultsLock;
+		std::vector<std::future<SubModParseResult>> legacyParseResultFutures;
+	};
+
     [[nodiscard]] std::unique_ptr<Conditions::ConditionSet> ParseConditionsTxt(const std::filesystem::path& a_txtPath);
     [[nodiscard]] bool DeserializeMod(const std::filesystem::path& a_jsonPath, ModParseResult& a_outParseResult);
     [[nodiscard]] bool DeserializeSubMod(std::filesystem::path a_jsonPath, DeserializeMode a_deserializeMode, SubModParseResult& a_outParseResult);
@@ -152,11 +144,12 @@ namespace Parsing
 
     [[nodiscard]] uint16_t GetOriginalAnimationBindingIndex(RE::hkbCharacterStringData* a_stringData, std::string_view a_animationName);
 
-    [[nodiscard]] ModParseResult ParseModDirectory(const std::filesystem::directory_entry& a_directory, RE::hkbCharacterStringData* a_stringData);
-    [[nodiscard]] SubModParseResult ParseModSubdirectory(const std::filesystem::directory_entry& a_subDirectory, RE::hkbCharacterStringData* a_stringData, bool a_bIsLegacy = false);
-    [[nodiscard]] SubModParseResult ParseLegacyCustomConditionsDirectory(const std::filesystem::directory_entry& a_directory, RE::hkbCharacterStringData* a_stringData);
-    [[nodiscard]] std::vector<SubModParseResult> ParseLegacyPluginDirectory(const std::filesystem::directory_entry& a_directory, RE::hkbCharacterStringData* a_stringData);
-    [[nodiscard]] std::optional<ReplacementAnimationToAdd> ParseReplacementAnimationEntry(RE::hkbCharacterStringData* a_stringData, std::string_view a_fullPath);
-	[[nodiscard]] std::optional<ReplacementAnimationToAdd> ParseReplacementAnimationVariants(RE::hkbCharacterStringData* a_stringData, std::string_view a_fullVariantsPath);
-    [[nodiscard]] std::vector<ReplacementAnimationToAdd> ParseAnimationsInDirectory(const std::filesystem::directory_entry& a_directory, RE::hkbCharacterStringData* a_stringData, bool a_bIsLegacy = false);
+	void ParseDirectory(const std::filesystem::directory_entry& a_directory, ParseResults& a_outParseResults);
+    [[nodiscard]] ModParseResult ParseModDirectory(const std::filesystem::directory_entry& a_directory);
+    [[nodiscard]] SubModParseResult ParseModSubdirectory(const std::filesystem::directory_entry& a_subDirectory, bool a_bIsLegacy = false);
+    [[nodiscard]] SubModParseResult ParseLegacyCustomConditionsDirectory(const std::filesystem::directory_entry& a_directory);
+    [[nodiscard]] std::vector<SubModParseResult> ParseLegacyPluginDirectory(const std::filesystem::directory_entry& a_directory);
+	[[nodiscard]] std::optional<ReplacementAnimationFile> ParseReplacementAnimationEntry(std::string_view a_fullPath);
+	[[nodiscard]] std::optional<ReplacementAnimationFile> ParseReplacementAnimationVariants(std::string_view a_fullVariantsPath);
+	[[nodiscard]] std::vector<ReplacementAnimationFile> ParseAnimationsInDirectory(const std::filesystem::directory_entry& a_directory, bool a_bIsLegacy = false);
 }

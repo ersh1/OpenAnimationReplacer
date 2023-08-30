@@ -2,6 +2,27 @@
 
 #include "Conditions.h"
 
+struct ReplacementAnimationFile
+{
+	struct Variant
+	{
+		Variant(std::string_view a_fullPath) :
+			fullPath(a_fullPath) {}
+
+		std::string fullPath;
+		std::optional<std::string> hash = std::nullopt;
+	};
+
+	ReplacementAnimationFile(std::string_view a_fullPath);
+	ReplacementAnimationFile(std::string_view a_fullPath, std::vector<Variant>& a_variants);
+
+	std::string GetOriginalPath() const;
+
+	std::string fullPath;
+	std::optional<std::string> hash = std::nullopt;
+	std::optional<std::vector<Variant>> variants = std::nullopt;
+};
+
 class ReplacementAnimation
 {
 public:
@@ -68,11 +89,12 @@ public:
 	bool IsDisabled() const { return _bDisabled || _bDisabledByParent; }
 	
     uint16_t GetIndex() const;
-	uint16_t GetIndex(class ActiveClip* a_activeClip) const;
+	uint16_t GetIndex(ActiveClip* a_activeClip) const;
     uint16_t GetOriginalIndex() const { return _originalIndex; }
     int32_t GetPriority() const { return _priority; }
     bool GetDisabled() const { return _bDisabled; }
-    bool GetIgnoreNoTriggersFlag() const { return _bIgnoreNoTriggersFlag; }
+    bool GetIgnoreDontConvertAnnotationsToTriggersFlag() const { return _bIgnoreDontConvertAnnotationsToTriggersFlag; }
+    bool GetTriggersFromAnnotationsOnly() const { return _bTriggersFromAnnotationsOnly; }
     bool GetInterruptible() const { return _bInterruptible; }
 	bool GetReplaceOnLoop() const { return _bReplaceOnLoop; }
 	bool GetReplaceOnEcho() const { return _bReplaceOnEcho; }
@@ -81,7 +103,8 @@ public:
     void SetPriority(int32_t a_priority) { _priority = a_priority; }
     void SetDisabled(bool a_bDisable) { _bDisabled = a_bDisable; }
     void SetDisabledByParent(bool a_bDisable) { _bDisabledByParent = a_bDisable; }
-    void SetIgnoreNoTriggersFlag(bool a_enable) { _bIgnoreNoTriggersFlag = a_enable; }
+    void SetIgnoreDontConvertAnnotationsToTriggersFlag(bool a_enable) { _bIgnoreDontConvertAnnotationsToTriggersFlag = a_enable; }
+    void SetTriggersFromAnnotationsOnly(bool a_enable) { _bTriggersFromAnnotationsOnly = a_enable; }
     void SetInterruptible(bool a_bEnable) { _bInterruptible = a_bEnable; }
     void SetReplaceOnLoop(bool a_bEnable) { _bReplaceOnLoop = a_bEnable; }
     void SetReplaceOnEcho(bool a_bEnable) { _bReplaceOnEcho = a_bEnable; }
@@ -92,6 +115,10 @@ public:
 	Conditions::ConditionSet* GetConditionSet() const { return _conditionSet; }
     SubMod* GetParentSubMod() const;
 
+	bool IsSynchronizedAnimation() const { return _bSynchronized; }
+	void MarkAsSynchronizedAnimation(bool a_bSynchronized);
+	void SetSynchronizedConditionSet(Conditions::ConditionSet* a_synchronizedConditionSet);
+
 	void LoadAnimData(const struct ReplacementAnimData& a_replacementAnimData);
 	void ResetVariants();
 	void UpdateVariantCache();
@@ -100,13 +127,15 @@ public:
 	RE::BSVisit::BSVisitControl ForEachVariant(const std::function<RE::BSVisit::BSVisitControl(const Variant&)>& a_func) const;
 
     bool EvaluateConditions(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const;
+	bool EvaluateSynchronizedConditions(RE::TESObjectREFR* a_sourceRefr, RE::TESObjectREFR* a_targetRefr, RE::hkbClipGenerator* a_clipGenerator) const;
 
 protected:
 	std::variant<uint16_t, Variants> _index;
     uint16_t _originalIndex;
     int32_t _priority;
     bool _bDisabled = false;
-    bool _bIgnoreNoTriggersFlag = false;
+    bool _bIgnoreDontConvertAnnotationsToTriggersFlag = false;
+	bool _bTriggersFromAnnotationsOnly = false;
     bool _bInterruptible = false;
 	bool _bReplaceOnLoop = true;
 	bool _bReplaceOnEcho = false;
@@ -115,6 +144,9 @@ protected:
     std::string _path;
     std::string _projectName;
     Conditions::ConditionSet* _conditionSet;
+	Conditions::ConditionSet* _synchronizedConditionSet = nullptr;
+
+	bool _bSynchronized = false;
 
     friend class SubMod;
     SubMod* _parentSubMod = nullptr;

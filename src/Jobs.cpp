@@ -11,7 +11,7 @@ namespace Jobs
 		if (graphManager) {
 			const auto& activeGraph = graphManager->graphs[graphManager->GetRuntimeData().activeGraph];
 			if (activeGraph->behaviorGraph) {
-				OpenAnimationReplacer::GetSingleton().AddActiveAnimationPreview(activeGraph->behaviorGraph, replacementAnimation, variantIndex);
+				OpenAnimationReplacer::GetSingleton().AddActiveAnimationPreview(activeGraph->behaviorGraph, replacementAnimation, syncAnimationPrefix, variantIndex);
 			}
 		}
     }

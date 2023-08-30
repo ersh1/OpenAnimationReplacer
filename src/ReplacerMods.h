@@ -5,6 +5,8 @@
 #include "Parsing.h"
 #include "ReplacementAnimation.h"
 
+#include <unordered_set>
+
 namespace Jobs {
     struct RemoveSharedRandomFloatJob;
 }
@@ -24,9 +26,9 @@ public:
         _conditionSet = std::make_unique<Conditions::ConditionSet>(this);
     }
 
-    void AddReplacementAnimations(RE::hkbCharacterStringData* a_stringData, RE::BShkbHkxDB::ProjectDBData* a_projectDBData, const std::vector<Parsing::ReplacementAnimationToAdd>& a_animationsToAdd);
-	std::unique_ptr<ReplacementAnimation> CreateReplacementAnimation(class ReplacerProjectData* a_replacerProjectData, RE::hkbCharacterStringData* a_stringData, const Parsing::ReplacementAnimationToAdd& a_anim);
+	bool AddReplacementAnimation(std::string_view a_animPath, uint16_t a_originalIndex, class ReplacerProjectData* a_replacerProjectData, RE::hkbCharacterStringData* a_stringData);
 
+	void SetAnimationFiles(const std::vector<ReplacementAnimationFile>& a_animationFiles);
     void LoadParseResult(const Parsing::SubModParseResult& a_parseResult);
 	void LoadReplacementAnimationDatas(const std::vector<ReplacementAnimData>& a_replacementAnimDatas);
 
@@ -34,6 +36,7 @@ public:
     void UpdateAnimations() const;
 
     Conditions::ConditionSet* GetConditionSet() const { return _conditionSet.get(); }
+    Conditions::ConditionSet* GetSynchronizedConditionSet() const { return _synchronizedConditionSet.get(); }
 
     std::string_view GetName() const { return _name; }
     void SetName(std::string_view a_name) { _name = a_name; }
@@ -57,8 +60,11 @@ public:
     std::string_view GetRequiredProjectName() const { return _requiredProjectName; }
     void SetRequiredProjectName(std::string_view a_requiredProjectName) { _requiredProjectName = a_requiredProjectName; }
 
-    bool IsIgnoringNoTriggersFlag() const { return _bIgnoreNoTriggersFlag; }
-    void SetIgnoringNoTriggersFlag(bool a_bIgnoreNoTriggersFlag) { _bIgnoreNoTriggersFlag = a_bIgnoreNoTriggersFlag; }
+    bool IsIgnoringDontConvertAnnotationsToTriggersFlag() const { return _bIgnoreDontConvertAnnotationsToTriggersFlag; }
+	void SetIgnoringDontConvertAnnotationsToTriggersFlag(bool a_bIgnoreDontConvertAnnotationsToTriggersFlag) { _bIgnoreDontConvertAnnotationsToTriggersFlag = a_bIgnoreDontConvertAnnotationsToTriggersFlag; }
+
+	bool IsOnlyUsingTriggersFromAnnotations() const { return _bTriggersFromAnnotationsOnly; }
+	void SetOnlyUsingTriggersFromAnnotations(bool a_bTriggersFromAnnotationsOnly) { _bTriggersFromAnnotationsOnly = a_bTriggersFromAnnotationsOnly; }
 
     bool IsInterruptible() const { return _bInterruptible; }
     void SetInterruptible(bool a_bInterruptible) { _bInterruptible = a_bInterruptible; }
@@ -75,7 +81,7 @@ public:
 	bool IsSharingRandomResults() const { return _bShareRandomResults; }
 	void SetShareRandomResults(bool a_bShareRandomResults) { _bShareRandomResults = a_bShareRandomResults; }
 
-    bool IsDirty() const { return _bDirty || _conditionSet->IsDirtyRecursive(); }
+    bool IsDirty() const { return _bDirty || _conditionSet->IsDirtyRecursive() || (_synchronizedConditionSet && _synchronizedConditionSet->IsDirtyRecursive()); }
     bool IsFromUserConfig() const { return _configSource == Parsing::ConfigSource::kUser; }
     bool IsFromLegacyConfig() const { return _configSource >= Parsing::ConfigSource::kLegacy; }
     bool IsFromLegacyActorBase() const { return _configSource == Parsing::ConfigSource::kLegacyActorBase; }
@@ -87,7 +93,15 @@ public:
     {
         _bDirty = a_bDirty;
         _conditionSet->SetDirtyRecursive(a_bDirty);
+		if (_synchronizedConditionSet) {
+		    _synchronizedConditionSet->SetDirtyRecursive(a_bDirty);
+		}
     }
+
+	bool HasInvalidConditions() const;
+
+	bool HasSynchronizedAnimations() const { return _synchronizedConditionSet != nullptr; }
+	void SetHasSynchronizedAnimations();
 
     bool ReloadConfig();
     void SaveConfig(ConditionEditMode a_editMode, bool a_bResetDirty = true);
@@ -102,6 +116,7 @@ public:
     void AddReplacerProject(ReplacerProjectData* a_replacerProject);
     void ForEachReplacerProject(const std::function<void(ReplacerProjectData*)>& a_func) const;
     void ForEachReplacementAnimation(const std::function<void(ReplacementAnimation*)>& a_func) const;
+	void ForEachReplacementAnimationFile(const std::function<void(const ReplacementAnimationFile&)>& a_func) const;
 
 	float GetSharedRandom(ActiveClip* a_activeClip, const Conditions::IRandomConditionComponent* a_randomComponent);
 	float GetVariantRandom(ActiveClip* a_activeClip);
@@ -117,18 +132,23 @@ private:
     std::string _path;
     Parsing::ConfigSource _configSource = Parsing::ConfigSource::kAuthor;
     bool _bDisabled = false;
+	std::vector<ReplacementAnimData> _replacementAnimDatas{};
     std::string _overrideAnimationsFolder{};
     std::string _requiredProjectName{};
-    bool _bIgnoreNoTriggersFlag = false;
+    bool _bIgnoreDontConvertAnnotationsToTriggersFlag = false;
+	bool _bTriggersFromAnnotationsOnly = false;
     bool _bInterruptible = false;
 	bool _bReplaceOnLoop = true;
 	bool _bReplaceOnEcho = false;
     bool _bKeepRandomResultsOnLoop = false;
 	bool _bShareRandomResults = false;
 
-    std::unique_ptr<Conditions::ConditionSet> _conditionSet;
-    bool _bDirty = false;
+	std::unordered_map<std::filesystem::path, ReplacementAnimationFile, CaseInsensitivePathHash, CaseInsensitivePathEqual> _replacementAnimationFiles;
 
+    std::unique_ptr<Conditions::ConditionSet> _conditionSet;
+	std::unique_ptr<Conditions::ConditionSet> _synchronizedConditionSet = nullptr;
+    bool _bDirty = false;
+	
     mutable SharedLock _dataLock;
     std::vector<ReplacerProjectData*> _replacerProjects;
     std::vector<ReplacementAnimation*> _replacementAnimations;
@@ -225,6 +245,7 @@ public:
     bool ShouldOriginalKeepRandomResultsOnLoop() const { return _bOriginalKeepRandomResultsOnLoop; }
 
     ReplacementAnimation* EvaluateConditionsAndGetReplacementAnimation(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const;
+	ReplacementAnimation* EvaluateSynchronizedConditionsAndGetReplacementAnimation(RE::TESObjectREFR* a_sourceRefr, RE::TESObjectREFR* a_targetRefr, RE::hkbClipGenerator* a_clipGenerator) const;
 
     void AddReplacementAnimation(std::unique_ptr<ReplacementAnimation>& a_replacementAnimation);
     void SortByPriority();
@@ -235,11 +256,15 @@ public:
 	void TestReplaceOnEcho();
     void TestKeepRandomResultsOnLoop();
 
+	void MarkAsSynchronizedAnimation(bool a_bSynchronized);
+
 protected:
     mutable SharedLock _lock;
 
     std::string _originalPath;
     std::vector<std::unique_ptr<ReplacementAnimation>> _replacements;
+
+	bool _bSynchronized = false;
 
     bool _bOriginalInterruptible = false;
     bool _bOriginalReplaceOnEcho = false;
@@ -261,6 +286,7 @@ public:
     void AddReplacementAnimation(RE::hkbCharacterStringData* a_stringData, uint16_t a_originalIndex, std::unique_ptr<ReplacementAnimation>& a_replacementAnimation);
     void SortReplacementAnimationsByPriority(uint16_t a_originalIndex);
     void QueueReplacementAnimations(RE::hkbCharacter* a_character);
+	void MarkSynchronizedReplacementAnimations(RE::hkbGenerator* a_rootGenerator);
 
     [[nodiscard]] uint32_t GetFilteredDuplicateCount() const { return _filteredDuplicates; }
 

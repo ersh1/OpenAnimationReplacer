@@ -7,9 +7,11 @@ struct AnimationLogEntry
 		kNone,
 		
         kActivate,
+		kActivateSynchronized,
         kEcho,
         kLoop,
         kActivateReplace,
+		kActivateReplaceSynchronized,
         kEchoReplace,
         kLoopReplace,
         kInterrupt

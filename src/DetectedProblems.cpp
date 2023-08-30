@@ -102,7 +102,7 @@ void DetectedProblems::CheckForSubModsWithInvalidConditions()
 
     OpenAnimationReplacer::GetSingleton().ForEachReplacerMod([&](const auto& a_replacerMod) {
         a_replacerMod->ForEachSubMod([&](const SubMod* a_subMod) {
-            if (a_subMod->GetConditionSet()->HasInvalidConditions()) {
+            if (a_subMod->HasInvalidConditions()) {
                 _subModsWithInvalidConditions.insert(a_subMod);
             }
             return RE::BSVisit::BSVisitControl::kContinue;

@@ -125,10 +125,10 @@ namespace Parsing
 
 	struct ParseResults
 	{
-		ExclusiveLock modParseResultsLock;
+		//ExclusiveLock modParseResultsLock;
 		std::vector<std::future<ModParseResult>> modParseResultFutures;
 
-		ExclusiveLock legacyParseResultsLock;
+		//ExclusiveLock legacyParseResultsLock;
 		std::vector<std::future<SubModParseResult>> legacyParseResultFutures;
 	};
 

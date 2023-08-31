@@ -438,7 +438,8 @@ namespace Parsing
 
 		std::vector<std::future<void>> futures;
 
-		for (const auto& entry : std::filesystem::directory_iterator(a_directory)) {
+		for (std::filesystem::recursive_directory_iterator i(a_directory), end; i != end; ++i) {
+			auto entry = *i;
 			if (!entry.is_directory()) {
 				continue;
 			}
@@ -459,7 +460,7 @@ namespace Parsing
 					for (const auto& subEntry : std::filesystem::directory_iterator(entry)) {
 						if (is_directory(subEntry)) {
 							// we're in a mod folder. we have the subfolders here and a json.
-							Locker locker(a_outParseResults.modParseResultsLock);
+							//Locker locker(a_outParseResults.modParseResultsLock);
 							a_outParseResults.modParseResultFutures.emplace_back(std::async(std::launch::async, ParseModDirectory, subEntry));
 						}
 					}
@@ -472,6 +473,7 @@ namespace Parsing
 						}
 					}
 				}
+				i.disable_recursion_pending();
 			} else if (Utils::CompareStringsIgnoreCase(stemString, legacyFolderName)) {
 				// we're in the DAR folder
 				for (const auto& subEntry : std::filesystem::directory_iterator(entry)) {
@@ -489,7 +491,7 @@ namespace Parsing
 							// we're in the _CustomConditions directory
 							for (const auto& subSubEntry : std::filesystem::directory_iterator(subEntry)) {
 								if (std::filesystem::is_directory(subSubEntry)) {
-									Locker locker(a_outParseResults.legacyParseResultsLock);
+									//Locker locker(a_outParseResults.legacyParseResultsLock);
 									a_outParseResults.legacyParseResultFutures.emplace_back(std::async(std::launch::async, ParseLegacyCustomConditionsDirectory, subSubEntry));
 								}
 							}
@@ -503,13 +505,7 @@ namespace Parsing
 						}
 					}
 				}
-			} else {
-			    // recursively parse the subdirectory
-				if (Settings::bAsyncParsing) {
-					                   futures.emplace_back(std::async(std::launch::async, ParseDirectory, entry, std::ref(a_outParseResults)));
-                } else {
-                    ParseDirectory(entry, a_outParseResults);
-				}
+				i.disable_recursion_pending();
 			}
 		}
 

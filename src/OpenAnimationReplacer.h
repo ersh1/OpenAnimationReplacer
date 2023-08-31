@@ -120,6 +120,7 @@ public:
 
 protected:
     ExclusiveLock _parseLock;
+	ExclusiveLock _animationCreationLock;
     mutable SharedLock _dataLock;
 	std::unordered_set<RE::hkbCharacterStringData*> _processedDatas;
     std::unordered_map<RE::hkbCharacterStringData*, std::unique_ptr<ReplacerProjectData>> _replacerProjectDatas;

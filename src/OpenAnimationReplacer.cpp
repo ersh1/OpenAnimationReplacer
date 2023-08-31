@@ -359,69 +359,65 @@ bool OpenAnimationReplacer::ShouldOriginalAnimationKeepRandomResultsOnLoop(RE::h
 void OpenAnimationReplacer::CreateReplacerMods()
 {
 	// parse the meshes directory for all the mods/submods, create objects
+	Locker parseLocker(_parseLock);
 
-#ifndef NDEBUG
-	logger::debug("Creating replacer mods...");
+	logger::info("Creating replacer mods...");
 	auto startTime = std::chrono::high_resolution_clock::now();
-#endif
 
 	if (!AreFactoriesInitialized()) {
 		InitFactories();
 	}
 
-#ifndef NDEBUG
 	auto factoriesInitedTime = std::chrono::high_resolution_clock::now();
-#endif
 
 	constexpr auto meshesPath = "data\\meshes\\"sv;
 
 	Parsing::ParseResults parseResults;
+	logger::info("Parsing data\\meshes for replacer mods...");
 	Parsing::ParseDirectory(std::filesystem::directory_entry(meshesPath), parseResults);
+	logger::info("Finished parsing data\\meshes for replacer mods...");
 
-#ifndef NDEBUG
 	auto endOfParsingTime = std::chrono::high_resolution_clock::now();
-#endif
 
 	if (parseResults.modParseResultFutures.empty() && parseResults.legacyParseResultFutures.empty()) {
+		logger::info("No replacer mods found.");
 		return;
 	}
 
 	// add all parsed mods
+	logger::info("Adding parsed replacer mods...");
 	for (auto& future : parseResults.modParseResultFutures) {
 		auto modParseResult = future.get();
 		AddModParseResult(modParseResult);
 	}
+	logger::info("Added parsed replacer mods.");
 
-#ifndef NDEBUG
 	auto endOfModsTime = std::chrono::high_resolution_clock::now();
-#endif
 
 	// add all parsed legacy mods
+	logger::info("Adding parsed legacy replacer mods...");
 	for (auto& future : parseResults.legacyParseResultFutures) {
 		if (auto subModParseResult = future.get(); subModParseResult.bSuccess) {
 			auto replacerMod = GetOrCreateLegacyReplacerMod();
 			AddSubModParseResult(replacerMod, subModParseResult);
 		}
 	}
+	logger::info("Added parsed legacy replacer mods.");
 
-#ifndef NDEBUG
 	auto endOfLegacyModsTime = std::chrono::high_resolution_clock::now();
-#endif
 
 	auto& detectedProblems = DetectedProblems::GetSingleton();
 	detectedProblems.CheckForSubModsSharingPriority();
 	detectedProblems.CheckForSubModsWithInvalidConditions();
 
-#ifndef NDEBUG
 	auto endTime = std::chrono::high_resolution_clock::now();
 
-	logger::debug("Time taken:");
-	logger::debug("  Parsing: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfParsingTime - startTime).count());
-	logger::debug("  Adding mods: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfModsTime - endOfParsingTime).count());
-	logger::debug("  Adding legacy mods: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfLegacyModsTime - endOfModsTime).count());
-	logger::debug("  Checking for problems: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endTime - endOfLegacyModsTime).count());
-	logger::debug("  Total: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count());
-#endif
+	logger::info("Time spent creating replacer mods...:");
+	logger::info("  Parsing: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfParsingTime - startTime).count());
+	logger::info("  Adding mods: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfModsTime - endOfParsingTime).count());
+	logger::info("  Adding legacy mods: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfLegacyModsTime - endOfModsTime).count());
+	logger::info("  Checking for problems: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endTime - endOfLegacyModsTime).count());
+	logger::info("  Total: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count());
 }
 
 void OpenAnimationReplacer::CreateReplacementAnimations([[maybe_unused]] const char* a_path, RE::hkbCharacterStringData* a_stringData, RE::BShkbHkxDB::ProjectDBData* a_projectDBData)
@@ -430,15 +426,13 @@ void OpenAnimationReplacer::CreateReplacementAnimations([[maybe_unused]] const c
 	    return;
 	}
 
-#ifndef NDEBUG
-    logger::debug("Creating replacement animations for {}...", a_path);
+    logger::info("Creating replacement animations for {}...", a_path);
 	auto startTime = std::chrono::high_resolution_clock::now();
-#endif
 
 	constexpr auto meshesPath = "data\\meshes\\"sv;
 	const auto projectPath = std::filesystem::path(meshesPath) / a_path;
 
-	Locker parseLocker(_parseLock);
+	Locker parseLocker(_animationCreationLock);
 
 	// create replacer project data and replacer animations
 	ReplacerProjectData* projectData = nullptr;
@@ -470,17 +464,13 @@ void OpenAnimationReplacer::CreateReplacementAnimations([[maybe_unused]] const c
 		}
 	}
 
-#ifndef NDEBUG
 	auto endOfParsingTime = std::chrono::high_resolution_clock::now();
-#endif
 
 	for (auto& subMod : subModsToUpdate) {
 		subMod->UpdateAnimations();
 	}
 
-#ifndef NDEBUG
 	auto endOfUpdatingTime = std::chrono::high_resolution_clock::now();
-#endif
 
 	MarkDataAsProcessed(a_stringData);
 
@@ -494,15 +484,12 @@ void OpenAnimationReplacer::CreateReplacementAnimations([[maybe_unused]] const c
         }
     }
 
-#ifndef NDEBUG
 	auto endTime = std::chrono::high_resolution_clock::now();
-
-	logger::debug("Time taken:");
-	logger::debug("  Parsing: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfParsingTime - startTime).count());
-	logger::debug("  Updating animations in submods: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfUpdatingTime - endOfParsingTime).count());
-	logger::debug("  Initializing replacment animations: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endTime - endOfUpdatingTime).count());
-	logger::debug("  Total: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count());
-#endif
+	logger::info("Time spent creating replacement animations for {}:", a_path);
+	logger::info("  Parsing: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfParsingTime - startTime).count());
+	logger::info("  Updating animations in submods: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfUpdatingTime - endOfParsingTime).count());
+	logger::info("  Initializing replacment animations: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endTime - endOfUpdatingTime).count());
+	logger::info("  Total: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count());
 }
 
 void OpenAnimationReplacer::CacheAnimationPathSubMod(std::string_view a_path, SubMod* a_subMod)
@@ -667,6 +654,8 @@ void OpenAnimationReplacer::InitFactories()
         return;
     }
 
+	logger::info("Initializing condition factories...");
+
     // Init core condition factories
     _conditionFactories.emplace("IsForm", []() { return std::make_unique<IsFormCondition>(); });
     _conditionFactories.emplace("OR", []() { return std::make_unique<ORCondition>(); });
@@ -795,6 +784,8 @@ void OpenAnimationReplacer::InitFactories()
     }
 
     _bFactoriesInitialized = true;
+
+	logger::info("Condition factories initialized.");
 }
 
 bool OpenAnimationReplacer::HasConditionFactory(std::string_view a_conditionName) const

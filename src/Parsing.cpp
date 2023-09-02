@@ -433,6 +433,10 @@ namespace Parsing
 
     void ParseDirectory(const std::filesystem::directory_entry& a_directory, ParseResults& a_outParseResults)
     {
+		if (!a_directory.exists()) {
+		    return;
+		}
+
 		static constexpr auto oarFolderName = "openanimationreplacer"sv;
 		static constexpr auto legacyFolderName = "dynamicanimationreplacer"sv;
 

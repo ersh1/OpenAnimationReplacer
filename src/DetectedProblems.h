@@ -21,6 +21,7 @@ public:
     void UpdateShowErrorBanner() const;
     void MarkOutdatedVersion();
     void AddMissingPluginName(std::string_view a_pluginName, REL::Version a_pluginVersion);
+    void AddInvalidPluginName(std::string_view a_pluginName, REL::Version a_pluginVersion);
     void CheckForSubModsSharingPriority();
     void CheckForSubModsWithInvalidConditions();
 
@@ -32,6 +33,10 @@ public:
     [[nodiscard]] bool HasMissingPlugins() const { return !_missingPlugins.empty(); }
     void ForEachMissingPlugin(const std::function<void(const std::pair<std::string, REL::Version>&)>& a_func) const;
     [[nodiscard]] size_t NumMissingPlugins() const { return _missingPlugins.size(); };
+
+	[[nodiscard]] bool HasInvalidPlugins() const { return !_invalidPlugins.empty(); }
+	void ForEachInvalidPlugin(const std::function<void(const std::pair<std::string, REL::Version>&)>& a_func) const;
+	[[nodiscard]] size_t NumInvalidPlugins() const { return _invalidPlugins.size(); };
 
     [[nodiscard]] bool HasSubModsSharingPriority() const { return !_subModsSharingPriority.empty(); }
     void ForEachSubModSharingPriority(const std::function<void(const SubMod*)>& a_func) const;
@@ -52,6 +57,7 @@ private:
 
     bool _bIsOutdated = false;
     std::set<std::pair<std::string, REL::Version>> _missingPlugins;
+    std::set<std::pair<std::string, REL::Version>> _invalidPlugins;
     std::map<int32_t, std::set<const SubMod*>> _subModsSharingPriority;
     std::set<const SubMod*> _subModsWithInvalidConditions;
 

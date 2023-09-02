@@ -45,7 +45,7 @@ bool SubMod::AddReplacementAnimation(std::string_view a_animPath, uint16_t a_ori
 
 			// load anim data
 			const auto animDataSearch = std::ranges::find_if(_replacementAnimDatas, [&](const ReplacementAnimData& a_replacementAnimData) {
-				return a_replacementAnimData.projectName == a_stringData->name.data() && a_replacementAnimData.path == a_animPath;
+				return a_replacementAnimData.projectName == a_stringData->name.data() && a_replacementAnimData.path == animFile.fullPath;
             });
 
 			if (animDataSearch != _replacementAnimDatas.end()) {

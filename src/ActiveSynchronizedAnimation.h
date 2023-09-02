@@ -26,6 +26,8 @@ protected:
     };
 
 	RE::BGSSynchronizedAnimationInstance* _synchronizedAnimationInstance;
+
+	SharedLock _clipDataLock;
 	std::unordered_map<RE::BSSynchronizedClipGenerator*, OriginalClipData> _originalClipDatas;
 
 	std::optional<uint16_t> _variantIndex = std::nullopt;

@@ -9,6 +9,8 @@ ActiveSynchronizedAnimation::ActiveSynchronizedAnimation(RE::BGSSynchronizedAnim
 
 ActiveSynchronizedAnimation::~ActiveSynchronizedAnimation()
 {
+	ReadLocker locker(_clipDataLock);
+
     for (auto& [synchronizedClipGenerator, originalClipData] : _originalClipDatas)
     {
         synchronizedClipGenerator->synchronizedAnimationBindingIndex = originalClipData.originalSynchronizedIndex;
@@ -18,7 +20,10 @@ ActiveSynchronizedAnimation::~ActiveSynchronizedAnimation()
 
 void ActiveSynchronizedAnimation::OnSynchronizedClipActivate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context)
 {
-	_originalClipDatas.emplace(a_synchronizedClipGenerator, OriginalClipData(a_synchronizedClipGenerator));
+    {
+        WriteLocker locker(_clipDataLock);
+        _originalClipDatas.emplace(a_synchronizedClipGenerator, OriginalClipData(a_synchronizedClipGenerator));
+    }
 
 	if (a_synchronizedClipGenerator->synchronizedAnimationBindingIndex != static_cast<uint16_t>(-1)) {
 		a_synchronizedClipGenerator->synchronizedAnimationBindingIndex += OpenAnimationReplacer::GetSingleton().GetSynchronizedClipsIDOffset(a_context.character);
@@ -53,6 +58,8 @@ void ActiveSynchronizedAnimation::OnSynchronizedClipActivate(RE::BSSynchronizedC
 
 void ActiveSynchronizedAnimation::OnSynchronizedClipDeactivate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, [[maybe_unused]] const RE::hkbContext& a_context)
 {
+	WriteLocker locker(_clipDataLock);
+
     auto it = _originalClipDatas.find(a_synchronizedClipGenerator);
     if (it != _originalClipDatas.end())
     {

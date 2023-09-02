@@ -7,7 +7,7 @@
 
 void DetectedProblems::UpdateShowErrorBanner() const
 {
-    if (_bIsOutdated || !_missingPlugins.empty() || !_subModsWithInvalidConditions.empty()) {
+    if (_bIsOutdated || !_missingPlugins.empty()|| !_invalidPlugins.empty() || !_subModsWithInvalidConditions.empty()) {
         UI::UIManager::GetSingleton().bShowErrorBanner = true;
     } else {
         UI::UIManager::GetSingleton().bShowErrorBanner = false;
@@ -26,6 +26,16 @@ void DetectedProblems::AddMissingPluginName(std::string_view a_pluginName, REL::
     {
         WriteLocker locker(_dataLock);
         _missingPlugins.emplace(a_pluginName, a_pluginVersion);
+    }
+
+    UpdateShowErrorBanner();
+}
+
+void DetectedProblems::AddInvalidPluginName(std::string_view a_pluginName, REL::Version a_pluginVersion)
+{
+    {
+        WriteLocker locker(_dataLock);
+        _invalidPlugins.emplace(a_pluginName, a_pluginVersion);
     }
 
     UpdateShowErrorBanner();
@@ -114,7 +124,7 @@ void DetectedProblems::CheckForSubModsWithInvalidConditions()
 
 DetectedProblems::Severity DetectedProblems::GetProblemSeverity() const
 {
-    if (IsOutdated() || HasMissingPlugins() || HasSubModsWithInvalidConditions()) {
+    if (IsOutdated() || HasMissingPlugins() || HasInvalidPlugins() || HasSubModsWithInvalidConditions()) {
         return Severity::kError;
     }
 
@@ -135,6 +145,10 @@ std::string_view DetectedProblems::GetProblemMessage() const
         return "ERROR: Missing required Open Animation Replacer plugins! Click for details..."sv;
     }
 
+	if (HasInvalidPlugins()) {
+		return "ERROR: At least one Open Animation Replacer plugin failed to initialize properly! Click for details..."sv;
+	}
+
     if (HasSubModsWithInvalidConditions()) {
         return "ERROR: Detected submods with invalid conditions! Click for details..."sv;
     }
@@ -151,6 +165,15 @@ void DetectedProblems::ForEachMissingPlugin(const std::function<void(const std::
     ReadLocker locker(_dataLock);
 
     for (auto& entry : _missingPlugins) {
+        a_func(entry);
+    }
+}
+
+void DetectedProblems::ForEachInvalidPlugin(const std::function<void(const std::pair<std::string, REL::Version>&)>& a_func) const
+{
+    ReadLocker locker(_dataLock);
+
+    for (auto& entry : _invalidPlugins) {
         a_func(entry);
     }
 }

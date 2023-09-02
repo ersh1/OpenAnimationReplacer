@@ -127,8 +127,10 @@ namespace Conditions
                 condition->PostInitialize();
                 return std::move(condition);
             }
+
+			// at this point we failed to create a new condition even though the plugin is present and not outdated. This means that the plugin failed to initialize factories for whatever reason.
             if (bHasRequiredPlugin) {
-                DetectedProblems::GetSingleton().AddMissingPluginName(requiredPluginName, requiredVersion);
+                DetectedProblems::GetSingleton().AddInvalidPluginName(requiredPluginName, requiredVersion);
                 auto errorStr = std::format("Condition {} not found in plugin {}!", conditionName, requiredPluginName);
                 logger::error("{}", errorStr);
                 return std::make_unique<InvalidCondition>(errorStr);

@@ -90,6 +90,7 @@ namespace UI
     private:
         void DrawSettings(const ImVec2& a_pos);
         void DrawMissingPlugins();
+		void DrawInvalidPlugins();
         void DrawConflictingSubMods() const;
         void DrawSubModsWithInvalidConditions() const;
         void DrawReplacerMods();

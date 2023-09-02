@@ -206,6 +206,23 @@ namespace UI
                                 bShouldDrawSeparator = true;
                             }
 
+							if (problems.HasInvalidPlugins()) {
+								if (bShouldDrawSeparator) {
+									ImGui::Spacing();
+									ImGui::Spacing();
+									ImGui::Separator();
+									ImGui::Spacing();
+									ImGui::Spacing();
+								}
+								ImGui::PushStyleColor(ImGuiCol_Text, UICommon::ERROR_TEXT_COLOR);
+								ImGui::TextWrapped("ERROR: At least one replacer mod has conditions that aren't included in Open Animation Replacer itself, but are added by an Open Animation Replacer API plugin that seems to have failed to initialize properly.\nThe mod will not function correctly. Please make sure you have installed the required plugin and all its dependencies correctly!");
+								ImGui::PopStyleColor();
+								ImGui::Spacing();
+								DrawInvalidPlugins();
+
+								bShouldDrawSeparator = true;
+							}
+
                             if (problems.HasSubModsWithInvalidConditions()) {
                                 if (bShouldDrawSeparator) {
                                     ImGui::Spacing();
@@ -521,7 +538,7 @@ namespace UI
     {
         if (ImGui::BeginTable("MissingPlugins", 3, ImGuiTableFlags_NoSavedSettings | ImGuiTableFlags_BordersOuter)) {
             ImGui::TableSetupColumn("Plugin", ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("Required", ImGuiTableColumnFlags_WidthFixed, 100.f);
+            ImGui::TableSetupColumn("Min required", ImGuiTableColumnFlags_WidthFixed, 100.f);
             ImGui::TableSetupColumn("Current", ImGuiTableColumnFlags_WidthFixed, 100.f);
             ImGui::TableSetupScrollFreeze(0, 1);
             ImGui::TableHeadersRow();
@@ -548,6 +565,39 @@ namespace UI
 
             ImGui::EndTable();
         }
+    }
+
+    void UIMain::DrawInvalidPlugins()
+    {
+		if (ImGui::BeginTable("InvalidPlugins", 3, ImGuiTableFlags_NoSavedSettings | ImGuiTableFlags_BordersOuter)) {
+			ImGui::TableSetupColumn("Plugin", ImGuiTableColumnFlags_WidthStretch);
+			ImGui::TableSetupColumn("Min required", ImGuiTableColumnFlags_WidthFixed, 100.f);
+			ImGui::TableSetupColumn("Current", ImGuiTableColumnFlags_WidthFixed, 100.f);
+			ImGui::TableSetupScrollFreeze(0, 1);
+			ImGui::TableHeadersRow();
+
+			DetectedProblems::GetSingleton().ForEachMissingPlugin([&](auto& a_invalidPlugin) {
+				auto& invalidPluginName = a_invalidPlugin.first;
+				auto& invalidPluginVersion = a_invalidPlugin.second;
+
+				const REL::Version currentPluginVersion = OpenAnimationReplacer::GetSingleton().GetPluginVersion(invalidPluginName);
+
+				ImGui::TableNextRow();
+				ImGui::TableSetColumnIndex(0);
+
+				ImGui::TextUnformatted(invalidPluginName.data());
+				ImGui::TableSetColumnIndex(1);
+				ImGui::TextUnformatted(invalidPluginVersion.string("."sv).data());
+				ImGui::TableSetColumnIndex(2);
+				if (currentPluginVersion > 0) {
+					ImGui::TextUnformatted(currentPluginVersion.string("."sv).data());
+				} else {
+					ImGui::TextUnformatted("Missing");
+				}
+			});
+
+			ImGui::EndTable();
+		}
     }
 
     void UIMain::DrawConflictingSubMods() const

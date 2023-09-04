@@ -108,7 +108,6 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 		Sleep(100);
 	}
 #endif
-	REL::Module::reset();  // Clib-NG bug workaround
 
 	// check if DAR is present
 	if (GetModuleHandle("DynamicAnimationReplacer.dll")) {

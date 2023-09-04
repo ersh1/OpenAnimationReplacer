@@ -23,5 +23,8 @@
     "spdlog",
     "xbyak"
   ],
-  "builtin-baseline": "17d868f8eb8afcc5c2ab735a17ab730bbb0fef28"
+  "builtin-baseline": "17d868f8eb8afcc5c2ab735a17ab730bbb0fef28",
+  "overrides": [
+    { "name": "imgui", "version": "1.89.6" }
+]
 }

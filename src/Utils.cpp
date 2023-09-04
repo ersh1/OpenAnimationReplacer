@@ -419,6 +419,8 @@ namespace Utils
 		if (g_mergeMapperInterface) {
 			const auto [newModName, newFormID] = g_mergeMapperInterface->GetNewFormID(a_modName.data(), a_localFormID);
 			formID = RE::TESDataHandler::GetSingleton()->LookupFormID(newFormID, newModName);
+			if ((newModName != a_modName) || (newFormID != a_localFormID))
+				logger::info("Mergemapper searched for 0x{:x}~{} and found 0x{:x}~{}; returning formid 0x{:x}", a_localFormID, a_modName, newFormID, newModName, formID);
 		} else {
 			formID = RE::TESDataHandler::GetSingleton()->LookupFormID(a_localFormID, a_modName);
 		}

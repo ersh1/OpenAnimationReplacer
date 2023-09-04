@@ -32,12 +32,12 @@ std::string ReplacementAnimationFile::GetOriginalPath() const
 
 bool ReplacementAnimation::Variant::ShouldSaveToJson() const
 {
-    return _weight != 1.f || _bDisabled != false;
+	return _weight != 1.f || _bDisabled != false;
 }
 
 void ReplacementAnimation::Variant::ResetSettings()
 {
-    _weight = 1.f;
+	_weight = 1.f;
 	_bDisabled = false;
 }
 
@@ -138,30 +138,30 @@ ReplacementAnimation::ReplacementAnimation(std::vector<Variant>& a_variants, uin
 	_projectName(a_projectName),
 	_conditionSet(a_conditionSet)
 {
-    _index.emplace<Variants>(a_variants);
+	_index.emplace<Variants>(a_variants);
 	std::get<Variants>(_index)._parentReplacementAnimation = this;
 }
 
 bool ReplacementAnimation::ShouldSaveToJson() const
 {
 	if (GetDisabled()) {
-	    return true;
+		return true;
 	}
 
 	if (HasVariants()) {
-	    bool bShouldSave = false;
+		bool bShouldSave = false;
 		const auto& variants = std::get<Variants>(_index);
 		variants.ForEachVariant([&](const Variant& a_variant) {
-		    if (a_variant.ShouldSaveToJson()) {
-		        bShouldSave = true;
+			if (a_variant.ShouldSaveToJson()) {
+				bShouldSave = true;
 				return RE::BSVisit::BSVisitControl::kStop;
-		    }
+			}
 
 			return RE::BSVisit::BSVisitControl::kContinue;
 		});
 
 		if (bShouldSave) {
-		    return true;
+			return true;
 		}
 	}
 
@@ -188,12 +188,12 @@ uint16_t ReplacementAnimation::GetIndex(ActiveClip* a_activeClip) const
 
 SubMod* ReplacementAnimation::GetParentSubMod() const
 {
-    return _parentSubMod;
+	return _parentSubMod;
 }
 
 void ReplacementAnimation::MarkAsSynchronizedAnimation(bool a_bSynchronized)
 {
-    _bSynchronized = a_bSynchronized;
+	_bSynchronized = a_bSynchronized;
 
 	if (_parentSubMod) {
 		_parentSubMod->SetHasSynchronizedAnimations();
@@ -202,7 +202,7 @@ void ReplacementAnimation::MarkAsSynchronizedAnimation(bool a_bSynchronized)
 
 void ReplacementAnimation::SetSynchronizedConditionSet(Conditions::ConditionSet* a_synchronizedConditionSet)
 {
-    _synchronizedConditionSet = a_synchronizedConditionSet;
+	_synchronizedConditionSet = a_synchronizedConditionSet;
 }
 
 void ReplacementAnimation::LoadAnimData(const ReplacementAnimData& a_replacementAnimData)
@@ -248,10 +248,10 @@ std::string_view ReplacementAnimation::GetVariantFilename(uint16_t a_variantInde
 
 	if (HasVariants()) {
 		std::get<Variants>(_index).ForEachVariant([&](const Variant& a_variant) {
-		    if (a_variant.GetIndex() == a_variantIndex) {
-		        filename = a_variant.GetFilename();
+			if (a_variant.GetIndex() == a_variantIndex) {
+				filename = a_variant.GetFilename();
 				return RE::BSVisit::BSVisitControl::kStop;
-		    }
+			}
 			return RE::BSVisit::BSVisitControl::kContinue;
 		});
 	}
@@ -279,25 +279,25 @@ RE::BSVisit::BSVisitControl ReplacementAnimation::ForEachVariant(const std::func
 
 bool ReplacementAnimation::EvaluateConditions(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const
 {
-    if (IsDisabled()) {
-        return false;
-    }
+	if (IsDisabled()) {
+		return false;
+	}
 
-    if (_conditionSet->IsEmpty()) {
-        return true;
-    }
+	if (_conditionSet->IsEmpty()) {
+		return true;
+	}
 
-    return _conditionSet->EvaluateAll(a_refr, a_clipGenerator);
+	return _conditionSet->EvaluateAll(a_refr, a_clipGenerator);
 }
 
 bool ReplacementAnimation::EvaluateSynchronizedConditions(RE::TESObjectREFR* a_sourceRefr, RE::TESObjectREFR* a_targetRefr, RE::hkbClipGenerator* a_clipGenerator) const
 {
-    if (IsDisabled()) {
-        return false;
-    }
+	if (IsDisabled()) {
+		return false;
+	}
 
 	const bool bPassingSourceConditions = _conditionSet->IsEmpty() || _conditionSet->EvaluateAll(a_sourceRefr, a_clipGenerator);
 	const bool bPassingTargetConditions = !_synchronizedConditionSet || _synchronizedConditionSet->IsEmpty() || _synchronizedConditionSet->EvaluateAll(a_targetRefr, a_clipGenerator);
 
-    return bPassingSourceConditions && bPassingTargetConditions;
+	return bPassingSourceConditions && bPassingTargetConditions;
 }

@@ -1,6 +1,6 @@
 #pragma once
-#include "ReplacementAnimation.h"
 #include "Havok/Havok.h"
+#include "ReplacementAnimation.h"
 
 class ActiveSynchronizedAnimation
 {
@@ -14,16 +14,16 @@ public:
 	bool HasRef(RE::TESObjectREFR* a_refr) const;
 
 protected:
-    struct OriginalClipData
-    {
+	struct OriginalClipData
+	{
 		OriginalClipData(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator) :
 			originalSynchronizedIndex(a_synchronizedClipGenerator->synchronizedAnimationBindingIndex),
 			originalInternalClipIndex(a_synchronizedClipGenerator->clipGenerator->animationBindingIndex)
-        {}
+		{}
 
 		const uint16_t originalSynchronizedIndex;
 		const uint16_t originalInternalClipIndex;
-    };
+	};
 
 	RE::BGSSynchronizedAnimationInstance* _synchronizedAnimationInstance;
 

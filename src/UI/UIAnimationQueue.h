@@ -3,15 +3,14 @@
 
 namespace UI
 {
-    class UIAnimationQueue : public UIWindow
-    {
-    public:
+	class UIAnimationQueue : public UIWindow
+	{
+	public:
+	protected:
+		bool ShouldDrawImpl() const override;
+		void DrawImpl() override;
 
-    protected:
-        bool ShouldDrawImpl() const override;
-        void DrawImpl() override;
-
-    private:
-        float _fLingerTime = 0.f;
-    };
+	private:
+		float _fLingerTime = 0.f;
+	};
 }

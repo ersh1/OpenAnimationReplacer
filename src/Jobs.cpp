@@ -4,8 +4,8 @@
 
 namespace Jobs
 {
-    void BeginPreviewAnimationJob::Run()
-    {
+	void BeginPreviewAnimationJob::Run()
+	{
 		RE::BSAnimationGraphManagerPtr graphManager = nullptr;
 		refr->GetAnimationGraphManager(graphManager);
 		if (graphManager) {
@@ -14,10 +14,10 @@ namespace Jobs
 				OpenAnimationReplacer::GetSingleton().AddActiveAnimationPreview(activeGraph->behaviorGraph, replacementAnimation, syncAnimationPrefix, variantIndex);
 			}
 		}
-    }
+	}
 
-    void StopPreviewAnimationJob::Run()
-    {
+	void StopPreviewAnimationJob::Run()
+	{
 		RE::BSAnimationGraphManagerPtr graphManager = nullptr;
 		refr->GetAnimationGraphManager(graphManager);
 		if (graphManager) {
@@ -26,5 +26,5 @@ namespace Jobs
 				OpenAnimationReplacer::GetSingleton().RemoveActiveAnimationPreview(activeGraph->behaviorGraph);
 			}
 		}
-    }
+	}
 }

@@ -11,9 +11,8 @@ bool SubMod::AddReplacementAnimation(std::string_view a_animPath, uint16_t a_ori
 {
 	bool bAdded = false;
 
-    if (const auto search = _replacementAnimationFiles.find(a_animPath.data()); search != _replacementAnimationFiles.end()) {
-
-	    std::unique_ptr<ReplacementAnimation> newReplacementAnimation = nullptr;
+	if (const auto search = _replacementAnimationFiles.find(a_animPath.data()); search != _replacementAnimationFiles.end()) {
+		std::unique_ptr<ReplacementAnimation> newReplacementAnimation = nullptr;
 
 		auto& animFile = search->second;
 		if (animFile.variants) {
@@ -46,16 +45,16 @@ bool SubMod::AddReplacementAnimation(std::string_view a_animPath, uint16_t a_ori
 			// load anim data
 			const auto animDataSearch = std::ranges::find_if(_replacementAnimDatas, [&](const ReplacementAnimData& a_replacementAnimData) {
 				return a_replacementAnimData.projectName == a_stringData->name.data() && a_replacementAnimData.path == animFile.fullPath;
-            });
+			});
 
 			if (animDataSearch != _replacementAnimDatas.end()) {
-			    newReplacementAnimation->LoadAnimData(*animDataSearch);
-            }
+				newReplacementAnimation->LoadAnimData(*animDataSearch);
+			}
 
 			a_replacerProjectData->AddReplacementAnimation(a_stringData, a_originalIndex, newReplacementAnimation);
 			AddReplacerProject(a_replacerProjectData);
 		}
-    }
+	}
 
 	return bAdded;
 }
@@ -78,38 +77,38 @@ void SubMod::LoadParseResult(const Parsing::SubModParseResult& a_parseResult)
 {
 	ResetAnimations();
 
-    _path = a_parseResult.path;
-    _configSource = a_parseResult.configSource;
-    _name = a_parseResult.name;
-    _description = a_parseResult.description;
-    _priority = a_parseResult.priority;
-    _bDisabled = a_parseResult.bDisabled;
+	_path = a_parseResult.path;
+	_configSource = a_parseResult.configSource;
+	_name = a_parseResult.name;
+	_description = a_parseResult.description;
+	_priority = a_parseResult.priority;
+	_bDisabled = a_parseResult.bDisabled;
 	_replacementAnimDatas = a_parseResult.replacementAnimDatas;
-    _overrideAnimationsFolder = a_parseResult.overrideAnimationsFolder;
-    _requiredProjectName = a_parseResult.requiredProjectName;
-    _bIgnoreDontConvertAnnotationsToTriggersFlag = a_parseResult.bIgnoreDontConvertAnnotationsToTriggersFlag;
+	_overrideAnimationsFolder = a_parseResult.overrideAnimationsFolder;
+	_requiredProjectName = a_parseResult.requiredProjectName;
+	_bIgnoreDontConvertAnnotationsToTriggersFlag = a_parseResult.bIgnoreDontConvertAnnotationsToTriggersFlag;
 	_bTriggersFromAnnotationsOnly = a_parseResult.bTriggersFromAnnotationsOnly;
-    _bInterruptible = a_parseResult.bInterruptible;
+	_bInterruptible = a_parseResult.bInterruptible;
 	_bReplaceOnLoop = a_parseResult.bReplaceOnLoop;
 	_bReplaceOnEcho = a_parseResult.bReplaceOnEcho;
-    _bKeepRandomResultsOnLoop = a_parseResult.bKeepRandomResultsOnLoop;
+	_bKeepRandomResultsOnLoop = a_parseResult.bKeepRandomResultsOnLoop;
 	_bShareRandomResults = a_parseResult.bShareRandomResults;
-    _conditionSet->MoveConditions(a_parseResult.conditionSet.get());
+	_conditionSet->MoveConditions(a_parseResult.conditionSet.get());
 	if (a_parseResult.synchronizedConditionSet) {
 		SetHasSynchronizedAnimations();
 		_synchronizedConditionSet->MoveConditions(a_parseResult.synchronizedConditionSet.get());
 	}
-	
+
 	LoadReplacementAnimationDatas(_replacementAnimDatas);
 
-    SetDirtyRecursive(false);
+	SetDirtyRecursive(false);
 }
 
 void SubMod::LoadReplacementAnimationDatas(const std::vector<ReplacementAnimData>& a_replacementAnimDatas)
 {
 	for (const auto& replacementAnimData : a_replacementAnimDatas) {
 		auto search = std::ranges::find_if(_replacementAnimations, [&](const ReplacementAnimation* a_replacementAnimation) {
-		    return a_replacementAnimation->GetProjectName() == replacementAnimData.projectName && a_replacementAnimation->GetAnimPath() == replacementAnimData.path;
+			return a_replacementAnimation->GetProjectName() == replacementAnimData.projectName && a_replacementAnimation->GetAnimPath() == replacementAnimData.path;
 		});
 
 		if (search != _replacementAnimations.end()) {
@@ -128,56 +127,56 @@ void SubMod::ResetAnimations()
 
 void SubMod::UpdateAnimations() const
 {
-    // Update stuff in each anim
-    for (const auto& anim : _replacementAnimations) {
-        anim->SetPriority(_priority);
-        anim->SetDisabledByParent(_bDisabled);
-        anim->SetIgnoreDontConvertAnnotationsToTriggersFlag(_bIgnoreDontConvertAnnotationsToTriggersFlag);
+	// Update stuff in each anim
+	for (const auto& anim : _replacementAnimations) {
+		anim->SetPriority(_priority);
+		anim->SetDisabledByParent(_bDisabled);
+		anim->SetIgnoreDontConvertAnnotationsToTriggersFlag(_bIgnoreDontConvertAnnotationsToTriggersFlag);
 		anim->SetTriggersFromAnnotationsOnly(_bTriggersFromAnnotationsOnly);
-        anim->SetInterruptible(_bInterruptible);
+		anim->SetInterruptible(_bInterruptible);
 		anim->SetReplaceOnLoop(_bReplaceOnLoop);
 		anim->SetReplaceOnEcho(_bReplaceOnEcho);
-        anim->SetKeepRandomResultsOnLoop(_bKeepRandomResultsOnLoop);
+		anim->SetKeepRandomResultsOnLoop(_bKeepRandomResultsOnLoop);
 		anim->SetShareRandomResults(_bShareRandomResults);
 		anim->UpdateVariantCache();
-    }
+	}
 
-    // Update stuff in each anim replacements struct
-    if (_parentMod) {
-        _parentMod->SortSubMods();
-    }
+	// Update stuff in each anim replacements struct
+	if (_parentMod) {
+		_parentMod->SortSubMods();
+	}
 
-    ForEachReplacerProject([](const auto a_replacerProject) {
-        a_replacerProject->ForEach([](auto a_animReplacements) {
-            a_animReplacements->TestInterruptible();
-            a_animReplacements->TestReplaceOnEcho();
-            a_animReplacements->TestKeepRandomResultsOnLoop();
-            a_animReplacements->SortByPriority();
-        });
-    });
+	ForEachReplacerProject([](const auto a_replacerProject) {
+		a_replacerProject->ForEach([](auto a_animReplacements) {
+			a_animReplacements->TestInterruptible();
+			a_animReplacements->TestReplaceOnEcho();
+			a_animReplacements->TestKeepRandomResultsOnLoop();
+			a_animReplacements->SortByPriority();
+		});
+	});
 }
 
 bool SubMod::DoesUserConfigExist() const
 {
-    std::filesystem::path jsonPath(_path);
-    jsonPath = jsonPath / "user.json"sv;
+	std::filesystem::path jsonPath(_path);
+	jsonPath = jsonPath / "user.json"sv;
 
-    return is_regular_file(jsonPath);
+	return is_regular_file(jsonPath);
 }
 
 void SubMod::DeleteUserConfig() const
 {
-    std::filesystem::path jsonPath(_path);
-    jsonPath = jsonPath / "user.json"sv;
+	std::filesystem::path jsonPath(_path);
+	jsonPath = jsonPath / "user.json"sv;
 
-    if (is_regular_file(jsonPath)) {
-        std::filesystem::remove(jsonPath);
-    }
+	if (is_regular_file(jsonPath)) {
+		std::filesystem::remove(jsonPath);
+	}
 }
 
 bool SubMod::HasInvalidConditions() const
 {
-    return _conditionSet->HasInvalidConditions() || (_synchronizedConditionSet && _synchronizedConditionSet->HasInvalidConditions());
+	return _conditionSet->HasInvalidConditions() || (_synchronizedConditionSet && _synchronizedConditionSet->HasInvalidConditions());
 }
 
 void SubMod::SetHasSynchronizedAnimations()
@@ -186,167 +185,167 @@ void SubMod::SetHasSynchronizedAnimations()
 		_synchronizedConditionSet = std::make_unique<Conditions::ConditionSet>(this);
 
 		for (auto& anim : _replacementAnimations) {
-		    anim->SetSynchronizedConditionSet(_synchronizedConditionSet.get());
-        }
+			anim->SetSynchronizedConditionSet(_synchronizedConditionSet.get());
+		}
 	}
 }
 
 bool SubMod::ReloadConfig()
 {
-    Parsing::SubModParseResult parseResult;
+	Parsing::SubModParseResult parseResult;
 
-    std::filesystem::path directoryPath(_path);
+	std::filesystem::path directoryPath(_path);
 
-    bool bDeserializeSuccess = false;
+	bool bDeserializeSuccess = false;
 
-    // check if this was originally a legacy mod
-    auto directoryPathStr = directoryPath.string();
-    bool bOriginallyLegacy = directoryPathStr.find("DynamicAnimationReplacer"sv) != std::string::npos;
+	// check if this was originally a legacy mod
+	auto directoryPathStr = directoryPath.string();
+	bool bOriginallyLegacy = directoryPathStr.find("DynamicAnimationReplacer"sv) != std::string::npos;
 
-    auto configPath = directoryPath / "config.json"sv;
-    auto userPath = directoryPath / "user.json"sv;
-    bool bConfigJsonFound = is_regular_file(configPath);
-    bool bUserJsonFound = is_regular_file(userPath);
-    if (bConfigJsonFound || bUserJsonFound) {
-        if (bOriginallyLegacy) {
-            // if it was originally a legacy mod, only read user.json
-            if (bUserJsonFound) {
-                ResetToLegacy();
-                parseResult.name = _name;
-                parseResult.description = _description;
-                parseResult.configSource = Parsing::ConfigSource::kUser;
-                bDeserializeSuccess = DeserializeSubMod(userPath, Parsing::DeserializeMode::kWithoutNameDescription, parseResult);
-            }
-        } else {
-            if (bUserJsonFound) {
-                parseResult.configSource = Parsing::ConfigSource::kUser;
-                if (!DeserializeSubMod(configPath, Parsing::DeserializeMode::kNameDescriptionOnly, parseResult)) {
-                    return false;
-                }
-                bDeserializeSuccess = DeserializeSubMod(userPath, Parsing::DeserializeMode::kWithoutNameDescription, parseResult);
-            } else {
-                parseResult.configSource = Parsing::ConfigSource::kAuthor;
-                bDeserializeSuccess = DeserializeSubMod(configPath, Parsing::DeserializeMode::kFull, parseResult);
-            }
-        }
+	auto configPath = directoryPath / "config.json"sv;
+	auto userPath = directoryPath / "user.json"sv;
+	bool bConfigJsonFound = is_regular_file(configPath);
+	bool bUserJsonFound = is_regular_file(userPath);
+	if (bConfigJsonFound || bUserJsonFound) {
+		if (bOriginallyLegacy) {
+			// if it was originally a legacy mod, only read user.json
+			if (bUserJsonFound) {
+				ResetToLegacy();
+				parseResult.name = _name;
+				parseResult.description = _description;
+				parseResult.configSource = Parsing::ConfigSource::kUser;
+				bDeserializeSuccess = DeserializeSubMod(userPath, Parsing::DeserializeMode::kWithoutNameDescription, parseResult);
+			}
+		} else {
+			if (bUserJsonFound) {
+				parseResult.configSource = Parsing::ConfigSource::kUser;
+				if (!DeserializeSubMod(configPath, Parsing::DeserializeMode::kNameDescriptionOnly, parseResult)) {
+					return false;
+				}
+				bDeserializeSuccess = DeserializeSubMod(userPath, Parsing::DeserializeMode::kWithoutNameDescription, parseResult);
+			} else {
+				parseResult.configSource = Parsing::ConfigSource::kAuthor;
+				bDeserializeSuccess = DeserializeSubMod(configPath, Parsing::DeserializeMode::kFull, parseResult);
+			}
+		}
 
-        if (bDeserializeSuccess) {
-            LoadParseResult(parseResult);
-            auto& detectedProblems = DetectedProblems::GetSingleton();
-            detectedProblems.CheckForSubModsSharingPriority();
-            detectedProblems.CheckForSubModsWithInvalidConditions();
-            UpdateAnimations();
-            return true;
-        }
-    }
+		if (bDeserializeSuccess) {
+			LoadParseResult(parseResult);
+			auto& detectedProblems = DetectedProblems::GetSingleton();
+			detectedProblems.CheckForSubModsSharingPriority();
+			detectedProblems.CheckForSubModsWithInvalidConditions();
+			UpdateAnimations();
+			return true;
+		}
+	}
 
-    if (!bDeserializeSuccess && bOriginallyLegacy) {
-        ResetToLegacy();
-        if (directoryPathStr.find("_CustomConditions"sv) != std::string::npos) {
-            if (auto txtPath = directoryPath / "_conditions.txt"sv; exists(txtPath)) {
-                auto newConditionSet = Parsing::ParseConditionsTxt(txtPath);
-                _conditionSet->MoveConditions(newConditionSet.get());
+	if (!bDeserializeSuccess && bOriginallyLegacy) {
+		ResetToLegacy();
+		if (directoryPathStr.find("_CustomConditions"sv) != std::string::npos) {
+			if (auto txtPath = directoryPath / "_conditions.txt"sv; exists(txtPath)) {
+				auto newConditionSet = Parsing::ParseConditionsTxt(txtPath);
+				_conditionSet->MoveConditions(newConditionSet.get());
 
-                SetDirtyRecursive(false);
+				SetDirtyRecursive(false);
 
-                auto& detectedProblems = DetectedProblems::GetSingleton();
-                detectedProblems.CheckForSubModsSharingPriority();
-                detectedProblems.CheckForSubModsWithInvalidConditions();
+				auto& detectedProblems = DetectedProblems::GetSingleton();
+				detectedProblems.CheckForSubModsSharingPriority();
+				detectedProblems.CheckForSubModsWithInvalidConditions();
 
-                return true;
-            }
-        } else {
-            // no conditions.txt, so this is a legacy mod with plugin name and formid
-            auto formIDString = directoryPath.stem().string();
-            auto fileString = directoryPath.parent_path().stem().string();
-            auto extensionString = directoryPath.parent_path().extension().string();
-            auto modName = fileString + extensionString;
+				return true;
+			}
+		} else {
+			// no conditions.txt, so this is a legacy mod with plugin name and formid
+			auto formIDString = directoryPath.stem().string();
+			auto fileString = directoryPath.parent_path().stem().string();
+			auto extensionString = directoryPath.parent_path().extension().string();
+			auto modName = fileString + extensionString;
 
-            RE::FormID formID;
-            auto newConditionSet = std::make_shared<Conditions::ConditionSet>();
-            std::from_chars(formIDString.data(), formIDString.data() + formIDString.size(), formID, 16);
-            if (auto form = Utils::LookupForm(formID, modName)) {
-                std::string argument = modName + "|" + formIDString;
-                auto condition = OpenAnimationReplacer::GetSingleton().CreateCondition("IsActorBase");
-                static_cast<Conditions::IsActorBaseCondition*>(condition.get())->formComponent->SetTESFormValue(form);
-                newConditionSet->AddCondition(condition);
-            }
-            _conditionSet->MoveConditions(newConditionSet.get());
+			RE::FormID formID;
+			auto newConditionSet = std::make_shared<Conditions::ConditionSet>();
+			std::from_chars(formIDString.data(), formIDString.data() + formIDString.size(), formID, 16);
+			if (auto form = Utils::LookupForm(formID, modName)) {
+				std::string argument = modName + "|" + formIDString;
+				auto condition = OpenAnimationReplacer::GetSingleton().CreateCondition("IsActorBase");
+				static_cast<Conditions::IsActorBaseCondition*>(condition.get())->formComponent->SetTESFormValue(form);
+				newConditionSet->AddCondition(condition);
+			}
+			_conditionSet->MoveConditions(newConditionSet.get());
 
-            SetDirtyRecursive(false);
+			SetDirtyRecursive(false);
 
-            auto& detectedProblems = DetectedProblems::GetSingleton();
-            detectedProblems.CheckForSubModsSharingPriority();
-            detectedProblems.CheckForSubModsWithInvalidConditions();
+			auto& detectedProblems = DetectedProblems::GetSingleton();
+			detectedProblems.CheckForSubModsSharingPriority();
+			detectedProblems.CheckForSubModsWithInvalidConditions();
 
-            return true;
-        }
-    }
+			return true;
+		}
+	}
 
-    return false;
+	return false;
 }
 
-void SubMod::SaveConfig(ConditionEditMode a_editMode, bool a_bResetDirty/* = true*/)
+void SubMod::SaveConfig(ConditionEditMode a_editMode, bool a_bResetDirty /* = true*/)
 {
-    if (a_editMode == ConditionEditMode::kNone) {
-        return;
-    }
+	if (a_editMode == ConditionEditMode::kNone) {
+		return;
+	}
 
-    const auto prevSource = _configSource;
+	const auto prevSource = _configSource;
 
-    std::filesystem::path jsonPath(_path);
+	std::filesystem::path jsonPath(_path);
 
-    switch (a_editMode) {
-    case ConditionEditMode::kAuthor:
-        jsonPath = jsonPath / "config.json"sv;
-        _configSource = Parsing::ConfigSource::kAuthor;
-        break;
-    case ConditionEditMode::kUser:
-        jsonPath = jsonPath / "user.json"sv;
-        _configSource = Parsing::ConfigSource::kUser;
-        break;
-    }
+	switch (a_editMode) {
+	case ConditionEditMode::kAuthor:
+		jsonPath = jsonPath / "config.json"sv;
+		_configSource = Parsing::ConfigSource::kAuthor;
+		break;
+	case ConditionEditMode::kUser:
+		jsonPath = jsonPath / "user.json"sv;
+		_configSource = Parsing::ConfigSource::kUser;
+		break;
+	}
 
-    rapidjson::Document doc(rapidjson::kObjectType);
+	rapidjson::Document doc(rapidjson::kObjectType);
 
-    Serialize(doc, a_editMode);
+	Serialize(doc, a_editMode);
 
-    Parsing::SerializeJson(jsonPath, doc);
+	Parsing::SerializeJson(jsonPath, doc);
 
-    if (a_bResetDirty) {
-        SetDirtyRecursive(false);
-    } else {
-        _configSource = prevSource;
-    }
+	if (a_bResetDirty) {
+		SetDirtyRecursive(false);
+	} else {
+		_configSource = prevSource;
+	}
 }
 
 void SubMod::Serialize(rapidjson::Document& a_doc, ConditionEditMode a_editMode) const
 {
-    rapidjson::Value::AllocatorType& allocator = a_doc.GetAllocator();
+	rapidjson::Value::AllocatorType& allocator = a_doc.GetAllocator();
 
-    if (a_editMode == ConditionEditMode::kAuthor) {
-        // write submod name
-        rapidjson::Value nameValue(rapidjson::StringRef(_name.data(), _name.length()));
-        a_doc.AddMember("name", nameValue, allocator);
+	if (a_editMode == ConditionEditMode::kAuthor) {
+		// write submod name
+		rapidjson::Value nameValue(rapidjson::StringRef(_name.data(), _name.length()));
+		a_doc.AddMember("name", nameValue, allocator);
 
-        // write submod description
-        if (!_description.empty()) {
-            rapidjson::Value descriptionValue(rapidjson::StringRef(_description.data(), _description.length()));
-            a_doc.AddMember("description", descriptionValue, allocator);
-        }
-    }
+		// write submod description
+		if (!_description.empty()) {
+			rapidjson::Value descriptionValue(rapidjson::StringRef(_description.data(), _description.length()));
+			a_doc.AddMember("description", descriptionValue, allocator);
+		}
+	}
 
-    // write submod priority
-    rapidjson::Value priorityValue(_priority);
-    a_doc.AddMember("priority", priorityValue, allocator);
+	// write submod priority
+	rapidjson::Value priorityValue(_priority);
+	a_doc.AddMember("priority", priorityValue, allocator);
 
-    // write submod disabled
-    if (_bDisabled) {
-        rapidjson::Value disabledValue(_bDisabled);
-        a_doc.AddMember("disabled", disabledValue, allocator);
-    }
+	// write submod disabled
+	if (_bDisabled) {
+		rapidjson::Value disabledValue(_bDisabled);
+		a_doc.AddMember("disabled", disabledValue, allocator);
+	}
 
-    // write replacement anim datas (only save those that have non-default settings)
+	// write replacement anim datas (only save those that have non-default settings)
 	rapidjson::Value replacementAnimationDatasValue(rapidjson::kArrayType);
 	for (auto& replacementAnimation : _replacementAnimations) {
 		if (replacementAnimation->ShouldSaveToJson()) {
@@ -390,23 +389,23 @@ void SubMod::Serialize(rapidjson::Document& a_doc, ConditionEditMode a_editMode)
 		a_doc.AddMember("replacementAnimDatas", replacementAnimationDatasValue, allocator);
 	}
 
-    // write override animations folder
-    if (!_overrideAnimationsFolder.empty()) {
-        rapidjson::Value overrideAnimationsFolderValue(rapidjson::StringRef(_overrideAnimationsFolder.data(), _overrideAnimationsFolder.length()));
-        a_doc.AddMember("overrideAnimationsFolder", overrideAnimationsFolderValue, allocator);
-    }
+	// write override animations folder
+	if (!_overrideAnimationsFolder.empty()) {
+		rapidjson::Value overrideAnimationsFolderValue(rapidjson::StringRef(_overrideAnimationsFolder.data(), _overrideAnimationsFolder.length()));
+		a_doc.AddMember("overrideAnimationsFolder", overrideAnimationsFolderValue, allocator);
+	}
 
-    // write required project name
-    if (!_requiredProjectName.empty()) {
-        rapidjson::Value requiredProjectNameValue(rapidjson::StringRef(_requiredProjectName.data(), _requiredProjectName.length()));
-        a_doc.AddMember("requiredProjectName", requiredProjectNameValue, allocator);
-    }
+	// write required project name
+	if (!_requiredProjectName.empty()) {
+		rapidjson::Value requiredProjectNameValue(rapidjson::StringRef(_requiredProjectName.data(), _requiredProjectName.length()));
+		a_doc.AddMember("requiredProjectName", requiredProjectNameValue, allocator);
+	}
 
-    // write ignore DONT_CONVERT_ANNOTATIONS_TO_TRIGGERS flag
-    if (_bIgnoreDontConvertAnnotationsToTriggersFlag) {
-        rapidjson::Value ignoreNoTriggersValue(_bIgnoreDontConvertAnnotationsToTriggersFlag);
-        a_doc.AddMember("ignoreDontConvertAnnotationsToTriggersFlag", ignoreNoTriggersValue, allocator);
-    }
+	// write ignore DONT_CONVERT_ANNOTATIONS_TO_TRIGGERS flag
+	if (_bIgnoreDontConvertAnnotationsToTriggersFlag) {
+		rapidjson::Value ignoreNoTriggersValue(_bIgnoreDontConvertAnnotationsToTriggersFlag);
+		a_doc.AddMember("ignoreDontConvertAnnotationsToTriggersFlag", ignoreNoTriggersValue, allocator);
+	}
 
 	// write triggers from annotations only
 	if (_bTriggersFromAnnotationsOnly) {
@@ -414,11 +413,11 @@ void SubMod::Serialize(rapidjson::Document& a_doc, ConditionEditMode a_editMode)
 		a_doc.AddMember("triggersFromAnnotationsOnly", triggersOnlyValue, allocator);
 	}
 
-    // write interruptible
-    if (_bInterruptible) {
-        rapidjson::Value interruptibleValue(_bInterruptible);
-        a_doc.AddMember("interruptible", interruptibleValue, allocator);
-    }
+	// write interruptible
+	if (_bInterruptible) {
+		rapidjson::Value interruptibleValue(_bInterruptible);
+		a_doc.AddMember("interruptible", interruptibleValue, allocator);
+	}
 
 	// write replace on loop (true is default so skip)
 	if (!_bReplaceOnLoop) {
@@ -432,11 +431,11 @@ void SubMod::Serialize(rapidjson::Document& a_doc, ConditionEditMode a_editMode)
 		a_doc.AddMember("replaceOnEcho", interruptibleValue, allocator);
 	}
 
-    // write keep random result on loop
-    if (_bKeepRandomResultsOnLoop) {
-        rapidjson::Value keepRandomResultsOnLoopValue(_bKeepRandomResultsOnLoop);
-        a_doc.AddMember("keepRandomResultsOnLoop", keepRandomResultsOnLoopValue, allocator);
-    }
+	// write keep random result on loop
+	if (_bKeepRandomResultsOnLoop) {
+		rapidjson::Value keepRandomResultsOnLoopValue(_bKeepRandomResultsOnLoop);
+		a_doc.AddMember("keepRandomResultsOnLoop", keepRandomResultsOnLoopValue, allocator);
+	}
 
 	// write share random results
 	if (_bShareRandomResults) {
@@ -444,69 +443,69 @@ void SubMod::Serialize(rapidjson::Document& a_doc, ConditionEditMode a_editMode)
 		a_doc.AddMember("shareRandomResults", shareRandomResultsValue, allocator);
 	}
 
-    // write conditions
-    rapidjson::Value conditionArrayValue = _conditionSet->Serialize(allocator);
-    a_doc.AddMember("conditions", conditionArrayValue, allocator);
+	// write conditions
+	rapidjson::Value conditionArrayValue = _conditionSet->Serialize(allocator);
+	a_doc.AddMember("conditions", conditionArrayValue, allocator);
 
 	// write paired conditions
 	if (_synchronizedConditionSet) {
-	    rapidjson::Value pairedConditionArrayValue = _synchronizedConditionSet->Serialize(allocator);
-        a_doc.AddMember("pairedConditions", pairedConditionArrayValue, allocator);
+		rapidjson::Value pairedConditionArrayValue = _synchronizedConditionSet->Serialize(allocator);
+		a_doc.AddMember("pairedConditions", pairedConditionArrayValue, allocator);
 	}
 }
 
 std::string SubMod::SerializeToString() const
 {
-    rapidjson::Document doc(rapidjson::kObjectType);
+	rapidjson::Document doc(rapidjson::kObjectType);
 
-    Serialize(doc, ConditionEditMode::kAuthor);
+	Serialize(doc, ConditionEditMode::kAuthor);
 
-    return Parsing::SerializeJsonToString(doc);
+	return Parsing::SerializeJsonToString(doc);
 }
 
 ReplacerMod* SubMod::GetParentMod() const
 {
-    return _parentMod;
+	return _parentMod;
 }
 
 void SubMod::ResetToLegacy()
 {
-    const std::filesystem::path directoryPath(_path);
+	const std::filesystem::path directoryPath(_path);
 
-    if (_path.find("_CustomConditions"sv) != std::string::npos) {
-        _name = directoryPath.stem().string();
-        std::from_chars(_name.data(), _name.data() + _name.length(), _priority);
-        _configSource = Parsing::ConfigSource::kLegacy;
-    } else {
-        const std::string fileString = directoryPath.parent_path().stem().string();
-        const std::string extensionString = directoryPath.parent_path().extension().string();
+	if (_path.find("_CustomConditions"sv) != std::string::npos) {
+		_name = directoryPath.stem().string();
+		std::from_chars(_name.data(), _name.data() + _name.length(), _priority);
+		_configSource = Parsing::ConfigSource::kLegacy;
+	} else {
+		const std::string fileString = directoryPath.parent_path().stem().string();
+		const std::string extensionString = directoryPath.parent_path().extension().string();
 
-        const std::string modName = fileString + extensionString;
-        const std::string formIDString = directoryPath.stem().string();
-        _name = modName;
-        _name += '|';
-        _name += formIDString;
-        _priority = 0;
-        _configSource = Parsing::ConfigSource::kLegacyActorBase;
-    }
+		const std::string modName = fileString + extensionString;
+		const std::string formIDString = directoryPath.stem().string();
+		_name = modName;
+		_name += '|';
+		_name += formIDString;
+		_priority = 0;
+		_configSource = Parsing::ConfigSource::kLegacyActorBase;
+	}
 
-    _description = "";
-    _bDisabled = false;
-    _overrideAnimationsFolder = "";
-    _requiredProjectName = "";
-    _bIgnoreDontConvertAnnotationsToTriggersFlag = false;
+	_description = "";
+	_bDisabled = false;
+	_overrideAnimationsFolder = "";
+	_requiredProjectName = "";
+	_bIgnoreDontConvertAnnotationsToTriggersFlag = false;
 	_bTriggersFromAnnotationsOnly = false;
-    _bInterruptible = false;
+	_bInterruptible = false;
 	_bReplaceOnLoop = true;
 	_bReplaceOnEcho = false;
-    _bKeepRandomResultsOnLoop = false;
+	_bKeepRandomResultsOnLoop = false;
 	_bShareRandomResults = false;
 
 	ResetReplacementAnimationsToLegacy();
 
-    SetDirty(false);
+	SetDirty(false);
 
-    UpdateAnimations();
+	UpdateAnimations();
 }
 
 void SubMod::ResetReplacementAnimationsToLegacy()
@@ -527,40 +526,40 @@ void SubMod::ResetReplacementAnimationsToLegacy()
 
 void SubMod::AddReplacerProject(ReplacerProjectData* a_replacerProject)
 {
-    {
+	{
 		ReadLocker locker(_dataLock);
 
 		if (std::ranges::find(_replacerProjects, a_replacerProject) != _replacerProjects.end()) {
-		    return;
+			return;
 		}
-    }
+	}
 
-    WriteLocker locker(_dataLock);
+	WriteLocker locker(_dataLock);
 
-    _replacerProjects.emplace_back(a_replacerProject);
+	_replacerProjects.emplace_back(a_replacerProject);
 
-    // sort replacer projects by name
-    std::ranges::sort(_replacerProjects, [](const auto& a_lhs, const auto& a_rhs) {
-        return a_lhs->stringData->name.data() < a_rhs->stringData->name.data();
-    });
+	// sort replacer projects by name
+	std::ranges::sort(_replacerProjects, [](const auto& a_lhs, const auto& a_rhs) {
+		return a_lhs->stringData->name.data() < a_rhs->stringData->name.data();
+	});
 }
 
 void SubMod::ForEachReplacerProject(const std::function<void(ReplacerProjectData*)>& a_func) const
 {
-    ReadLocker locker(_dataLock);
+	ReadLocker locker(_dataLock);
 
-    for (auto& replacerProject : _replacerProjects) {
-        a_func(replacerProject);
-    }
+	for (auto& replacerProject : _replacerProjects) {
+		a_func(replacerProject);
+	}
 }
 
 void SubMod::ForEachReplacementAnimation(const std::function<void(ReplacementAnimation*)>& a_func) const
 {
-    ReadLocker locker(_dataLock);
+	ReadLocker locker(_dataLock);
 
-    for (auto& replacementAnimation : _replacementAnimations) {
-        a_func(replacementAnimation);
-    }
+	for (auto& replacementAnimation : _replacementAnimations) {
+		a_func(replacementAnimation);
+	}
 }
 
 void SubMod::ForEachReplacementAnimationFile(const std::function<void(const ReplacementAnimationFile&)>& a_func) const
@@ -569,19 +568,19 @@ void SubMod::ForEachReplacementAnimationFile(const std::function<void(const Repl
 
 	std::map<std::string, const ReplacementAnimationFile*> sortedReplacementAnimationFiles;
 
-    for (const auto& entry : _replacementAnimationFiles) {
+	for (const auto& entry : _replacementAnimationFiles) {
 		sortedReplacementAnimationFiles.emplace(entry.first.string(), &entry.second);
-    }
+	}
 
 	for (const auto& entry : sortedReplacementAnimationFiles | std::views::values) {
-	    a_func(*entry);
-    }
+		a_func(*entry);
+	}
 }
 
 float SubMod::GetSharedRandom(ActiveClip* a_activeClip, const Conditions::IRandomConditionComponent* a_randomComponent)
 {
 	{
-	    ReadLocker locker(_randomLock);
+		ReadLocker locker(_randomLock);
 
 		if (const auto search = _sharedRandomFloats.find(a_activeClip->GetBehaviorGraph()); search != _sharedRandomFloats.end()) {
 			return search->second.GetRandomFloat(a_activeClip, a_randomComponent);
@@ -653,7 +652,7 @@ float SubMod::SharedRandomFloats::GetVariantFloat(ActiveClip* a_activeClip)
 	{
 		ReadLocker locker(_randomLock);
 		if (_variantFloat) {
-		    return *_variantFloat;
+			return *_variantFloat;
 		}
 	}
 
@@ -695,128 +694,128 @@ void SubMod::SharedRandomFloats::RemoveActiveClip(ActiveClip* a_activeClip)
 
 void ReplacerMod::SetName(std::string_view a_name)
 {
-    const auto previousName = _name;
-    _name = a_name;
+	const auto previousName = _name;
+	_name = a_name;
 
-    OpenAnimationReplacer::GetSingleton().OnReplacerModNameChanged(previousName, this);
+	OpenAnimationReplacer::GetSingleton().OnReplacerModNameChanged(previousName, this);
 }
 
 void ReplacerMod::SaveConfig(ConditionEditMode a_editMode)
 {
-    if (a_editMode == ConditionEditMode::kNone) {
-        return;
-    }
+	if (a_editMode == ConditionEditMode::kNone) {
+		return;
+	}
 
-    std::filesystem::path jsonPath(_path);
+	std::filesystem::path jsonPath(_path);
 
-    switch (a_editMode) {
-    case ConditionEditMode::kAuthor:
-        jsonPath = jsonPath / "config.json"sv;
-        break;
-    case ConditionEditMode::kUser:
-        jsonPath = jsonPath / "user.json"sv;
-        break;
-    }
+	switch (a_editMode) {
+	case ConditionEditMode::kAuthor:
+		jsonPath = jsonPath / "config.json"sv;
+		break;
+	case ConditionEditMode::kUser:
+		jsonPath = jsonPath / "user.json"sv;
+		break;
+	}
 
-    rapidjson::Document doc(rapidjson::kObjectType);
+	rapidjson::Document doc(rapidjson::kObjectType);
 
-    Serialize(doc);
+	Serialize(doc);
 
-    Parsing::SerializeJson(jsonPath, doc);
+	Parsing::SerializeJson(jsonPath, doc);
 
-    SetDirty(false);
+	SetDirty(false);
 }
 
 void ReplacerMod::Serialize(rapidjson::Document& a_doc) const
 {
-    rapidjson::Value::AllocatorType& allocator = a_doc.GetAllocator();
+	rapidjson::Value::AllocatorType& allocator = a_doc.GetAllocator();
 
-    // write mod name
-    rapidjson::Value nameValue(rapidjson::StringRef(_name.data(), _name.length()));
-    a_doc.AddMember("name", nameValue, allocator);
+	// write mod name
+	rapidjson::Value nameValue(rapidjson::StringRef(_name.data(), _name.length()));
+	a_doc.AddMember("name", nameValue, allocator);
 
-    // write mod author
-    rapidjson::Value authorValue(rapidjson::StringRef(_author.data(), _author.length()));
-    a_doc.AddMember("author", authorValue, allocator);
+	// write mod author
+	rapidjson::Value authorValue(rapidjson::StringRef(_author.data(), _author.length()));
+	a_doc.AddMember("author", authorValue, allocator);
 
-    // write mod description
-    rapidjson::Value descriptionValue(rapidjson::StringRef(_description.data(), _description.length()));
-    a_doc.AddMember("description", descriptionValue, allocator);
+	// write mod description
+	rapidjson::Value descriptionValue(rapidjson::StringRef(_description.data(), _description.length()));
+	a_doc.AddMember("description", descriptionValue, allocator);
 }
 
 void ReplacerMod::AddSubMod(std::unique_ptr<SubMod>& a_subMod)
 {
-    WriteLocker locker(_dataLock);
+	WriteLocker locker(_dataLock);
 
-    a_subMod->_parentMod = this;
+	a_subMod->_parentMod = this;
 
-    const auto insertPos = std::ranges::upper_bound(_subMods, a_subMod, [](const auto& a_lhs, const auto& a_rhs) {
-        return a_lhs->GetPriority() > a_rhs->GetPriority();
-    });
+	const auto insertPos = std::ranges::upper_bound(_subMods, a_subMod, [](const auto& a_lhs, const auto& a_rhs) {
+		return a_lhs->GetPriority() > a_rhs->GetPriority();
+	});
 
-    _subMods.insert(insertPos, std::move(a_subMod));
+	_subMods.insert(insertPos, std::move(a_subMod));
 }
 
 bool ReplacerMod::HasSubMod(std::string_view a_path) const
 {
-    ReadLocker locker(_dataLock);
+	ReadLocker locker(_dataLock);
 
-    return GetSubMod(a_path) != nullptr;
+	return GetSubMod(a_path) != nullptr;
 }
 
 SubMod* ReplacerMod::GetSubMod(std::string_view a_path) const
 {
-    ReadLocker locker(_dataLock);
+	ReadLocker locker(_dataLock);
 
-    const auto it = std::ranges::find_if(_subMods, [&](const auto& a_subMod) {
-        return a_subMod->_path == a_path;
-    });
+	const auto it = std::ranges::find_if(_subMods, [&](const auto& a_subMod) {
+		return a_subMod->_path == a_path;
+	});
 
-    if (it != _subMods.end()) {
-        return (*it).get();
-    }
+	if (it != _subMods.end()) {
+		return (*it).get();
+	}
 
-    return nullptr;
+	return nullptr;
 }
 
 RE::BSVisit::BSVisitControl ReplacerMod::ForEachSubMod(const std::function<RE::BSVisit::BSVisitControl(SubMod*)>& a_func) const
 {
-    using Result = RE::BSVisit::BSVisitControl;
+	using Result = RE::BSVisit::BSVisitControl;
 
-    ReadLocker locker(_dataLock);
+	ReadLocker locker(_dataLock);
 
-    for (auto& subMod : _subMods) {
-        const auto result = a_func(subMod.get());
-        if (result == Result::kStop) {
-            return result;
-        }
-    }
+	for (auto& subMod : _subMods) {
+		const auto result = a_func(subMod.get());
+		if (result == Result::kStop) {
+			return result;
+		}
+	}
 
-    return Result::kContinue;
+	return Result::kContinue;
 }
 
 void ReplacerMod::SortSubMods()
 {
-    WriteLocker locker(_dataLock);
+	WriteLocker locker(_dataLock);
 
-    std::ranges::sort(_subMods, [](const auto& a_lhs, const auto& a_rhs) {
-        return a_lhs->GetPriority() > a_rhs->GetPriority();
-    });
+	std::ranges::sort(_subMods, [](const auto& a_lhs, const auto& a_rhs) {
+		return a_lhs->GetPriority() > a_rhs->GetPriority();
+	});
 }
 
 ReplacementAnimation* AnimationReplacements::EvaluateConditionsAndGetReplacementAnimation(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const
 {
-    ReadLocker locker(_lock);
+	ReadLocker locker(_lock);
 
-    if (!_replacements.empty()) {
-        for (auto& replacementAnimation : _replacements) {
-            if (replacementAnimation->EvaluateConditions(a_refr, a_clipGenerator)) {
-                return replacementAnimation.get();
-            }
-        }
-    }
+	if (!_replacements.empty()) {
+		for (auto& replacementAnimation : _replacements) {
+			if (replacementAnimation->EvaluateConditions(a_refr, a_clipGenerator)) {
+				return replacementAnimation.get();
+			}
+		}
+	}
 
-    return nullptr;
+	return nullptr;
 }
 
 ReplacementAnimation* AnimationReplacements::EvaluateSynchronizedConditionsAndGetReplacementAnimation(RE::TESObjectREFR* a_sourceRefr, RE::TESObjectREFR* a_targetRefr, RE::hkbClipGenerator* a_clipGenerator) const
@@ -836,52 +835,52 @@ ReplacementAnimation* AnimationReplacements::EvaluateSynchronizedConditionsAndGe
 
 void AnimationReplacements::AddReplacementAnimation(std::unique_ptr<ReplacementAnimation>& a_replacementAnimation)
 {
-    WriteLocker locker(_lock);
+	WriteLocker locker(_lock);
 
-    _replacements.emplace_back(std::move(a_replacementAnimation));
+	_replacements.emplace_back(std::move(a_replacementAnimation));
 }
 
 void AnimationReplacements::SortByPriority()
 {
-    WriteLocker locker(_lock);
+	WriteLocker locker(_lock);
 
-    if (!_replacements.empty()) {
-        std::ranges::sort(_replacements, [](const auto& a_lhs, const auto& a_rhs) {
-            return a_lhs->GetPriority() > a_rhs->GetPriority();
-        });
-    }
+	if (!_replacements.empty()) {
+		std::ranges::sort(_replacements, [](const auto& a_lhs, const auto& a_rhs) {
+			return a_lhs->GetPriority() > a_rhs->GetPriority();
+		});
+	}
 }
 
 void AnimationReplacements::ForEachReplacementAnimation(const std::function<void(ReplacementAnimation*)>& a_func, bool a_bReverse /*= false*/) const
 {
-    ReadLocker locker(_lock);
+	ReadLocker locker(_lock);
 
-    if (a_bReverse) {
-        for (const auto& replacementAnimation : std::ranges::reverse_view(_replacements)) {
-            a_func(replacementAnimation.get());
-        }
-    } else {
-        for (auto& replacementAnimation : _replacements) {
-            a_func(replacementAnimation.get());
-        }
-    }
+	if (a_bReverse) {
+		for (const auto& replacementAnimation : std::ranges::reverse_view(_replacements)) {
+			a_func(replacementAnimation.get());
+		}
+	} else {
+		for (auto& replacementAnimation : _replacements) {
+			a_func(replacementAnimation.get());
+		}
+	}
 }
 
 void AnimationReplacements::TestInterruptible()
 {
-    ReadLocker locker(_lock);
+	ReadLocker locker(_lock);
 
-    for (const auto& replacementAnimation : _replacements) {
-        if (replacementAnimation->GetInterruptible()) {
-            if (!_bOriginalInterruptible) {
-                logger::info("original animation {} will be treated as interruptible because there are interruptible potential replacements", _originalPath);
-            }
-            _bOriginalInterruptible = true;
-            return;
-        }
-    }
+	for (const auto& replacementAnimation : _replacements) {
+		if (replacementAnimation->GetInterruptible()) {
+			if (!_bOriginalInterruptible) {
+				logger::info("original animation {} will be treated as interruptible because there are interruptible potential replacements", _originalPath);
+			}
+			_bOriginalInterruptible = true;
+			return;
+		}
+	}
 
-    _bOriginalInterruptible = false;
+	_bOriginalInterruptible = false;
 }
 
 void AnimationReplacements::TestReplaceOnEcho()
@@ -903,19 +902,19 @@ void AnimationReplacements::TestReplaceOnEcho()
 
 void AnimationReplacements::TestKeepRandomResultsOnLoop()
 {
-    ReadLocker locker(_lock);
+	ReadLocker locker(_lock);
 
-    for (const auto& replacementAnimation : _replacements) {
-        if (replacementAnimation->GetKeepRandomResultsOnLoop()) {
-            if (!_bOriginalKeepRandomResultsOnLoop) {
-                logger::info("original animation {} will keep random condition results on loop because there are potential replacements that do", _originalPath);
-            }
-            _bOriginalKeepRandomResultsOnLoop = true;
-            return;
-        }
-    }
+	for (const auto& replacementAnimation : _replacements) {
+		if (replacementAnimation->GetKeepRandomResultsOnLoop()) {
+			if (!_bOriginalKeepRandomResultsOnLoop) {
+				logger::info("original animation {} will keep random condition results on loop because there are potential replacements that do", _originalPath);
+			}
+			_bOriginalKeepRandomResultsOnLoop = true;
+			return;
+		}
+	}
 
-    _bOriginalKeepRandomResultsOnLoop = false;
+	_bOriginalKeepRandomResultsOnLoop = false;
 }
 
 void AnimationReplacements::MarkAsSynchronizedAnimation(bool a_bSynchronized)
@@ -931,26 +930,26 @@ void AnimationReplacements::MarkAsSynchronizedAnimation(bool a_bSynchronized)
 
 ReplacementAnimation* ReplacerProjectData::EvaluateConditionsAndGetReplacementAnimation(RE::hkbClipGenerator* a_clipGenerator, uint16_t a_originalIndex, RE::TESObjectREFR* a_refr) const
 {
-    if (const auto replacementAnimations = GetAnimationReplacements(a_originalIndex)) {
-        return replacementAnimations->EvaluateConditionsAndGetReplacementAnimation(a_refr, a_clipGenerator);
-    }
+	if (const auto replacementAnimations = GetAnimationReplacements(a_originalIndex)) {
+		return replacementAnimations->EvaluateConditionsAndGetReplacementAnimation(a_refr, a_clipGenerator);
+	}
 
-    return nullptr;
+	return nullptr;
 }
 
 uint16_t ReplacerProjectData::GetOriginalAnimationIndex(uint16_t a_currentIndex) const
 {
-    if (const auto it = replacementIndexToOriginalIndexMap.find(a_currentIndex); it != replacementIndexToOriginalIndexMap.end()) {
-        return it->second;
-    }
-    return a_currentIndex;
+	if (const auto it = replacementIndexToOriginalIndexMap.find(a_currentIndex); it != replacementIndexToOriginalIndexMap.end()) {
+		return it->second;
+	}
+	return a_currentIndex;
 }
 
 uint16_t ReplacerProjectData::TryAddAnimationToAnimationBundleNames(std::string_view a_path, const std::optional<std::string>& a_hash)
 {
 	std::optional<std::string> hash = std::nullopt;
 
-    // Check hash
+	// Check hash
 	if (Settings::bFilterOutDuplicateAnimations && a_hash) {
 		hash = a_hash;
 
@@ -958,31 +957,31 @@ uint16_t ReplacerProjectData::TryAddAnimationToAnimationBundleNames(std::string_
 			++_filteredDuplicates;
 			return search->second;
 		}
-    }
+	}
 
-    // Check if the animation is already in the list and return the index if it is
-    for (uint16_t i = 0; i < stringData->animationNames.size(); i++) {
+	// Check if the animation is already in the list and return the index if it is
+	for (uint16_t i = 0; i < stringData->animationNames.size(); i++) {
 		if (stringData->animationNames[i].data() == a_path) {
-            return i;
-        }
-    }
+			return i;
+		}
+	}
 
-    // Check if the animation can be added to the list
-    const auto newIndex = static_cast<uint16_t>(stringData->animationNames.size());
-    if (newIndex >= Settings::uAnimationLimit) {
-        logger::error("array filled to the max! not adding");
-        Utils::ErrorTooManyAnimations();
-        return static_cast<uint16_t>(-1);
-    }
+	// Check if the animation can be added to the list
+	const auto newIndex = static_cast<uint16_t>(stringData->animationNames.size());
+	if (newIndex >= Settings::uAnimationLimit) {
+		logger::error("array filled to the max! not adding");
+		Utils::ErrorTooManyAnimations();
+		return static_cast<uint16_t>(-1);
+	}
 
-    // Add the animation to the list
+	// Add the animation to the list
 	stringData->animationNames.push_back(a_path.data());
 
-    if (Settings::bFilterOutDuplicateAnimations && hash) {
-        _fileHashToIndexMap[*hash] = newIndex;
-    }
+	if (Settings::bFilterOutDuplicateAnimations && hash) {
+		_fileHashToIndexMap[*hash] = newIndex;
+	}
 
-    return newIndex;
+	return newIndex;
 }
 
 void ReplacerProjectData::AddReplacementAnimation(RE::hkbCharacterStringData* a_stringData, uint16_t a_originalIndex, std::unique_ptr<ReplacementAnimation>& a_replacementAnimation)
@@ -1015,27 +1014,27 @@ void ReplacerProjectData::AddReplacementAnimation(RE::hkbCharacterStringData* a_
 
 void ReplacerProjectData::SortReplacementAnimationsByPriority(uint16_t a_originalIndex)
 {
-    if (const auto it = originalIndexToAnimationReplacementsMap.find(a_originalIndex); it != originalIndexToAnimationReplacementsMap.end()) {
-        const auto& replacementAnimations = it->second;
-        replacementAnimations->SortByPriority();
-    }
+	if (const auto it = originalIndexToAnimationReplacementsMap.find(a_originalIndex); it != originalIndexToAnimationReplacementsMap.end()) {
+		const auto& replacementAnimations = it->second;
+		replacementAnimations->SortByPriority();
+	}
 }
 
 void ReplacerProjectData::QueueReplacementAnimations(RE::hkbCharacter* a_character)
 {
-    OpenAnimationReplacer::bIsPreLoading = true;
-    for (const auto& animIndex : animationsToQueue) {
-        OpenAnimationReplacer::LoadAnimation(a_character, animIndex);
-    }
-    OpenAnimationReplacer::bIsPreLoading = false;
+	OpenAnimationReplacer::bIsPreLoading = true;
+	for (const auto& animIndex : animationsToQueue) {
+		OpenAnimationReplacer::LoadAnimation(a_character, animIndex);
+	}
+	OpenAnimationReplacer::bIsPreLoading = false;
 
-    animationsToQueue.clear();
+	animationsToQueue.clear();
 }
 
 void ReplacerProjectData::MarkSynchronizedReplacementAnimations(RE::hkbGenerator* a_rootGenerator)
 {
 	if (!a_rootGenerator) {
-	    return;
+		return;
 	}
 
 	RE::hkbNode::GetChildrenFlagBits getChildrenFlags = RE::hkbNode::GetChildrenFlagBits::kGeneratorsOnly;
@@ -1045,37 +1044,37 @@ void ReplacerProjectData::MarkSynchronizedReplacementAnimations(RE::hkbGenerator
 
 	std::unordered_set<uint16_t> synchronizedClipIndexes;
 
-    if (auto node = UnkNodeIterator_GetNext(&iter)) {
-	    do {
+	if (auto node = UnkNodeIterator_GetNext(&iter)) {
+		do {
 			const auto classType = node->GetClassType();
 			if (classType->name == *g_str_BSSynchronizedClipGenerator) {
 				const auto synchronizedClipGenerator = static_cast<RE::BSSynchronizedClipGenerator*>(node);
 				synchronizedClipIndexes.emplace(synchronizedClipGenerator->clipGenerator->animationBindingIndex);
 			}
 			node = UnkNodeIterator_GetNext(&iter);
-	    } while (node);
+		} while (node);
 	}
 
 	for (const auto& index : synchronizedClipIndexes) {
-	    if (const auto replacementAnimations = GetAnimationReplacements(index)) {
-	        replacementAnimations->MarkAsSynchronizedAnimation(true);
-        }
+		if (const auto replacementAnimations = GetAnimationReplacements(index)) {
+			replacementAnimations->MarkAsSynchronizedAnimation(true);
+		}
 	}
 }
 
 AnimationReplacements* ReplacerProjectData::GetAnimationReplacements(uint16_t a_originalIndex) const
 {
-    if (const auto search = originalIndexToAnimationReplacementsMap.find(a_originalIndex); search != originalIndexToAnimationReplacementsMap.end()) {
-        return search->second.get();
-    }
+	if (const auto search = originalIndexToAnimationReplacementsMap.find(a_originalIndex); search != originalIndexToAnimationReplacementsMap.end()) {
+		return search->second.get();
+	}
 
-    return nullptr;
+	return nullptr;
 }
 
 void ReplacerProjectData::ForEach(const std::function<void(AnimationReplacements*)>& a_func)
 {
-    for (auto& val : originalIndexToAnimationReplacementsMap | std::views::values) {
-        auto& replacementAnimations = val;
-        a_func(replacementAnimations.get());
-    }
+	for (auto& val : originalIndexToAnimationReplacementsMap | std::views::values) {
+		auto& replacementAnimations = val;
+		a_func(replacementAnimations.get());
+	}
 }

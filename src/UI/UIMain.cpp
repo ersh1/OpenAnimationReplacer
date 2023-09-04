@@ -2586,7 +2586,7 @@ namespace UI
 				// Rely on keeping other window->LastItemXXX fields intact.
 				source_id = g.LastItemData.ID = window->GetIDFromRectangle(g.LastItemData.Rect);
 				KeepAliveID(source_id);
-				const bool is_hovered = ItemHoverable(g.LastItemData.Rect, source_id);
+				const bool is_hovered = ItemHoverable(g.LastItemData.Rect, source_id, a_flags);
 				if (is_hovered && g.IO.MouseClicked[mouse_button]) {
 					SetActiveID(source_id, window);
 					FocusWindow(window);
@@ -2713,7 +2713,7 @@ namespace UI
 
 		ImGuiButtonFlags button_flags = ImGuiTreeNodeFlags_None;
 		if (a_flags & ImGuiTreeNodeFlags_AllowItemOverlap)
-			button_flags |= ImGuiButtonFlags_AllowItemOverlap;
+			button_flags |= ImGuiTreeNodeFlags_AllowOverlap;
 
 		if (window != g.HoveredWindow)
 			button_flags |= ImGuiButtonFlags_NoKeyModifiers;

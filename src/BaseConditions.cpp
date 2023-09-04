@@ -4,6 +4,7 @@
 #include "Utils.h"
 
 #include <imgui_stdlib.h>
+#undef GetObject  // fix windows sdk definition issue
 
 namespace Conditions
 {

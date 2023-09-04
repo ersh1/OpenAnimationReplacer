@@ -3,12 +3,16 @@
   "version": "1",
   "dependencies": [
     "cryptopp",
+    "directxtk",
     "effolkronium-random",
     "fmt",
     {
-      "name" : "imgui",
+      "name": "imgui",
       "version>=": "1.89.6",
-      "features": [ "win32-binding", "dx11-binding" ]
+      "features": [
+        "win32-binding",
+        "dx11-binding"
+      ]
     },
     "mergemapper",
     "rapidcsv",
@@ -19,5 +23,5 @@
     "spdlog",
     "xbyak"
   ],
-  "builtin-baseline": "f14984af3738e69f197bf0e647a8dca12de92996"
+  "builtin-baseline": "17d868f8eb8afcc5c2ab735a17ab730bbb0fef28"
 }

@@ -374,7 +374,10 @@ namespace Parsing
 		if (substringStartPos == std::string::npos) {
 			substringStartPos = a_path.find("DynamicAnimationReplacer"sv);
 			if (substringStartPos == std::string::npos) {
-				return a_path.data();
+				substringStartPos = a_path.find("dynamicanimationreplacer"sv);
+				if (substringStartPos == std::string::npos) {
+					return a_path.data();
+				}
 			}
 		}
 

@@ -200,7 +200,7 @@ bool SubMod::ReloadConfig()
 
 	// check if this was originally a legacy mod
 	auto directoryPathStr = directoryPath.string();
-	bool bOriginallyLegacy = directoryPathStr.find("DynamicAnimationReplacer"sv) != std::string::npos;
+	bool bOriginallyLegacy = (directoryPathStr.find("DynamicAnimationReplacer"sv) != std::string::npos) || (directoryPathStr.find("dynamicanimationreplacer"sv) != std::string::npos);
 
 	auto configPath = directoryPath / "config.json"sv;
 	auto userPath = directoryPath / "user.json"sv;

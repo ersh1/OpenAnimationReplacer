@@ -53,11 +53,11 @@ namespace std
 
 namespace RE
 {
-    template <class T>
+	template <class T>
 	bool operator<(const RE::BSPointerHandle<T>& a_lhs, const RE::BSPointerHandle<T>& a_rhs)
-    {
+	{
 		return a_lhs.native_handle() < a_rhs.native_handle();
-    }
+	}
 }
 
 // Case-insensitive hash function for std::filesystem::path

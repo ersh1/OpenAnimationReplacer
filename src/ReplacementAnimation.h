@@ -34,14 +34,14 @@ enum class CustomBlendType : int
 class ReplacementAnimation
 {
 public:
-    class Variant
-    {
-    public:
+	class Variant
+	{
+	public:
 		Variant(uint16_t a_index, std::string_view a_filename) :
 			_index(a_index),
 			_filename(a_filename)
 		{}
-		
+
 		uint16_t GetIndex() const { return _index; }
 		float GetWeight() const { return _weight; }
 		bool IsDisabled() const { return _bDisabled; }
@@ -53,12 +53,12 @@ public:
 
 		void ResetSettings();
 
-    protected:
+	protected:
 		uint16_t _index = static_cast<uint16_t>(-1);
 		float _weight = 1.f;
 		bool _bDisabled = false;
 		std::string _filename;
-    };
+	};
 
 	class Variants
 	{
@@ -95,37 +95,37 @@ public:
 	bool ShouldSaveToJson() const;
 
 	bool IsDisabled() const { return _bDisabled || _bDisabledByParent; }
-	
-    uint16_t GetIndex() const;
+
+	uint16_t GetIndex() const;
 	uint16_t GetIndex(ActiveClip* a_activeClip) const;
-    uint16_t GetOriginalIndex() const { return _originalIndex; }
-    int32_t GetPriority() const { return _priority; }
-    bool GetDisabled() const { return _bDisabled; }
-    bool GetIgnoreDontConvertAnnotationsToTriggersFlag() const { return _bIgnoreDontConvertAnnotationsToTriggersFlag; }
-    bool GetTriggersFromAnnotationsOnly() const { return _bTriggersFromAnnotationsOnly; }
-    bool GetInterruptible() const { return _bInterruptible; }
+	uint16_t GetOriginalIndex() const { return _originalIndex; }
+	int32_t GetPriority() const { return _priority; }
+	bool GetDisabled() const { return _bDisabled; }
+	bool GetIgnoreDontConvertAnnotationsToTriggersFlag() const { return _bIgnoreDontConvertAnnotationsToTriggersFlag; }
+	bool GetTriggersFromAnnotationsOnly() const { return _bTriggersFromAnnotationsOnly; }
+	bool GetInterruptible() const { return _bInterruptible; }
 	bool GetReplaceOnLoop() const { return _bReplaceOnLoop; }
 	bool GetReplaceOnEcho() const { return _bReplaceOnEcho; }
 	bool HasCustomBlendTime(CustomBlendType a_type) const;
 	float GetCustomBlendTime(CustomBlendType a_type) const;
-    bool GetKeepRandomResultsOnLoop() const { return _bKeepRandomResultsOnLoop; }
-    bool GetShareRandomResults() const { return _bShareRandomResults; }
-    void SetPriority(int32_t a_priority) { _priority = a_priority; }
-    void SetDisabled(bool a_bDisable) { _bDisabled = a_bDisable; }
-    void SetDisabledByParent(bool a_bDisable) { _bDisabledByParent = a_bDisable; }
-    void SetIgnoreDontConvertAnnotationsToTriggersFlag(bool a_enable) { _bIgnoreDontConvertAnnotationsToTriggersFlag = a_enable; }
-    void SetTriggersFromAnnotationsOnly(bool a_enable) { _bTriggersFromAnnotationsOnly = a_enable; }
-    void SetInterruptible(bool a_bEnable) { _bInterruptible = a_bEnable; }
-    void SetReplaceOnLoop(bool a_bEnable) { _bReplaceOnLoop = a_bEnable; }
-    void SetReplaceOnEcho(bool a_bEnable) { _bReplaceOnEcho = a_bEnable; }
+	bool GetKeepRandomResultsOnLoop() const { return _bKeepRandomResultsOnLoop; }
+	bool GetShareRandomResults() const { return _bShareRandomResults; }
+	void SetPriority(int32_t a_priority) { _priority = a_priority; }
+	void SetDisabled(bool a_bDisable) { _bDisabled = a_bDisable; }
+	void SetDisabledByParent(bool a_bDisable) { _bDisabledByParent = a_bDisable; }
+	void SetIgnoreDontConvertAnnotationsToTriggersFlag(bool a_enable) { _bIgnoreDontConvertAnnotationsToTriggersFlag = a_enable; }
+	void SetTriggersFromAnnotationsOnly(bool a_enable) { _bTriggersFromAnnotationsOnly = a_enable; }
+	void SetInterruptible(bool a_bEnable) { _bInterruptible = a_bEnable; }
+	void SetReplaceOnLoop(bool a_bEnable) { _bReplaceOnLoop = a_bEnable; }
+	void SetReplaceOnEcho(bool a_bEnable) { _bReplaceOnEcho = a_bEnable; }
 	void ToggleCustomBlendTime(CustomBlendType a_type, bool a_bEnable);
 	void SetCustomBlendTime(CustomBlendType a_type, float a_value);
-    void SetKeepRandomResultsOnLoop(bool a_bEnable) { _bKeepRandomResultsOnLoop = a_bEnable; }
+	void SetKeepRandomResultsOnLoop(bool a_bEnable) { _bKeepRandomResultsOnLoop = a_bEnable; }
 	void SetShareRandomResults(bool a_bEnable) { _bShareRandomResults = a_bEnable; }
-    std::string_view GetAnimPath() const { return _path; }
-    std::string_view GetProjectName() const { return _projectName; }
+	std::string_view GetAnimPath() const { return _path; }
+	std::string_view GetProjectName() const { return _projectName; }
 	Conditions::ConditionSet* GetConditionSet() const { return _conditionSet; }
-    SubMod* GetParentSubMod() const;
+	SubMod* GetParentSubMod() const;
 
 	bool IsSynchronizedAnimation() const { return _bSynchronized; }
 	void MarkAsSynchronizedAnimation(bool a_bSynchronized);
@@ -138,15 +138,15 @@ public:
 	RE::BSVisit::BSVisitControl ForEachVariant(const std::function<RE::BSVisit::BSVisitControl(Variant&)>& a_func);
 	RE::BSVisit::BSVisitControl ForEachVariant(const std::function<RE::BSVisit::BSVisitControl(const Variant&)>& a_func) const;
 
-    bool EvaluateConditions(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const;
+	bool EvaluateConditions(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const;
 	bool EvaluateSynchronizedConditions(RE::TESObjectREFR* a_sourceRefr, RE::TESObjectREFR* a_targetRefr, RE::hkbClipGenerator* a_clipGenerator) const;
 
 protected:
 	std::variant<uint16_t, Variants> _index;
-    uint16_t _originalIndex;
-    int32_t _priority;
-    bool _bDisabled = false;
-    bool _bIgnoreDontConvertAnnotationsToTriggersFlag = false;
+	uint16_t _originalIndex;
+	int32_t _priority;
+	bool _bDisabled = false;
+	bool _bIgnoreDontConvertAnnotationsToTriggersFlag = false;
 	bool _bTriggersFromAnnotationsOnly = false;
 	bool _bInterruptible = false;
 	bool _bCustomBlendTimeOnInterrupt = false;
@@ -157,17 +157,17 @@ protected:
 	bool _bReplaceOnEcho = false;
 	bool _bCustomBlendTimeOnEcho = false;
 	float _blendTimeOnEcho = Settings::fDefaultBlendTimeOnEcho;
-    bool _bKeepRandomResultsOnLoop = false;
+	bool _bKeepRandomResultsOnLoop = false;
 	bool _bShareRandomResults = false;
-    std::string _path;
-    std::string _projectName;
-    Conditions::ConditionSet* _conditionSet;
+	std::string _path;
+	std::string _projectName;
+	Conditions::ConditionSet* _conditionSet;
 	Conditions::ConditionSet* _synchronizedConditionSet = nullptr;
 
 	bool _bSynchronized = false;
 
-    friend class SubMod;
-    SubMod* _parentSubMod = nullptr;
+	friend class SubMod;
+	SubMod* _parentSubMod = nullptr;
 
 	bool _bDisabledByParent = false;
 };

@@ -5,24 +5,23 @@
 #include <ranges>
 
 ActiveSynchronizedAnimation::ActiveSynchronizedAnimation(RE::BGSSynchronizedAnimationInstance* a_synchronizedAnimationInstance) :
-    _synchronizedAnimationInstance(a_synchronizedAnimationInstance)
+	_synchronizedAnimationInstance(a_synchronizedAnimationInstance)
 {}
 
 ActiveSynchronizedAnimation::~ActiveSynchronizedAnimation()
 {
 	ReadLocker locker(_clipDataLock);
 
-    for (auto& [synchronizedClipGenerator, replacementInfo] : _clipData)
-    {
+	for (auto& [synchronizedClipGenerator, replacementInfo] : _clipData) {
 		synchronizedClipGenerator->synchronizedAnimationBindingIndex = replacementInfo->originalSynchronizedIndex;
 		synchronizedClipGenerator->clipGenerator->animationBindingIndex = replacementInfo->originalInternalClipIndex;
-    }
+	}
 }
 
 void ActiveSynchronizedAnimation::OnSynchronizedClipPreActivate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context)
 {
 	if (_bTransitioning) {
-	    return;
+		return;
 	}
 
 	if (!_bInitialized) {
@@ -46,7 +45,7 @@ void ActiveSynchronizedAnimation::OnSynchronizedClipPreActivate(RE::BSSynchroniz
 
 void ActiveSynchronizedAnimation::OnSynchronizedClipPostActivate([[maybe_unused]] RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, [[maybe_unused]] const RE::hkbContext& a_context)
 {
-    // check if the active replacement info requires removing non-annotation triggers, if so, remove them from this one
+	// check if the active replacement info requires removing non-annotation triggers, if so, remove them from this one
 	// solves the issue with vanilla triggers from first person animation playing while we have a third person animation replacement etc
 	if (const auto actor = Utils::GetActorFromHkbCharacter(a_context.character)) {
 		const auto actorHandle = actor->GetHandle();
@@ -55,7 +54,7 @@ void ActiveSynchronizedAnimation::OnSynchronizedClipPostActivate([[maybe_unused]
 				if (!activeClip->HasRemovedNonAnnotationTriggers()) {
 					activeClip->RemoveNonAnnotationTriggers(a_synchronizedClipGenerator->clipGenerator);
 					if (const auto other = GetOtherSynchronizedClipData(a_synchronizedClipGenerator, true)) {
-					    _notifyOnDeactivate = other->syncInfo->synchronizedClipGenerator;
+						_notifyOnDeactivate = other->syncInfo->synchronizedClipGenerator;
 					}
 				}
 			}
@@ -113,18 +112,17 @@ void ActiveSynchronizedAnimation::OnSynchronizedClipDeactivate(RE::BSSynchronize
 		return;
 	}
 
-    {
-        WriteLocker locker(_clipDataLock);
+	{
+		WriteLocker locker(_clipDataLock);
 
-	    auto it = _clipData.find(a_synchronizedClipGenerator);
-	    if (it != _clipData.end())
-	    {
-	        a_synchronizedClipGenerator->synchronizedAnimationBindingIndex = it->second->originalSynchronizedIndex;
-	        a_synchronizedClipGenerator->clipGenerator->animationBindingIndex = it->second->originalInternalClipIndex;
+		auto it = _clipData.find(a_synchronizedClipGenerator);
+		if (it != _clipData.end()) {
+			a_synchronizedClipGenerator->synchronizedAnimationBindingIndex = it->second->originalSynchronizedIndex;
+			a_synchronizedClipGenerator->clipGenerator->animationBindingIndex = it->second->originalInternalClipIndex;
 
-	        _clipData.erase(it);
-	    }
-    }
+			_clipData.erase(it);
+		}
+	}
 
 	if (_notifyOnDeactivate == a_synchronizedClipGenerator) {
 		const auto actor = Utils::GetActorFromHkbCharacter(a_context.character);
@@ -184,13 +182,13 @@ bool ActiveSynchronizedAnimation::IsFromInactiveGraph(RE::BSSynchronizedClipGene
 
 bool ActiveSynchronizedAnimation::HasRef(RE::TESObjectREFR* a_refr) const
 {
-    return _synchronizedAnimationInstance->HasRef(a_refr->GetHandle());
+	return _synchronizedAnimationInstance->HasRef(a_refr->GetHandle());
 }
 
 void ActiveSynchronizedAnimation::Initialize()
 {
 	if (_bInitialized) {
-	    return;
+		return;
 	}
 
 	const auto sourceRefHandle = _synchronizedAnimationInstance->refHandles[0];  // source is always first
@@ -226,8 +224,8 @@ void ActiveSynchronizedAnimation::Initialize()
 
 	// check if we need special handling
 	if (CheckRequiresActiveGraphTracking()) {
-		if (const auto syncInfo = GetUniqueSyncInfo()) { // get sync info of the non-player character
-		    _trackedClipGenerator = syncInfo->synchronizedClipGenerator;
+		if (const auto syncInfo = GetUniqueSyncInfo()) {  // get sync info of the non-player character
+			_trackedClipGenerator = syncInfo->synchronizedClipGenerator;
 			_bIsReplacementActive = ShouldSynchronizedClipReplacementBeActive();
 		}
 	}
@@ -240,7 +238,6 @@ void ActiveSynchronizedAnimation::ToggleReplacement(bool a_bEnable)
 	if (_bIsReplacementActive != a_bEnable) {
 		ReadLocker locker(_clipDataLock);
 		for (const auto& clipData : _clipData | std::views::values) {
-			
 			if (const auto activeClip = OpenAnimationReplacer::GetSingleton().GetActiveClip(clipData->syncInfo->synchronizedClipGenerator->clipGenerator)) {
 				ReplacementAnimation* replacementAnimation = a_bEnable ? clipData->replacementAnimation : nullptr;
 				activeClip->QueueReplacementAnimation(replacementAnimation, 0.f, false, AnimationLogEntry::Event::kPairedMismatch);
@@ -295,12 +292,12 @@ bool ActiveSynchronizedAnimation::CheckRequiresActiveGraphTracking() const
 			if (clipData->replacementAnimation) {
 				bNoneHaveReplacements = false;
 			} else {
-			    bAllHaveReplacements = false;
+				bAllHaveReplacements = false;
 			}
 		}
 
 		if (!bNoneHaveReplacements && !bAllHaveReplacements) {
-		    return true;
+			return true;
 		}
 	}
 

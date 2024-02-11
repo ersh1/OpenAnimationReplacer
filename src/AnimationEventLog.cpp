@@ -48,14 +48,14 @@ RE::BSEventNotifyControl AnimationEventLog::ProcessEvent(const RE::BSAnimationGr
 
 bool AnimationEventLog::IsLogEmpty() const
 {
-    ReadLocker locker(_logLock);
+	ReadLocker locker(_logLock);
 
-    return _log.empty();
+	return _log.empty();
 }
 
 void AnimationEventLog::ForEachLogEntry(const std::function<void(AnimationEventLogEntry&)>& a_func, bool a_bReverse)
 {
-    ReadLocker locker(_logLock);
+	ReadLocker locker(_logLock);
 
 	if (a_bReverse) {
 		for (auto it = _log.rbegin(); it != _log.rend(); ++it) {
@@ -66,20 +66,19 @@ void AnimationEventLog::ForEachLogEntry(const std::function<void(AnimationEventL
 			a_func(logEntry);
 		}
 	}
-    
 }
 
 void AnimationEventLog::ClearLog()
 {
-    WriteLocker locker(_logLock);
+	WriteLocker locker(_logLock);
 
-    _log.clear();
+	_log.clear();
 	_lastEventTimestamp = 0;
 }
 
 void AnimationEventLog::OnPostDisplay()
 {
-    _bHasNewEvent = false;
+	_bHasNewEvent = false;
 }
 
 bool AnimationEventLog::HasEventSources() const
@@ -103,7 +102,7 @@ void AnimationEventLog::AddEventSource(const RE::ObjectRefHandle& a_handle)
 	}
 	const auto refr = a_handle.get();
 	if (!refr) {
-	    return;
+		return;
 	}
 
 	RE::BSAnimationGraphManagerPtr graphManager;
@@ -159,4 +158,3 @@ void AnimationEventLog::ForEachEventSource(const std::function<void(const RE::Ob
 		a_func(logEntry);
 	}
 }
-

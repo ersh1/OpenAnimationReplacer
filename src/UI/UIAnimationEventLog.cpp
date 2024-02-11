@@ -8,13 +8,13 @@
 
 namespace UI
 {
-    bool UIAnimationEventLog::ShouldDrawImpl() const
-    {
+	bool UIAnimationEventLog::ShouldDrawImpl() const
+	{
 		return Settings::bEnableAnimationEventLog;
-    }
+	}
 
-    void UIAnimationEventLog::DrawImpl()
-    {
+	void UIAnimationEventLog::DrawImpl()
+	{
 		const float offsetX = Settings::bEnableAnimationLog ? Settings::fAnimationLogWidth + ImGui::GetStyle().FramePadding.x : 0.f;
 		SetWindowDimensions(Settings::fAnimationLogsOffsetX + offsetX, Settings::fAnimationLogsOffsetY, Settings::fAnimationEventLogWidth, 0.f, WindowAlignment::kTopRight, ImVec2(Settings::fAnimationEventLogWidth, -1), ImVec2(Settings::fAnimationEventLogWidth, -1), ImGuiCond_Always);
 		ForceSetWidth(Settings::fAnimationEventLogWidth);
@@ -53,7 +53,8 @@ namespace UI
 						}
 						DrawLogEntry(a_logEntry, lastTimestamp);
 						lastTimestamp = a_logEntry.timestamp;
-					}, Settings::bAnimationLogOrderDescending);
+					},
+						Settings::bAnimationLogOrderDescending);
 
 					// scroll to the new event if there is one
 					if (animationEventLog.HasNewEvent()) {
@@ -68,7 +69,7 @@ namespace UI
 				}
 
 				if (IsInteractable()) {
-				    DrawFilterPanel();
+					DrawFilterPanel();
 				}
 
 			} else {
@@ -77,22 +78,22 @@ namespace UI
 
 			if (IsInteractable()) {
 				ImGui::Separator();
-			    DrawEventSourcesPanel();
+				DrawEventSourcesPanel();
 			}
 
 			animationEventLog.OnPostDisplay();
 		}
 		ImGui::End();
-    }
+	}
 
-    bool UIAnimationEventLog::IsInteractable() const
-    {
+	bool UIAnimationEventLog::IsInteractable() const
+	{
 		// draw control panel only when the main UI is open
 		return UIManager::GetSingleton().bShowMain;
-    }
+	}
 
-    void UIAnimationEventLog::DrawFilterPanel() const
-    {
+	void UIAnimationEventLog::DrawFilterPanel() const
+	{
 		auto& animationEventLog = AnimationEventLog::GetSingleton();
 
 		// filtering
@@ -121,10 +122,10 @@ namespace UI
 		if (ImGui::Button(clearButtonName.data())) {
 			animationEventLog.ClearLog();
 		}
-    }
+	}
 
-    void UIAnimationEventLog::DrawEventSourcesPanel() const
-    {
+	void UIAnimationEventLog::DrawEventSourcesPanel() const
+	{
 		auto& animationEventLog = AnimationEventLog::GetSingleton();
 
 		// draw list of event sources
@@ -154,7 +155,7 @@ namespace UI
 		ImGui::SetNextItemWidth(ImGui::GetFontSize() * 5);
 
 		RE::ObjectRefHandle selectedRefr{};
-        if (const auto consoleRefr = UIManager::GetConsoleRefr()) {
+		if (const auto consoleRefr = UIManager::GetConsoleRefr()) {
 			selectedRefr = consoleRefr;
 			ImGui::BeginDisabled();
 			std::string formID = std::format("{:08X}", consoleRefr->GetFormID());
@@ -180,18 +181,16 @@ namespace UI
 				}
 			}
 		}
+	}
 
-		
-    }
-
-    bool UIAnimationEventLog::DrawEventSource(const RE::ObjectRefHandle& a_handle) const
-    {
+	bool UIAnimationEventLog::DrawEventSource(const RE::ObjectRefHandle& a_handle) const
+	{
 		if (const auto ref = a_handle.get()) {
 			std::string name = ref->GetDisplayFullName();
 			if (name.empty()) {
 				name = ref->GetName();
 				if (name.empty()) {
-				    name = "Unknown";
+					name = "Unknown";
 				}
 			}
 
@@ -205,15 +204,15 @@ namespace UI
 			}
 			ImGui::PopID();
 		} else {
-		    return false;
+			return false;
 		}
 
 		return true;
-    }
+	}
 
-    void UIAnimationEventLog::DrawLogEntry(AnimationEventLogEntry& a_logEntry, uint32_t a_lastTimestamp) const
-    {
-        ImGui::TableNextRow();
+	void UIAnimationEventLog::DrawLogEntry(AnimationEventLogEntry& a_logEntry, uint32_t a_lastTimestamp) const
+	{
+		ImGui::TableNextRow();
 		ImGui::AlignTextToFramePadding();
 
 		if (a_logEntry.timeDrawn < Settings::fAnimationLogEntryFadeTime) {
@@ -263,10 +262,10 @@ namespace UI
 		std::string sign = Settings::bAnimationLogOrderDescending ? "+" : "-";
 		const std::string timeString = std::format("{}{:0.3f}", sign, secondsSinceLastEvent);
 		UICommon::TextUnformattedColored(interpColor, timeString.data());
-    }
+	}
 
-    int UIAnimationEventLog::EventSourceInputTextCallback(ImGuiInputTextCallbackData* a_data)
-    {
+	int UIAnimationEventLog::EventSourceInputTextCallback(ImGuiInputTextCallbackData* a_data)
+	{
 		RE::FormID formID;
 		auto [ptr, ec]{ std::from_chars(a_data->Buf, a_data->Buf + a_data->BufTextLen, formID, 16) };
 		if (ec == std::errc()) {
@@ -276,5 +275,5 @@ namespace UI
 		}
 
 		return 0;
-    }
+	}
 }

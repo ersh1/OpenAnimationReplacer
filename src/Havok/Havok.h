@@ -4,16 +4,16 @@ static uint32_t& g_dwTlsIndex = *(uint32_t*)REL::VariantID(520865, 407383, 0x30A
 
 namespace RE
 {
-    class hkClass
-    {
-    public:
+	class hkClass
+	{
+	public:
 		enum class FlagValues
 		{
-		    kNone = 0,
+			kNone = 0,
 			kNotSerializable = 1
 		};
 
-        const char* name;                              // 00
+		const char* name;                              // 00
 		const hkClass* parent;                         // 08
 		int32_t objectSize;                            // 10
 		int32_t numImplementedInterfaces;              // 14
@@ -27,7 +27,7 @@ namespace RE
 		class hkCustomAttributes* attributes;          // 40
 		stl::enumeration<FlagValues, uint32_t> flags;  // 08
 		int32_t describedVersion;                      // 4C
-    };
+	};
 	static_assert(sizeof(hkClass) == 0x50);
 
 	template <class Key, class Value>
@@ -71,10 +71,10 @@ namespace RE
 	};
 	static_assert(sizeof(hkQueue<void*>) == 0x18);
 
-    struct hkbGeneratorOutput
-    {
-        enum class StandardTracks
-        {
+	struct hkbGeneratorOutput
+	{
+		enum class StandardTracks
+		{
 			TRACK_WORLD_FROM_MODEL,                       // 00
 			TRACK_EXTRACTED_MOTION,                       // 01
 			TRACK_POSE,                                   // 02
@@ -101,118 +101,118 @@ namespace RE
 			TRACK_AI_CONTROL_CONTROLS_BLENDABLE,          // 17
 			TRACK_AI_CONTROL_CONTROLS_NON_BLENDABLE,      // 18
 			NUM_STANDARD_TRACKS,                          // 19
-        };
+		};
 
-        enum class TrackTypes
-        {
+		enum class TrackTypes
+		{
 			TRACK_TYPE_REAL,         // 0
 			TRACK_TYPE_QSTRANSFORM,  // 1
 			TRACK_TYPE_BINARY,       // 2
-        };
+		};
 
-        enum class TrackFlags
-        {
-            TRACK_FLAG_ADDITIVE_POSE = 1,
-            TRACK_FLAG_PALETTE = 1 << 1,
-            TRACK_FLAG_SPARSE = 1 << 2,
-        };
+		enum class TrackFlags
+		{
+			TRACK_FLAG_ADDITIVE_POSE = 1,
+			TRACK_FLAG_PALETTE = 1 << 1,
+			TRACK_FLAG_SPARSE = 1 << 2,
+		};
 
-        struct TrackHeader
-        {
-            int16_t capacity;                           // 00
-            int16_t numData;                            // 02
-            int16_t dataOffset;                         // 04
-            int16_t elementSizeBytes;                   // 06
-            float onFraction;                           // 08
-            stl::enumeration<TrackFlags, int8_t> flags; // 0C
-            stl::enumeration<TrackTypes, int8_t> type;  // 0D
-        };
-        static_assert(sizeof(TrackHeader) == 0x10);
+		struct TrackHeader
+		{
+			int16_t capacity;                            // 00
+			int16_t numData;                             // 02
+			int16_t dataOffset;                          // 04
+			int16_t elementSizeBytes;                    // 06
+			float onFraction;                            // 08
+			stl::enumeration<TrackFlags, int8_t> flags;  // 0C
+			stl::enumeration<TrackTypes, int8_t> type;   // 0D
+		};
+		static_assert(sizeof(TrackHeader) == 0x10);
 
-        struct TrackMasterHeader
-        {
-            int32_t numBytes;  // 00
-            int32_t numTracks; // 04
-            int8_t unused[8];  // 08
-        };
+		struct TrackMasterHeader
+		{
+			int32_t numBytes;   // 00
+			int32_t numTracks;  // 04
+			int8_t unused[8];   // 08
+		};
 
-        struct Tracks
-        {
-            TrackMasterHeader masterHeader;                                                                              // 00
-            TrackHeader trackHeaders[static_cast<int32_t>(RE::hkbGeneratorOutput::StandardTracks::NUM_STANDARD_TRACKS)]; // 10
-        };
+		struct Tracks
+		{
+			TrackMasterHeader masterHeader;                                                                               // 00
+			TrackHeader trackHeaders[static_cast<int32_t>(RE::hkbGeneratorOutput::StandardTracks::NUM_STANDARD_TRACKS)];  // 10
+		};
 
-        class Track
-        {
-        public:
-            Track(TrackHeader* a_header, float* a_data) :
-                header(a_header),
-                data(a_data) {}
+		class Track
+		{
+		public:
+			Track(TrackHeader* a_header, float* a_data) :
+				header(a_header),
+				data(a_data) {}
 
-            [[nodiscard]] TrackHeader* GetTrackHeader() const { return header; }
-            [[nodiscard]] float* GetDataReal() const { return data; }
-            [[nodiscard]] hkQsTransform* GetDataQsTransform() const { return reinterpret_cast<hkQsTransform*>(data); }
-            [[nodiscard]] const int8_t* GetIndices() const;
-            [[nodiscard]] bool IsValid() const { return header->onFraction > 0.f; }
-            [[nodiscard]] int16_t GetNumData() const { return header->numData; }
-            [[nodiscard]] int16_t GetCapacity() const { return header->capacity; }
-            [[nodiscard]] int16_t GetElementSizeBytes() const { return header->elementSizeBytes; }
-            [[nodiscard]] TrackTypes GetType() const { return *header->type; }
-            [[nodiscard]] float GetOnFraction() const { return header->onFraction; }
-            [[nodiscard]] bool IsPalette() const { return header->flags.any(TrackFlags::TRACK_FLAG_PALETTE); }
-            [[nodiscard]] bool IsSparse() const { return header->flags.any(TrackFlags::TRACK_FLAG_SPARSE); }
+			[[nodiscard]] TrackHeader* GetTrackHeader() const { return header; }
+			[[nodiscard]] float* GetDataReal() const { return data; }
+			[[nodiscard]] hkQsTransform* GetDataQsTransform() const { return reinterpret_cast<hkQsTransform*>(data); }
+			[[nodiscard]] const int8_t* GetIndices() const;
+			[[nodiscard]] bool IsValid() const { return header->onFraction > 0.f; }
+			[[nodiscard]] int16_t GetNumData() const { return header->numData; }
+			[[nodiscard]] int16_t GetCapacity() const { return header->capacity; }
+			[[nodiscard]] int16_t GetElementSizeBytes() const { return header->elementSizeBytes; }
+			[[nodiscard]] TrackTypes GetType() const { return *header->type; }
+			[[nodiscard]] float GetOnFraction() const { return header->onFraction; }
+			[[nodiscard]] bool IsPalette() const { return header->flags.any(TrackFlags::TRACK_FLAG_PALETTE); }
+			[[nodiscard]] bool IsSparse() const { return header->flags.any(TrackFlags::TRACK_FLAG_SPARSE); }
 
-        protected:
-            TrackHeader* header; // 00
-            float* data;         // 08
-        };
+		protected:
+			TrackHeader* header;  // 00
+			float* data;          // 08
+		};
 
-        bool TrackExists(StandardTracks a_trackId) const { return tracks->masterHeader.numTracks > static_cast<int32_t>(a_trackId); }
-        bool IsValid(StandardTracks a_trackId) const;
-        Track GetTrack(StandardTracks a_trackId);
+		bool TrackExists(StandardTracks a_trackId) const { return tracks->masterHeader.numTracks > static_cast<int32_t>(a_trackId); }
+		bool IsValid(StandardTracks a_trackId) const;
+		Track GetTrack(StandardTracks a_trackId);
 
-        Tracks* tracks;    // 00
-        bool deleteTracks; // 08
-    };
+		Tracks* tracks;     // 00
+		bool deleteTracks;  // 08
+	};
 
-    inline const int8_t* hkbGeneratorOutput::Track::GetIndices() const
-    {
-        auto nextMultipleOf = [](auto a_alignment, auto a_value) { return a_value + (a_alignment - 1) & ~(a_alignment - 1); };
+	inline const int8_t* hkbGeneratorOutput::Track::GetIndices() const
+	{
+		auto nextMultipleOf = [](auto a_alignment, auto a_value) { return a_value + (a_alignment - 1) & ~(a_alignment - 1); };
 
-        // must be sparse or palette track
-        const int numDataBytes = nextMultipleOf(16, header->elementSizeBytes * header->capacity);
-        return reinterpret_cast<int8_t*>(data) + numDataBytes;
-    }
+		// must be sparse or palette track
+		const int numDataBytes = nextMultipleOf(16, header->elementSizeBytes * header->capacity);
+		return reinterpret_cast<int8_t*>(data) + numDataBytes;
+	}
 
-    inline bool hkbGeneratorOutput::IsValid(StandardTracks a_trackId) const
-    {
-        if (TrackExists(a_trackId)) {
-            return tracks->trackHeaders[static_cast<int32_t>(a_trackId)].onFraction > 0.f;
-        }
+	inline bool hkbGeneratorOutput::IsValid(StandardTracks a_trackId) const
+	{
+		if (TrackExists(a_trackId)) {
+			return tracks->trackHeaders[static_cast<int32_t>(a_trackId)].onFraction > 0.f;
+		}
 
-        return false;
-    }
+		return false;
+	}
 
-    inline hkbGeneratorOutput::Track hkbGeneratorOutput::GetTrack(StandardTracks a_trackId)
-    {
-        TrackHeader* header = &tracks->trackHeaders[static_cast<int32_t>(a_trackId)];
-        auto data = reinterpret_cast<float*>(reinterpret_cast<char*>(tracks) + tracks->trackHeaders[static_cast<int32_t>(a_trackId)].dataOffset);
-        return { header, data };
-    }
+	inline hkbGeneratorOutput::Track hkbGeneratorOutput::GetTrack(StandardTracks a_trackId)
+	{
+		TrackHeader* header = &tracks->trackHeaders[static_cast<int32_t>(a_trackId)];
+		auto data = reinterpret_cast<float*>(reinterpret_cast<char*>(tracks) + tracks->trackHeaders[static_cast<int32_t>(a_trackId)].dataOffset);
+		return { header, data };
+	}
 
-    class hkbAnimationBindingWithTriggers : public hkReferencedObject
-    {
-    public:
-        inline static constexpr auto RTTI = RTTI_hkbAnimationBindingWithTriggers;
-        inline static constexpr auto VTABLE = VTABLE_hkbAnimationBindingWithTriggers;
+	class hkbAnimationBindingWithTriggers : public hkReferencedObject
+	{
+	public:
+		inline static constexpr auto RTTI = RTTI_hkbAnimationBindingWithTriggers;
+		inline static constexpr auto VTABLE = VTABLE_hkbAnimationBindingWithTriggers;
 
-        struct Trigger
+		struct Trigger
 		{
 			Trigger(float a_time, int32_t a_eventId, hkbEventPayload* a_payload) :
-                time(a_time),
-                eventId(a_eventId),
-                payload(a_payload)
-            {}
+				time(a_time),
+				eventId(a_eventId),
+				payload(a_payload)
+			{}
 
 			float time = 0.f;                             // 00
 			uint32_t pad04 = 0;                           // 04
@@ -222,11 +222,11 @@ namespace RE
 		static_assert(offsetof(Trigger, eventId) == 0x8);
 		static_assert(sizeof(Trigger) == 0x18);
 
-        // members
-        hkRefPtr<hkaAnimationBinding> binding; // 10
-        hkArray<Trigger> triggers;             // 18
-    };
-    static_assert(sizeof(hkbAnimationBindingWithTriggers) == 0x28);
+		// members
+		hkRefPtr<hkaAnimationBinding> binding;  // 10
+		hkArray<Trigger> triggers;              // 18
+	};
+	static_assert(sizeof(hkbAnimationBindingWithTriggers) == 0x28);
 
 	class hkbSymbolIdMap : public hkReferencedObject
 	{
@@ -238,48 +238,47 @@ namespace RE
 		hkPointerMap<int32_t, int32_t> externalToInternalMap;
 	};
 
-    class BSSynchronizedClipGenerator : public hkbGenerator
-    {
-    public:
-        class hkbDefaultSynchronizedScene : public hkReferencedObject
-        {
-        public:
-            inline static constexpr auto RTTI = RTTI_BSSynchronizedClipGenerator__hkbDefaultSynchronizedScene;
-            inline static constexpr auto VTABLE = VTABLE_BSSynchronizedClipGenerator__hkbDefaultSynchronizedScene;
+	class BSSynchronizedClipGenerator : public hkbGenerator
+	{
+	public:
+		class hkbDefaultSynchronizedScene : public hkReferencedObject
+		{
+		public:
+			inline static constexpr auto RTTI = RTTI_BSSynchronizedClipGenerator__hkbDefaultSynchronizedScene;
+			inline static constexpr auto VTABLE = VTABLE_BSSynchronizedClipGenerator__hkbDefaultSynchronizedScene;
 
-            ~hkbDefaultSynchronizedScene() override; // 00
+			~hkbDefaultSynchronizedScene() override;  // 00
 
 			// add
-			virtual bool AreAllClipsActivated();  // 03
-			virtual bool IsDoneReorientingSupportChar(); // 04
-			virtual float GetUnk18(); // 05
-			virtual void UpdateUnk94(float a1); // 06
-			virtual void OnSynchronizedClipDeactivate(); // 07
-			virtual void OnSynchronizedClipActivate(); // 08
-			virtual void Unk_09(void); // 09
+			virtual bool AreAllClipsActivated();          // 03
+			virtual bool IsDoneReorientingSupportChar();  // 04
+			virtual float GetUnk18();                     // 05
+			virtual void UpdateUnk94(float a1);           // 06
+			virtual void OnSynchronizedClipDeactivate();  // 07
+			virtual void OnSynchronizedClipActivate();    // 08
+			virtual void Unk_09(void);                    // 09
 
-            // members
-            BSReadWriteLock lock; // 10
-        };
-        static_assert(sizeof(hkbDefaultSynchronizedScene) == 0x18);
+			// members
+			BSReadWriteLock lock;  // 10
+		};
+		static_assert(sizeof(hkbDefaultSynchronizedScene) == 0x18);
 
-        class hkbSynchronizedAnimationScene : public hkbDefaultSynchronizedScene
-        {
-        public:
-            inline static constexpr auto RTTI = RTTI_BSSynchronizedClipGenerator__hkbSynchronizedAnimationScene;
-            inline static constexpr auto VTABLE = VTABLE_BSSynchronizedClipGenerator__hkbSynchronizedAnimationScene;
+		class hkbSynchronizedAnimationScene : public hkbDefaultSynchronizedScene
+		{
+		public:
+			inline static constexpr auto RTTI = RTTI_BSSynchronizedClipGenerator__hkbSynchronizedAnimationScene;
+			inline static constexpr auto VTABLE = VTABLE_BSSynchronizedClipGenerator__hkbSynchronizedAnimationScene;
 
-            ~hkbSynchronizedAnimationScene() override; // 00
+			~hkbSynchronizedAnimationScene() override;  // 00
+		};
+		static_assert(sizeof(hkbSynchronizedAnimationScene) == 0x18);
 
-        };
-        static_assert(sizeof(hkbSynchronizedAnimationScene) == 0x18);
+		inline static constexpr auto RTTI = RTTI_BSSynchronizedClipGenerator;
+		inline static constexpr auto VTABLE = VTABLE_BSSynchronizedClipGenerator;
 
-        inline static constexpr auto RTTI = RTTI_BSSynchronizedClipGenerator;
-        inline static constexpr auto VTABLE = VTABLE_BSSynchronizedClipGenerator;
+		~BSSynchronizedClipGenerator() override;  // 00
 
-        ~BSSynchronizedClipGenerator() override; // 00
-
-        // members
+		// members
 		uint32_t unk48;                                                              // 48
 		uint32_t unk4C;                                                              // 4C
 		hkbClipGenerator* clipGenerator;                                             // 50
@@ -303,8 +302,8 @@ namespace RE
 		bool doneReorientingSupportChar;                                             // 12A
 		bool allClipsActivated;                                                      // 12B
 		bool allClipsInSceneAreDoneReorientingSupportChar;                           // 12C
-    };
-    static_assert(sizeof(BSSynchronizedClipGenerator) == 0x130);
+	};
+	static_assert(sizeof(BSSynchronizedClipGenerator) == 0x130);
 	static_assert(offsetof(BSSynchronizedClipGenerator, synchronizedAnimationBindingIndex) == 0x128);
 
 	namespace BSSynchronizedClipGeneratorUtils
@@ -329,20 +328,20 @@ namespace RE
 
 			BSHashMapEventFindFunctor() { stl::emplace_vtable(this); }
 
-			~BSHashMapEventFindFunctor() override {} // 00
+			~BSHashMapEventFindFunctor() override {}  // 00
 
 			// override (FindEventFunctor)
 			void Unk_01([[maybe_unused]] const char* a_key) override {}  // 01
 
 			// members
 			BSTHashMap<BSFixedString, uint32_t>* map;  // 08
-        };
+		};
 		static_assert(sizeof(BSHashMapEventFindFunctor) == 0x10);
 	}
-	
-    class BGSSynchronizedAnimationInstance : public BSSynchronizedClipGenerator::hkbSynchronizedAnimationScene
-    {
-    public:
+
+	class BGSSynchronizedAnimationInstance : public BSSynchronizedClipGenerator::hkbSynchronizedAnimationScene
+	{
+	public:
 		struct ActorSyncInfo
 		{
 			ActorHandle refHandle;                                   // 00
@@ -352,10 +351,10 @@ namespace RE
 		};
 		static_assert(sizeof(ActorSyncInfo) == 0x18);
 
-        inline static constexpr auto RTTI = RTTI_BGSSynchronizedAnimationInstance;
-        inline static constexpr auto VTABLE = VTABLE_BGSSynchronizedAnimationInstance;
+		inline static constexpr auto RTTI = RTTI_BGSSynchronizedAnimationInstance;
+		inline static constexpr auto VTABLE = VTABLE_BGSSynchronizedAnimationInstance;
 
-        ~BGSSynchronizedAnimationInstance() override; // 00
+		~BGSSynchronizedAnimationInstance() override;  // 00
 
 		bool HasRef(const ObjectRefHandle& a_handle)
 		{
@@ -371,18 +370,18 @@ namespace RE
 			return func(this, a_outHandle);
 		}
 
-		float unk18;                                       // 18  // nothing reads this?
-		uint32_t numActors;                                // 1C
-		BSTSmallArray<ActorSyncInfo, 3> actorSyncInfos;    // 20
-		BSTSmallArray<ObjectRefHandle, 2> refHandles;      // 78
-		uint32_t numActivated;						       // 90
-		uint32_t currentGenerator;                         // 94  // Generate calls a function that constantly cycles this from 0 to numActivated, on 0 sets unk18. nothing else seems to access them
-		uint32_t lastTimestampMs;                          // 98
-		uint32_t pad9C;                                    // 9C
-    };
-    static_assert(sizeof(BGSSynchronizedAnimationInstance) == 0xA0);
+		float unk18;                                     // 18  // nothing reads this?
+		uint32_t numActors;                              // 1C
+		BSTSmallArray<ActorSyncInfo, 3> actorSyncInfos;  // 20
+		BSTSmallArray<ObjectRefHandle, 2> refHandles;    // 78
+		uint32_t numActivated;                           // 90
+		uint32_t currentGenerator;                       // 94  // Generate calls a function that constantly cycles this from 0 to numActivated, on 0 sets unk18. nothing else seems to access them
+		uint32_t lastTimestampMs;                        // 98
+		uint32_t pad9C;                                  // 9C
+	};
+	static_assert(sizeof(BGSSynchronizedAnimationInstance) == 0xA0);
 
-    class SynchronizedAnimationManager
+	class SynchronizedAnimationManager
 	{
 	public:
 		// members
@@ -397,7 +396,6 @@ namespace RE
 	public:
 		inline static constexpr auto RTTI = RTTI_hkbEventPayload;
 		inline static constexpr auto VTABLE = VTABLE_hkbEventPayload;
-
 	};
 	static_assert(sizeof(hkbEventPayload) == 0x10);
 
@@ -415,109 +413,109 @@ namespace RE
 	class hkbEventQueue
 	{
 	public:
-	    hkQueue<hkbEvent> queue;  // 00
+		hkQueue<hkbEvent> queue;      // 00
 		hkbSymbolIdMap* symbolIdMap;  // 18
-		bool isInternal;  // 20
+		bool isInternal;              // 20
 	};
 	static_assert(sizeof(hkbEventQueue) == 0x28);
 
-    class hkResource : public hkReferencedObject
-    {
-    public:
-        inline static constexpr auto RTTI = RTTI_hkResource;
-        inline static constexpr auto VTABLE = VTABLE_hkResource;
-    };
-    static_assert(sizeof(hkResource) == 0x10);
+	class hkResource : public hkReferencedObject
+	{
+	public:
+		inline static constexpr auto RTTI = RTTI_hkResource;
+		inline static constexpr auto VTABLE = VTABLE_hkResource;
+	};
+	static_assert(sizeof(hkResource) == 0x10);
 
-    class hkLoader : public hkReferencedObject
-    {
-    public:
-        inline static constexpr auto RTTI = RTTI_hkLoader;
-        inline static constexpr auto VTABLE = VTABLE_hkLoader;
+	class hkLoader : public hkReferencedObject
+	{
+	public:
+		inline static constexpr auto RTTI = RTTI_hkLoader;
+		inline static constexpr auto VTABLE = VTABLE_hkLoader;
 
-        // members
-        hkArray<hkResource*> loadedData; // 10
-    };
-    static_assert(sizeof(hkLoader) == 0x20);
+		// members
+		hkArray<hkResource*> loadedData;  // 10
+	};
+	static_assert(sizeof(hkLoader) == 0x20);
 
-    namespace BShkbHkxDB
-    {
-        struct DBData : public hkLoader
-        {
-        public:
-            inline static constexpr auto RTTI = RTTI_BShkbHkxDB__DBData;
-            inline static constexpr auto VTABLE = VTABLE_BShkbHkxDB__DBData;
+	namespace BShkbHkxDB
+	{
+		struct DBData : public hkLoader
+		{
+		public:
+			inline static constexpr auto RTTI = RTTI_BShkbHkxDB__DBData;
+			inline static constexpr auto VTABLE = VTABLE_BShkbHkxDB__DBData;
 
-            // members
-            uint64_t unk20;  // 20
-        };
+			// members
+			uint64_t unk20;  // 20
+		};
 		static_assert(sizeof(DBData) == 0x28);
 
-        struct HashedData
-        {
-            RE::AnimationFileManagerSingleton::AnimationFileInfo animationFileInfo; // 00
-            uint32_t unk0C;                                                         // 0C
-            uint32_t unk10;                                                         // 10
-            uint32_t unk14;                                                         // 14
-            uint32_t unk18;                                                         // 18
-            uint32_t unk1C;                                                         // 1C
-        };
-        static_assert(sizeof(HashedData) == 0x20);
+		struct HashedData
+		{
+			RE::AnimationFileManagerSingleton::AnimationFileInfo animationFileInfo;  // 00
+			uint32_t unk0C;                                                          // 0C
+			uint32_t unk10;                                                          // 10
+			uint32_t unk14;                                                          // 14
+			uint32_t unk18;                                                          // 18
+			uint32_t unk1C;                                                          // 1C
+		};
+		static_assert(sizeof(HashedData) == 0x20);
 
-        struct HashedBehaviorData
-        {
-            HashedData hashedAnimData;  // 00
-            BSResource::Stream* stream; // 20
-            DBData* data;               // 28
-        };
-        static_assert(sizeof(HashedBehaviorData) == 0x30);
+		struct HashedBehaviorData
+		{
+			HashedData hashedAnimData;   // 00
+			BSResource::Stream* stream;  // 20
+			DBData* data;                // 28
+		};
+		static_assert(sizeof(HashedBehaviorData) == 0x30);
 
-        struct ProjectDBData : public hkLoader
-        {
-        public:
-            inline static constexpr auto RTTI = RTTI_BShkbHkxDB__ProjectDBData;
-            inline static constexpr auto VTABLE = VTABLE_BShkbHkxDB__ProjectDBData;
+		struct ProjectDBData : public hkLoader
+		{
+		public:
+			inline static constexpr auto RTTI = RTTI_BShkbHkxDB__ProjectDBData;
+			inline static constexpr auto VTABLE = VTABLE_BShkbHkxDB__ProjectDBData;
 
-            // members
-            uint32_t unk20;
-            uint32_t unk24;
-            BSTArray<HashedBehaviorData*> hashedBehaviors; // 28
-            BSTArray<HashedData> hashedAnimations;         // 40
-            uint32_t unk58;
-            uint32_t unk5C;
-            uint32_t unk60;
-            uint32_t unk64;
-            uint32_t unk68;
-            uint32_t unk6C;
-			BSTHashMap<BSFixedString, uint32_t> variableNamesToIds; // variable name -> event id
-            BSTHashMap<BSFixedString, uint32_t> eventNamesToIds;    // event name -> event id. This one is read from when handling anim events.
-            BSTArray<char*> eventNames;             // D0 - all anim events (~2000 total)
-            BSTArray<char*> unkE8;                  // E8 - state names?
-            uint64_t unk100;                        // 100
-            uint64_t unk108;                        // 108
-            uint64_t unk110;                        // 110
-            uint64_t unk118;                        // 118
-            uint64_t unk120;                        // 120
-            uint64_t unk128;                        // 128
-            uint64_t unk130;                        // 130
-            uint64_t unk138;                        // 138
-            uint64_t unk140;                        // 140
-            uint64_t unk148;                        // 148
-            hkbAnimationBindingSet* bindings;       // 150
-            hkbSymbolIdMap* characterPropertyIdMap; // 158
-            hkbProjectData* projectData;            // 160
-            uint32_t unk168;                        // 168
-            uint32_t unk16C;                        // 16C
-            uint64_t unk170;                        // 170
-            uint64_t unk178;                        // 178
-        };
-        static_assert(offsetof(ProjectDBData, eventNamesToIds) == 0xA0);
-        static_assert(offsetof(ProjectDBData, projectData) == 0x160);
+			// members
+			uint32_t unk20;
+			uint32_t unk24;
+			BSTArray<HashedBehaviorData*> hashedBehaviors;  // 28
+			BSTArray<HashedData> hashedAnimations;          // 40
+			uint32_t unk58;
+			uint32_t unk5C;
+			uint32_t unk60;
+			uint32_t unk64;
+			uint32_t unk68;
+			uint32_t unk6C;
+			BSTHashMap<BSFixedString, uint32_t> variableNamesToIds;  // variable name -> event id
+			BSTHashMap<BSFixedString, uint32_t> eventNamesToIds;     // event name -> event id. This one is read from when handling anim events.
+			BSTArray<char*> eventNames;                              // D0 - all anim events (~2000 total)
+			BSTArray<char*> unkE8;                                   // E8 - state names?
+			uint64_t unk100;                                         // 100
+			uint64_t unk108;                                         // 108
+			uint64_t unk110;                                         // 110
+			uint64_t unk118;                                         // 118
+			uint64_t unk120;                                         // 120
+			uint64_t unk128;                                         // 128
+			uint64_t unk130;                                         // 130
+			uint64_t unk138;                                         // 138
+			uint64_t unk140;                                         // 140
+			uint64_t unk148;                                         // 148
+			hkbAnimationBindingSet* bindings;                        // 150
+			hkbSymbolIdMap* characterPropertyIdMap;                  // 158
+			hkbProjectData* projectData;                             // 160
+			uint32_t unk168;                                         // 168
+			uint32_t unk16C;                                         // 16C
+			uint64_t unk170;                                         // 170
+			uint64_t unk178;                                         // 178
+		};
+		static_assert(offsetof(ProjectDBData, eventNamesToIds) == 0xA0);
+		static_assert(offsetof(ProjectDBData, projectData) == 0x160);
 		static_assert(sizeof(ProjectDBData) == 0x180);
-    }
+	}
 
 	struct UnkIteratorStruct
-    {
+	{
 		ScrapHeap* scrapHeap_00;
 		uint64_t unk_08;
 		uint64_t unk_10;
@@ -532,7 +530,7 @@ namespace RE
 		uint64_t unk_50;
 		uint32_t getChildrenFlags_58;
 		uint32_t unk_5C;
-    };
+	};
 
 	class hkMemoryRouter
 	{

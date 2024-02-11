@@ -26,7 +26,7 @@ public:
 	uint64_t pad38 = 0;
 	uint64_t pad40 = 0;
 	uint64_t pad48 = 0;
-    RE::hkRefPtr<RE::hkbClipTriggerArray> triggers;                            // 050
+	RE::hkRefPtr<RE::hkbClipTriggerArray> triggers;                            // 050
 	float cropStartAmountLocalTime = 0.f;                                      // 058
 	float cropEndAmountLocalTime = 0.f;                                        // 05C
 	float startTime = 0.f;                                                     // 060

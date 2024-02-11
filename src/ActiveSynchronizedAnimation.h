@@ -1,7 +1,7 @@
 #pragma once
+#include "Havok/Havok.h"
 #include "ReplacementAnimation.h"
 #include "ReplacerMods.h"
-#include "Havok/Havok.h"
 
 class ActiveSynchronizedAnimation
 {
@@ -20,7 +20,7 @@ public:
 	[[nodiscard]] bool IsFromActiveGraph(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator) const;
 	[[nodiscard]] bool IsFromInactiveGraph(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator) const;
 	[[nodiscard]] bool IsTransitioning() const { return _bTransitioning; }
-    void SetTransitioning(bool a_bValue) { _bTransitioning = a_bValue; }
+	void SetTransitioning(bool a_bValue) { _bTransitioning = a_bValue; }
 
 	[[nodiscard]] bool HasRef(RE::TESObjectREFR* a_refr) const;
 
@@ -29,8 +29,8 @@ protected:
 	{
 		SynchronizedClipData() = default;
 		SynchronizedClipData(uint16_t a_originalSynchronizedIndex, uint16_t a_originalInternalClipIndex, RE::BGSSynchronizedAnimationInstance::ActorSyncInfo const* a_syncInfo, AnimationReplacements* a_replacements, ReplacementAnimation* a_replacementAnimation) :
-			originalSynchronizedIndex(a_originalSynchronizedIndex),	originalInternalClipIndex(a_originalInternalClipIndex), syncInfo(a_syncInfo), replacements(a_replacements), replacementAnimation(a_replacementAnimation)
-	    {}
+			originalSynchronizedIndex(a_originalSynchronizedIndex), originalInternalClipIndex(a_originalInternalClipIndex), syncInfo(a_syncInfo), replacements(a_replacements), replacementAnimation(a_replacementAnimation)
+		{}
 
 		[[nodiscard]] constexpr bool Matches(const RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator) const { return syncInfo->synchronizedClipGenerator == a_synchronizedClipGenerator; }
 

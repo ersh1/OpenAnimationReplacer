@@ -3,19 +3,19 @@
 
 namespace UI
 {
-	class UIWelcomeBanner : public UIWindow
-	{
-	public:
-		inline static constexpr float DISPLAY_TIME = 8.f;
+    class UIWelcomeBanner : public UIWindow
+    {
+    public:
+        inline static constexpr float DISPLAY_TIME = 8.f;
 
-		void Display();
+        void Display();
 
-	protected:
-		bool ShouldDrawImpl() const override;
-		void DrawImpl() override;
+    protected:
+        bool ShouldDrawImpl() const override;
+        void DrawImpl() override;
 
-	private:
-		float _fLingerTime = 0.f;
-		bool _bFirstFrame = false;
-	};
+    private:
+        float _fLingerTime = 0.f;
+        bool _bFirstFrame = false;
+    };
 }

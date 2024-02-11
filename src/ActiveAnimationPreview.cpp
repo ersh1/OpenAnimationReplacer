@@ -5,8 +5,8 @@
 #include "OpenAnimationReplacer.h"
 
 ActiveAnimationPreview::ActiveAnimationPreview(RE::hkbBehaviorGraph* a_behaviorGraph, const ReplacementAnimation* a_replacementAnimation, std::string_view a_syncAnimationPrefix, std::optional<uint16_t> a_variantIndex /* = std::nullopt*/) :
-	_behaviorGraph(a_behaviorGraph),
-	_replacementAnimation(a_replacementAnimation)
+    _behaviorGraph(a_behaviorGraph),
+    _replacementAnimation(a_replacementAnimation)
 {
 	_previewClipGenerator = std::make_unique<FakeClipGenerator>(a_behaviorGraph, a_replacementAnimation, a_syncAnimationPrefix, a_variantIndex);
 }
@@ -53,7 +53,7 @@ void ActiveAnimationPreview::OnGenerate([[maybe_unused]] RE::hkbBehaviorGraph* a
 
 				if (array.size() > 0) {
 					for (auto& elem : array) {
-						elem = 0.f;
+					    elem = 0.f;
 					}
 				}
 

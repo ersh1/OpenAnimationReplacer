@@ -1,9 +1,9 @@
 #include "FakeClipGenerator.h"
 
-#include "Havok/Havok.h"
 #include "Offsets.h"
 #include "ReplacementAnimation.h"
 #include "Settings.h"
+#include "Havok/Havok.h"
 
 FakeClipGenerator::FakeClipGenerator(RE::hkbClipGenerator* a_clipGenerator) :
 	//userData(a_clipGenerator->userData),
@@ -99,7 +99,7 @@ void FakeClipGenerator::Activate(const RE::hkbContext& a_context)
 	const auto& setup = graph->characterInstance.setup;
 	auto animationBindingSet = static_cast<RE::hkbAnimationBindingSet*>(graph->characterInstance.animationBindingSet.get());
 	if (!animationBindingSet) {
-		animationBindingSet = setup->animationBindingSet.get();
+	    animationBindingSet = setup->animationBindingSet.get();
 	}
 
 	const auto animationBindingWithTriggers = animationBindingSet->bindings[animationBindingIndex];
@@ -108,15 +108,15 @@ void FakeClipGenerator::Activate(const RE::hkbContext& a_context)
 	if (!syncAnimationPrefix.empty()) {
 		std::string animPrefix;
 		if (syncAnimationPrefix == Settings::synchronizedClipSourcePrefix) {
-			animPrefix = "";  // the function expects it to be empty
+			animPrefix = ""; // the function expects it to be empty
 		} else {
-			animPrefix = syncAnimationPrefix;
+		    animPrefix = syncAnimationPrefix;
 		}
 		binding = hkaSkeleton_CreateSynchronizedClipBinding(setup->animationSkeleton.get(), animationBindingWithTriggers->binding.get(), animPrefix.data());
 	} else {
 		binding = animationBindingWithTriggers->binding.get();
 	}
-
+	
 	// create new animation control
 	auto animControl = static_cast<RE::hkaDefaultAnimationControl*>(hkHeapAlloc(sizeof(RE::hkaDefaultAnimationControl)));
 	RE::hkRefPtr animControlPtr(animControl);

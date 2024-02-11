@@ -1,28 +1,29 @@
 #include "ActiveSynchronizedAnimation.h"
 
-#include "Offsets.h"
 #include "OpenAnimationReplacer.h"
+#include "Offsets.h"
 
 ActiveSynchronizedAnimation::ActiveSynchronizedAnimation(RE::BGSSynchronizedAnimationInstance* a_synchronizedAnimationInstance, [[maybe_unused]] const RE::hkbContext& a_context) :
-	_synchronizedAnimationInstance(a_synchronizedAnimationInstance)
+    _synchronizedAnimationInstance(a_synchronizedAnimationInstance)
 {}
 
 ActiveSynchronizedAnimation::~ActiveSynchronizedAnimation()
 {
 	ReadLocker locker(_clipDataLock);
 
-	for (auto& [synchronizedClipGenerator, originalClipData] : _originalClipDatas) {
-		synchronizedClipGenerator->synchronizedAnimationBindingIndex = originalClipData.originalSynchronizedIndex;
-		synchronizedClipGenerator->clipGenerator->animationBindingIndex = originalClipData.originalInternalClipIndex;
-	}
+    for (auto& [synchronizedClipGenerator, originalClipData] : _originalClipDatas)
+    {
+        synchronizedClipGenerator->synchronizedAnimationBindingIndex = originalClipData.originalSynchronizedIndex;
+        synchronizedClipGenerator->clipGenerator->animationBindingIndex = originalClipData.originalInternalClipIndex;
+    }
 }
 
 void ActiveSynchronizedAnimation::OnSynchronizedClipActivate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context)
 {
-	{
-		WriteLocker locker(_clipDataLock);
-		_originalClipDatas.emplace(a_synchronizedClipGenerator, OriginalClipData(a_synchronizedClipGenerator));
-	}
+    {
+        WriteLocker locker(_clipDataLock);
+        _originalClipDatas.emplace(a_synchronizedClipGenerator, OriginalClipData(a_synchronizedClipGenerator));
+    }
 
 	if (a_synchronizedClipGenerator->synchronizedAnimationBindingIndex != static_cast<uint16_t>(-1)) {
 		a_synchronizedClipGenerator->synchronizedAnimationBindingIndex += OpenAnimationReplacer::GetSingleton().GetSynchronizedClipsIDOffset(a_context.character);
@@ -59,16 +60,17 @@ void ActiveSynchronizedAnimation::OnSynchronizedClipDeactivate(RE::BSSynchronize
 {
 	WriteLocker locker(_clipDataLock);
 
-	auto it = _originalClipDatas.find(a_synchronizedClipGenerator);
-	if (it != _originalClipDatas.end()) {
+    auto it = _originalClipDatas.find(a_synchronizedClipGenerator);
+    if (it != _originalClipDatas.end())
+    {
 		a_synchronizedClipGenerator->synchronizedAnimationBindingIndex = it->second.originalSynchronizedIndex;
 		a_synchronizedClipGenerator->clipGenerator->animationBindingIndex = it->second.originalInternalClipIndex;
-	}
+    }
 
 	_originalClipDatas.erase(it);
 }
 
 bool ActiveSynchronizedAnimation::HasRef(RE::TESObjectREFR* a_refr) const
 {
-	return _synchronizedAnimationInstance->HasRef(a_refr->GetHandle());
+    return _synchronizedAnimationInstance->HasRef(a_refr->GetHandle());
 }

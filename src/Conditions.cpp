@@ -104,7 +104,7 @@ namespace Conditions
                 // check if required plugin is loaded and is the required version or higher
                 if (!OpenAnimationReplacer::GetSingleton().IsPluginLoaded(requiredPluginName, requiredVersion)) {
                     DetectedProblems::GetSingleton().AddMissingPluginName(requiredPluginName, requiredVersion);
-                    auto errorStr = std::format("Missing required plugin {} version {}!", requiredPluginName, requiredVersion);
+                    auto errorStr = std::format("Missing required plugin {} version {}!", requiredPluginName, requiredVersion.string("."));
                     logger::error("{}", errorStr);
                     return std::make_unique<InvalidCondition>(errorStr);
                 }
@@ -112,7 +112,7 @@ namespace Conditions
                 // no required plugin, compare required version with OAR conditions version
                 if (requiredVersion > Plugin::VERSION) {
                     DetectedProblems::GetSingleton().MarkOutdatedVersion();
-                    auto errorStr = std::format("Condition {} requires a newer version of OAR! ({})", conditionName, requiredVersion);
+					auto errorStr = std::format("Condition {} requires a newer version of OAR! ({})", conditionName, requiredVersion.string("."));
                     logger::error("{}", errorStr);
                     return std::make_unique<InvalidCondition>(errorStr);
                 }
@@ -3436,4 +3436,179 @@ namespace Conditions
 
 		return false;
 	}
+
+    void LifeStateCondition::PostInitialize()
+    {
+        ConditionBase::PostInitialize();
+		lifeStateComponent->value.getEnumMap = &LifeStateCondition::GetEnumMap;
+    }
+
+    RE::BSString LifeStateCondition::GetArgument() const
+    {
+		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+
+		std::string lifeStateName = "(Invalid)";
+		const auto lifeState = static_cast<uint32_t>(lifeStateComponent->GetNumericValue(nullptr));
+
+		static auto map = GetEnumMap();
+		if (const auto it = map.find(lifeState); it != map.end()) {
+			lifeStateName = it->second;
+		}
+
+		return std::format("Life state {} {}", separator, lifeStateName).data();
+    }
+
+    RE::BSString LifeStateCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				return GetLifeStateName(GetLifeState(a_refr));
+			}
+		}
+
+		return ConditionBase::GetCurrent(a_refr);
+    }
+
+    bool LifeStateCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		if (a_refr) {
+			return comparisonComponent->GetComparisonResult(static_cast<float>(GetLifeState(a_refr)), lifeStateComponent->GetNumericValue(a_refr));
+		}
+
+		return false;
+    }
+
+    RE::ACTOR_LIFE_STATE LifeStateCondition::GetLifeState(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				return actor->AsActorState()->GetLifeState();
+			}
+		}
+
+		return RE::ACTOR_LIFE_STATE::kAlive;
+    }
+
+    std::string_view LifeStateCondition::GetLifeStateName(RE::ACTOR_LIFE_STATE a_lifeState) const
+    {
+		static auto map = GetEnumMap();
+		if (const auto it = map.find(static_cast<int32_t>(a_lifeState)); it != map.end()) {
+			return it->second;
+		}
+
+		return "(Invalid)"sv;
+    }
+
+    std::map<int32_t, std::string_view> LifeStateCondition::GetEnumMap()
+    {
+		std::map<int32_t, std::string_view> enumMap;
+		enumMap[0] = "Alive"sv;
+		enumMap[1] = "Dying"sv;
+		enumMap[2] = "Dead"sv;
+		enumMap[3] = "Unconscious"sv;
+		enumMap[4] = "Reanimate"sv;
+		enumMap[5] = "Recycle"sv;
+		enumMap[6] = "Restrained"sv;
+		enumMap[7] = "Essential down"sv;
+		enumMap[8] = "Bleedout"sv;
+
+		return enumMap;
+    }
+
+	void SitSleepStateCondition::PostInitialize()
+	{
+		ConditionBase::PostInitialize();
+		sitSleepStateComponent->value.getEnumMap = &SitSleepStateCondition::GetEnumMap;
+	}
+
+	RE::BSString SitSleepStateCondition::GetArgument() const
+	{
+		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+
+		std::string lifeStateName = "(Invalid)";
+		const auto lifeState = static_cast<uint32_t>(sitSleepStateComponent->GetNumericValue(nullptr));
+
+		static auto map = GetEnumMap();
+		if (const auto it = map.find(lifeState); it != map.end()) {
+			lifeStateName = it->second;
+		}
+
+		return std::format("Sit/sleep state {} {}", separator, lifeStateName).data();
+	}
+
+	RE::BSString SitSleepStateCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+	{
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				return GetSitSleepStateName(GetSitSleepState(a_refr));
+			}
+		}
+
+		return ConditionBase::GetCurrent(a_refr);
+	}
+
+	bool SitSleepStateCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	{
+		if (a_refr) {
+			return comparisonComponent->GetComparisonResult(static_cast<float>(GetSitSleepState(a_refr)), sitSleepStateComponent->GetNumericValue(a_refr));
+		}
+
+		return false;
+	}
+
+	RE::SIT_SLEEP_STATE SitSleepStateCondition::GetSitSleepState(RE::TESObjectREFR* a_refr) const
+	{
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				return actor->AsActorState()->GetSitSleepState();
+			}
+		}
+
+		return RE::SIT_SLEEP_STATE::kNormal;
+	}
+
+	std::string_view SitSleepStateCondition::GetSitSleepStateName(RE::SIT_SLEEP_STATE a_sitSleepState) const
+	{
+		static auto map = GetEnumMap();
+		if (const auto it = map.find(static_cast<int32_t>(a_sitSleepState)); it != map.end()) {
+			return it->second;
+		}
+
+		return "(Invalid)"sv;
+	}
+
+	std::map<int32_t, std::string_view> SitSleepStateCondition::GetEnumMap()
+	{
+		std::map<int32_t, std::string_view> enumMap;
+		enumMap[0] = "Normal"sv;
+		enumMap[1] = "Wants to sit"sv;
+		enumMap[2] = "Waiting for sit anim"sv;
+		enumMap[3] = "Sitting/Riding mount"sv;
+		enumMap[4] = "Wants to stand"sv;
+		enumMap[5] = "Wants to sleep"sv;
+		enumMap[6] = "Waiting for sleep anim"sv;
+		enumMap[7] = "Sleeping"sv;
+		enumMap[8] = "Wants to wake"sv;
+
+		return enumMap;
+	}
+
+    bool XORCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		bool bXORConditionMet = false;
+		size_t trueCount = 0;
+
+		conditionsComponent->conditionSet->ForEachCondition([&](auto& a_childCondition) {
+			if (!a_childCondition->IsDisabled() && a_childCondition->Evaluate(a_refr, a_clipGenerator)) {
+				if (++trueCount > 1) {
+					bXORConditionMet = false;
+					return RE::BSVisit::BSVisitControl::kStop;
+				}
+				bXORConditionMet = true;
+			}
+			return RE::BSVisit::BSVisitControl::kContinue;
+		});
+
+		return bXORConditionMet;
+    }
 }

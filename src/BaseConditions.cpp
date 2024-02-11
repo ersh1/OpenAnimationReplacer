@@ -4,6 +4,7 @@
 #include "UI/UICommon.h"
 
 #include <imgui_stdlib.h>
+#undef GetObject  // fix windows sdk definition issue
 
 namespace Conditions
 {
@@ -552,7 +553,22 @@ namespace Conditions
     {
         ReadLocker locker(_lock);
 
-        return std::ranges::any_of(_conditions, [&](auto& a_condition) { return a_condition->Evaluate(a_refr, a_clipGenerator); });
+        //return std::ranges::any_of(_conditions, [&](auto& a_condition) { return a_condition->Evaluate(a_refr, a_clipGenerator); });
+
+		// skip disabled conditions and also return true when all conditions are disabled
+		bool bAnyMet = false;
+		bool bAllDisabled = true;
+		for (const auto& condition : _conditions) {
+			if (!condition->IsDisabled()) {
+				bAllDisabled = false;
+				if (condition->Evaluate(a_refr, a_clipGenerator)) {
+					bAnyMet = true;
+					break;
+				}
+			}
+		}
+
+		return bAnyMet || bAllDisabled;
     }
 
     bool ConditionSet::HasInvalidConditions() const
@@ -1013,6 +1029,21 @@ namespace Conditions
             return "1 child condition";
         }
         return std::format("{} child conditions", conditionSet->GetNumConditions()).data();
+    }
+
+    bool MultiConditionComponent::EvaluateAll(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		return conditionSet->EvaluateAll(a_refr, a_clipGenerator);
+    }
+
+    bool MultiConditionComponent::EvaluateAny(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const
+    {
+		return conditionSet->EvaluateAny(a_refr, a_clipGenerator);
+    }
+
+    RE::BSVisit::BSVisitControl MultiConditionComponent::ForEachCondition(const std::function<RE::BSVisit::BSVisitControl(std::unique_ptr<ICondition>&)>& a_func) const
+    {
+		return conditionSet->ForEachCondition(a_func);
     }
 
     void FormConditionComponent::InitializeComponent(void* a_value)

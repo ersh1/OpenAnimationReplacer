@@ -28,6 +28,14 @@ FakeClipGenerator::FakeClipGenerator(RE::hkbClipGenerator* a_clipGenerator) :
 	pingPongBackward(a_clipGenerator->pingPongBackward)
 {}
 
+FakeClipGenerator::FakeClipGenerator(RE::hkbClipGenerator* a_clipGenerator, bool a_bCopyTriggers) :
+	FakeClipGenerator(a_clipGenerator)
+{
+	if (a_bCopyTriggers) {
+		triggers = a_clipGenerator->triggers;
+	}
+}
+
 FakeClipGenerator::FakeClipGenerator(RE::hkbBehaviorGraph* a_behaviorGraph, const ReplacementAnimation* a_replacementAnimation, std::string_view a_syncAnimationPrefix, std::optional<uint16_t> a_variantIndex /* = std::nullopt*/)
 {
 	syncAnimationPrefix = a_syncAnimationPrefix;
@@ -149,23 +157,26 @@ void FakeClipGenerator::Update(const RE::hkbContext& a_context, float a_deltaTim
 	if (mode == RE::hkbClipGenerator::PlaybackMode::kModeUserControlled) {
 		userControlledTimeFraction = std::clamp(userControlledTimeFraction, 0.f, 1.f);
 	}
-
-	hkbClipGenerator_UnkUpdateFunc2(fakeClipGeneratorPtr);
+	hkbClipGenerator_CheckAtEnd(fakeClipGeneratorPtr);
 	float prevLocalTime = 0.f;
 	float newLocalTime = 0.f;
 	int32_t loops = 0;
 	bool newAtEnd = false;
-	hkbClipGenerator_UnkUpdateFunc3_CalcLocalTime(fakeClipGeneratorPtr, a_deltaTime, &prevLocalTime, &newLocalTime, &loops, &newAtEnd);
+	hkbClipGenerator_ComputeBeginAndEndLocalTime(fakeClipGeneratorPtr, a_deltaTime, &prevLocalTime, &newLocalTime, &loops, &newAtEnd);
 	if (!atEnd) {
 		localTime = newLocalTime;
 		animationControl->localTime = newLocalTime;
+	}
 
+	// extracted motion stuff should be here, unnecessary? skipping for now
+
+	if (!atEnd) {
 		atEnd = newAtEnd;
 		RE::hkbEventQueue* eventQueue = a_context.eventQueue;
 		if (!eventQueue) {
 			eventQueue = *reinterpret_cast<RE::hkbEventQueue**>(&a_context.character->eventQueue);
 		}
-		hkbClipGenerator_UnkUpdateFunc4(fakeClipGeneratorPtr, prevLocalTime, newLocalTime, loops, eventQueue);
+		hkbClipGenerator_ProcessCyclicTriggers(fakeClipGeneratorPtr, prevLocalTime, newLocalTime, loops, eventQueue, a_context);
 		if ((loops & 1) != 0) {
 			if (mode != RE::hkbClipGenerator::PlaybackMode::kModeUserControlled) {
 				pingPongBackward = !pingPongBackward;
@@ -174,7 +185,15 @@ void FakeClipGenerator::Update(const RE::hkbContext& a_context, float a_deltaTim
 	}
 
 	if (mode != RE::hkbClipGenerator::PlaybackMode::kModeUserControlled) {
-		time += a_deltaTime * animationControl->playbackSpeed;
+		RE::hkbEventQueue* eventQueue = a_context.eventQueue;
+		if (!eventQueue) {
+			eventQueue = *reinterpret_cast<RE::hkbEventQueue**>(&a_context.character->eventQueue);
+		}
+		const float localDeltaTime = a_deltaTime * animationControl->playbackSpeed;
+		hkbClipGenerator_ProcessAcyclicTriggers(fakeClipGeneratorPtr, time, time + localDeltaTime, eventQueue, a_context);
+		time += localDeltaTime;
+
+		// echos handling here, skipping for now
 	}
 
 	previousUserControlledTimeFraction = userControlledTimeFraction;

@@ -8,6 +8,7 @@ namespace UI
     {
         kMain = 0,
         kAnimationLog,
+		kAnimationEventLog,
         kAnimationQueue,
         kErrorBanner,
         kWelcomeBanner,
@@ -58,7 +59,6 @@ namespace UI
     private:
         struct
         {
-            bool bInitialized = false;
             ImVec2 sizeMin;
             ImVec2 sizeMax;
             ImVec2 pos;

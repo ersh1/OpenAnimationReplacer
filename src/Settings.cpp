@@ -1,4 +1,89 @@
 #include "Settings.h"
+#include <Simpleini.h>
+
+void ReadBoolSetting(const CSimpleIniA& a_ini, const char* a_sectionName, const char* a_settingName, bool& a_setting)
+{
+	const char* bFound = nullptr;
+	bFound = a_ini.GetValue(a_sectionName, a_settingName);
+	if (bFound) {
+		a_setting = a_ini.GetBoolValue(a_sectionName, a_settingName);
+	}
+}
+
+void ReadFloatSetting(const CSimpleIniA& a_ini, const char* a_sectionName, const char* a_settingName, float& a_setting)
+{
+	const char* bFound = nullptr;
+	bFound = a_ini.GetValue(a_sectionName, a_settingName);
+	if (bFound) {
+		a_setting = static_cast<float>(a_ini.GetDoubleValue(a_sectionName, a_settingName));
+	}
+}
+
+void ReadUInt16Setting(const CSimpleIniA& a_ini, const char* a_sectionName, const char* a_settingName, uint16_t& a_setting)
+{
+	const char* bFound = nullptr;
+	bFound = a_ini.GetValue(a_sectionName, a_settingName);
+	if (bFound) {
+		a_setting = static_cast<uint16_t>(a_ini.GetLongValue(a_sectionName, a_settingName));
+	}
+}
+
+void ReadUInt32Setting(const CSimpleIniA& a_ini, const char* a_sectionName, const char* a_settingName, uint32_t& a_setting)
+{
+	const char* bFound = nullptr;
+	bFound = a_ini.GetValue(a_sectionName, a_settingName);
+	if (bFound) {
+		a_setting = static_cast<uint32_t>(a_ini.GetLongValue(a_sectionName, a_settingName));
+	}
+}
+
+void WriteBoolSetting(const char* a_sectionName, const char* a_settingName, const bool& a_setting)
+{
+	CSimpleIniA ini;
+	ini.SetUnicode();
+
+	ini.LoadFile(Settings::iniPath.data());
+
+	ini.SetBoolValue(a_sectionName, a_settingName, a_setting);
+
+	ini.SaveFile(Settings::iniPath.data());
+}
+
+void WriteFloatSetting(const char* a_sectionName, const char* a_settingName, const float& a_setting)
+{
+	CSimpleIniA ini;
+	ini.SetUnicode();
+
+	ini.LoadFile(Settings::iniPath.data());
+
+	ini.SetDoubleValue(a_sectionName, a_settingName, a_setting);
+
+	ini.SaveFile(Settings::iniPath.data());
+}
+
+void WriteUInt16Setting(const char* a_sectionName, const char* a_settingName, const uint16_t& a_setting)
+{
+	CSimpleIniA ini;
+	ini.SetUnicode();
+
+	ini.LoadFile(Settings::iniPath.data());
+
+	ini.SetLongValue(a_sectionName, a_settingName, a_setting);
+
+	ini.SaveFile(Settings::iniPath.data());
+}
+
+void WriteUInt32Setting(const char* a_sectionName, const char* a_settingName, const uint32_t& a_setting)
+{
+	CSimpleIniA ini;
+	ini.SetUnicode();
+
+	ini.LoadFile(Settings::iniPath.data());
+
+	ini.SetLongValue(a_sectionName, a_settingName, a_setting);
+
+	ini.SaveFile(Settings::iniPath.data());
+}
 
 void Settings::Initialize()
 {
@@ -45,6 +130,15 @@ void Settings::ReadSettings()
             ReadUInt32Setting(ini, "UI", "uAnimationLoopLogMode", uAnimationLoopLogMode);
             ReadBoolSetting(ini, "UI", "bAnimationLogOnlyActiveGraph", bAnimationLogOnlyActiveGraph);
             ReadBoolSetting(ini, "UI", "bAnimationLogWriteToTextLog", bAnimationLogWriteToTextLog);
+
+			ReadBoolSetting(ini, "UI", "bEnableAnimationEventLog", bEnableAnimationEventLog);
+			ReadBoolSetting(ini, "UI", "bAnimationLogOrderDescending", bAnimationLogOrderDescending);
+			ReadFloatSetting(ini, "UI", "fAnimationEventLogWidth", fAnimationEventLogWidth);
+			ReadFloatSetting(ini, "UI", "fAnimationEventLogHeight", fAnimationEventLogHeight);
+			ReadBoolSetting(ini, "UI", "bAnimationEventLogWriteToTextLog", bAnimationEventLogWriteToTextLog);
+
+			ReadFloatSetting(ini, "UI", "fAnimationLogsOffsetX", fAnimationLogsOffsetX);
+			ReadFloatSetting(ini, "UI", "fAnimationLogsOffsetY", fAnimationLogsOffsetY);
 
             // Workarounds
             ReadBoolSetting(ini, "Workarounds", "bLegacyKeepRandomResultsByDefault", bLegacyKeepRandomResultsByDefault);
@@ -109,6 +203,15 @@ void Settings::WriteSettings()
     ini.SetBoolValue("UI", "bAnimationLogOnlyActiveGraph", bAnimationLogOnlyActiveGraph);
     ini.SetBoolValue("UI", "bAnimationLogWriteToTextLog", bAnimationLogWriteToTextLog);
 
+	ini.SetBoolValue("UI", "bEnableAnimationEventLog", bEnableAnimationEventLog);
+	ini.SetBoolValue("UI", "bAnimationLogOrderDescending", bAnimationLogOrderDescending);
+	ini.SetDoubleValue("UI", "fAnimationEventLogWidth", fAnimationEventLogWidth);
+	ini.SetDoubleValue("UI", "fAnimationEventLogHeight", fAnimationEventLogHeight);
+	ini.SetBoolValue("UI", "bAnimationEventLogWriteToTextLog", bAnimationEventLogWriteToTextLog);
+
+	ini.SetDoubleValue("UI", "fAnimationLogsOffsetX", fAnimationLogsOffsetX);
+	ini.SetDoubleValue("UI", "fAnimationLogsOffsetY", fAnimationLogsOffsetY);
+
     // Workarounds
     ini.SetBoolValue("Workarounds", "bLegacyKeepRandomResultsByDefault", bLegacyKeepRandomResultsByDefault);
 
@@ -119,90 +222,6 @@ void Settings::WriteSettings()
     ini.SaveFile(iniPath.data());
 
     logger::info("...success");
-}
-
-void Settings::ReadBoolSetting(const CSimpleIniA& a_ini, const char* a_sectionName, const char* a_settingName, bool& a_setting)
-{
-    const char* bFound = nullptr;
-    bFound = a_ini.GetValue(a_sectionName, a_settingName);
-    if (bFound) {
-        a_setting = a_ini.GetBoolValue(a_sectionName, a_settingName);
-    }
-}
-
-void Settings::ReadFloatSetting(const CSimpleIniA& a_ini, const char* a_sectionName, const char* a_settingName, float& a_setting)
-{
-    const char* bFound = nullptr;
-    bFound = a_ini.GetValue(a_sectionName, a_settingName);
-    if (bFound) {
-        a_setting = static_cast<float>(a_ini.GetDoubleValue(a_sectionName, a_settingName));
-    }
-}
-
-void Settings::ReadUInt16Setting(const CSimpleIniA& a_ini, const char* a_sectionName, const char* a_settingName, uint16_t& a_setting)
-{
-    const char* bFound = nullptr;
-    bFound = a_ini.GetValue(a_sectionName, a_settingName);
-    if (bFound) {
-        a_setting = static_cast<uint16_t>(a_ini.GetLongValue(a_sectionName, a_settingName));
-    }
-}
-
-void Settings::ReadUInt32Setting(const CSimpleIniA& a_ini, const char* a_sectionName, const char* a_settingName, uint32_t& a_setting)
-{
-    const char* bFound = nullptr;
-    bFound = a_ini.GetValue(a_sectionName, a_settingName);
-    if (bFound) {
-        a_setting = static_cast<uint32_t>(a_ini.GetLongValue(a_sectionName, a_settingName));
-    }
-}
-
-void Settings::WriteBoolSetting(const char* a_sectionName, const char* a_settingName, const bool& a_setting)
-{
-    CSimpleIniA ini;
-    ini.SetUnicode();
-
-    ini.LoadFile(iniPath.data());
-
-    ini.SetBoolValue(a_sectionName, a_settingName, a_setting);
-
-    ini.SaveFile(iniPath.data());
-}
-
-void Settings::WriteFloatSetting(const char* a_sectionName, const char* a_settingName, const float& a_setting)
-{
-    CSimpleIniA ini;
-    ini.SetUnicode();
-
-    ini.LoadFile(iniPath.data());
-
-    ini.SetDoubleValue(a_sectionName, a_settingName, a_setting);
-
-    ini.SaveFile(iniPath.data());
-}
-
-void Settings::WriteUInt16Setting(const char* a_sectionName, const char* a_settingName, const uint16_t& a_setting)
-{
-    CSimpleIniA ini;
-    ini.SetUnicode();
-
-    ini.LoadFile(iniPath.data());
-
-    ini.SetLongValue(a_sectionName, a_settingName, a_setting);
-
-    ini.SaveFile(iniPath.data());
-}
-
-void Settings::WriteUInt32Setting(const char* a_sectionName, const char* a_settingName, const uint32_t& a_setting)
-{
-    CSimpleIniA ini;
-    ini.SetUnicode();
-
-    ini.LoadFile(iniPath.data());
-
-    ini.SetLongValue(a_sectionName, a_settingName, a_setting);
-
-    ini.SaveFile(iniPath.data());
 }
 
 uint16_t Settings::GetMaxAnimLimit()

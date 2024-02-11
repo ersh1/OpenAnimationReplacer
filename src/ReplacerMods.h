@@ -5,8 +5,6 @@
 #include "Parsing.h"
 #include "ReplacementAnimation.h"
 
-#include <unordered_set>
-
 namespace Jobs {
     struct RemoveSharedRandomFloatJob;
 }
@@ -68,6 +66,11 @@ public:
 
     bool IsInterruptible() const { return _bInterruptible; }
     void SetInterruptible(bool a_bInterruptible) { _bInterruptible = a_bInterruptible; }
+
+	bool HasCustomBlendTime(CustomBlendType a_type) const;
+	float GetCustomBlendTime(CustomBlendType a_type) const;
+	void ToggleCustomBlendTime(CustomBlendType a_type, bool a_bEnable);
+	void SetCustomBlendTime(CustomBlendType a_type, float a_value);
 
 	bool IsReevaluatingOnLoop() const { return _bReplaceOnLoop; }
 	void SetReevaluatingOnLoop(bool a_bReplaceOnLoop) { _bReplaceOnLoop = a_bReplaceOnLoop; }
@@ -138,8 +141,14 @@ private:
     bool _bIgnoreDontConvertAnnotationsToTriggersFlag = false;
 	bool _bTriggersFromAnnotationsOnly = false;
     bool _bInterruptible = false;
+	bool _bCustomBlendTimeOnInterrupt = false;
+	float _blendTimeOnInterrupt = Settings::fDefaultBlendTimeOnInterrupt;
 	bool _bReplaceOnLoop = true;
+	bool _bCustomBlendTimeOnLoop = false;
+	float _blendTimeOnLoop = Settings::fDefaultBlendTimeOnLoop;
 	bool _bReplaceOnEcho = false;
+	bool _bCustomBlendTimeOnEcho = false;
+	float _blendTimeOnEcho = Settings::fDefaultBlendTimeOnEcho;
     bool _bKeepRandomResultsOnLoop = false;
 	bool _bShareRandomResults = false;
 
@@ -244,8 +253,8 @@ public:
 	bool ShouldOriginalReplaceOnEcho() const { return _bOriginalReplaceOnEcho; }
     bool ShouldOriginalKeepRandomResultsOnLoop() const { return _bOriginalKeepRandomResultsOnLoop; }
 
-    ReplacementAnimation* EvaluateConditionsAndGetReplacementAnimation(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const;
-	ReplacementAnimation* EvaluateSynchronizedConditionsAndGetReplacementAnimation(RE::TESObjectREFR* a_sourceRefr, RE::TESObjectREFR* a_targetRefr, RE::hkbClipGenerator* a_clipGenerator) const;
+    [[nodiscard]] ReplacementAnimation* EvaluateConditionsAndGetReplacementAnimation(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const;
+	[[nodiscard]] ReplacementAnimation* EvaluateSynchronizedConditionsAndGetReplacementAnimation(RE::TESObjectREFR* a_sourceRefr, RE::TESObjectREFR* a_targetRefr, RE::hkbClipGenerator* a_clipGenerator) const;
 
     void AddReplacementAnimation(std::unique_ptr<ReplacementAnimation>& a_replacementAnimation);
     void SortByPriority();

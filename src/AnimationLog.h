@@ -14,7 +14,8 @@ struct AnimationLogEntry
 		kActivateReplaceSynchronized,
         kEchoReplace,
         kLoopReplace,
-        kInterrupt
+        kInterrupt,
+		kPairedMismatch
     };
 
     AnimationLogEntry(Event a_event, class ActiveClip* a_activeClip, RE::hkbCharacter* a_character);

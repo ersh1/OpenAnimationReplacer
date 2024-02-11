@@ -7,6 +7,8 @@
 #include "OpenAnimationReplacer.h"
 #include "Settings.h"
 
+#include <unordered_set>
+
 bool SubMod::AddReplacementAnimation(std::string_view a_animPath, uint16_t a_originalIndex, ReplacerProjectData* a_replacerProjectData, RE::hkbCharacterStringData* a_stringData)
 {
 	bool bAdded = false;
@@ -90,8 +92,14 @@ void SubMod::LoadParseResult(const Parsing::SubModParseResult& a_parseResult)
     _bIgnoreDontConvertAnnotationsToTriggersFlag = a_parseResult.bIgnoreDontConvertAnnotationsToTriggersFlag;
 	_bTriggersFromAnnotationsOnly = a_parseResult.bTriggersFromAnnotationsOnly;
     _bInterruptible = a_parseResult.bInterruptible;
+	_bCustomBlendTimeOnInterrupt = a_parseResult.bCustomBlendTimeOnInterrupt;
+	_blendTimeOnInterrupt = a_parseResult.blendTimeOnInterrupt;
 	_bReplaceOnLoop = a_parseResult.bReplaceOnLoop;
+	_bCustomBlendTimeOnLoop = a_parseResult.bCustomBlendTimeOnLoop;
+	_blendTimeOnLoop = a_parseResult.blendTimeOnLoop;
 	_bReplaceOnEcho = a_parseResult.bReplaceOnEcho;
+	_bCustomBlendTimeOnEcho = a_parseResult.bCustomBlendTimeOnEcho;
+	_blendTimeOnEcho = a_parseResult.blendTimeOnEcho;
     _bKeepRandomResultsOnLoop = a_parseResult.bKeepRandomResultsOnLoop;
 	_bShareRandomResults = a_parseResult.bShareRandomResults;
     _conditionSet->MoveConditions(a_parseResult.conditionSet.get());
@@ -135,8 +143,14 @@ void SubMod::UpdateAnimations() const
         anim->SetIgnoreDontConvertAnnotationsToTriggersFlag(_bIgnoreDontConvertAnnotationsToTriggersFlag);
 		anim->SetTriggersFromAnnotationsOnly(_bTriggersFromAnnotationsOnly);
         anim->SetInterruptible(_bInterruptible);
+		anim->ToggleCustomBlendTime(CustomBlendType::kInterrupt, _bCustomBlendTimeOnInterrupt);
+		anim->SetCustomBlendTime(CustomBlendType::kInterrupt, _blendTimeOnInterrupt);
 		anim->SetReplaceOnLoop(_bReplaceOnLoop);
+		anim->ToggleCustomBlendTime(CustomBlendType::kLoop, _bCustomBlendTimeOnLoop);
+		anim->SetCustomBlendTime(CustomBlendType::kLoop, _blendTimeOnLoop);
 		anim->SetReplaceOnEcho(_bReplaceOnEcho);
+		anim->ToggleCustomBlendTime(CustomBlendType::kEcho, _bCustomBlendTimeOnEcho);
+		anim->SetCustomBlendTime(CustomBlendType::kEcho, _blendTimeOnEcho);
         anim->SetKeepRandomResultsOnLoop(_bKeepRandomResultsOnLoop);
 		anim->SetShareRandomResults(_bShareRandomResults);
 		anim->UpdateVariantCache();
@@ -155,6 +169,64 @@ void SubMod::UpdateAnimations() const
             a_animReplacements->SortByPriority();
         });
     });
+}
+
+bool SubMod::HasCustomBlendTime(CustomBlendType a_type) const
+{
+	switch (a_type) {
+	case CustomBlendType::kInterrupt:
+		return _bCustomBlendTimeOnInterrupt;
+	case CustomBlendType::kLoop:
+	    return _bCustomBlendTimeOnLoop;
+	case CustomBlendType::kEcho:
+		return _bCustomBlendTimeOnEcho;
+	}
+
+	return false;
+}
+
+float SubMod::GetCustomBlendTime(CustomBlendType a_type) const
+{
+	switch (a_type) {
+	case CustomBlendType::kInterrupt:
+		return _blendTimeOnInterrupt;
+	case CustomBlendType::kLoop:
+		return _blendTimeOnLoop;
+	case CustomBlendType::kEcho:
+		return _blendTimeOnEcho;
+	}
+
+	return 0.f;
+}
+
+void SubMod::ToggleCustomBlendTime(CustomBlendType a_type, bool a_bEnable)
+{
+	switch (a_type) {
+	case CustomBlendType::kInterrupt:
+	    _bCustomBlendTimeOnInterrupt = a_bEnable;
+		break;
+	case CustomBlendType::kLoop:
+		_bCustomBlendTimeOnLoop = a_bEnable;
+		break;
+	case CustomBlendType::kEcho:
+		_bCustomBlendTimeOnEcho = a_bEnable;
+		break;
+	}
+}
+
+void SubMod::SetCustomBlendTime(CustomBlendType a_type, float a_value)
+{
+	switch (a_type) {
+	case CustomBlendType::kInterrupt:
+		_blendTimeOnInterrupt = a_value;
+		break;
+	case CustomBlendType::kLoop:
+		_blendTimeOnLoop = a_value;
+		break;
+	case CustomBlendType::kEcho:
+		_blendTimeOnEcho = a_value;
+		break;
+	}
 }
 
 bool SubMod::DoesUserConfigExist() const
@@ -201,7 +273,7 @@ bool SubMod::ReloadConfig()
 
     // check if this was originally a legacy mod
     auto directoryPathStr = directoryPath.string();
-    bool bOriginallyLegacy = directoryPathStr.find("DynamicAnimationReplacer"sv) != std::string::npos;
+    bool bOriginallyLegacy = Utils::ContainsStringIgnoreCase(directoryPathStr, "DynamicAnimationReplacer"sv);
 
     auto configPath = directoryPath / "config.json"sv;
     auto userPath = directoryPath / "user.json"sv;
@@ -242,7 +314,7 @@ bool SubMod::ReloadConfig()
 
     if (!bDeserializeSuccess && bOriginallyLegacy) {
         ResetToLegacy();
-        if (directoryPathStr.find("_CustomConditions"sv) != std::string::npos) {
+        if (Utils::ContainsStringIgnoreCase(directoryPathStr, "_CustomConditions"sv)) {
             if (auto txtPath = directoryPath / "_conditions.txt"sv; exists(txtPath)) {
                 auto newConditionSet = Parsing::ParseConditionsTxt(txtPath);
                 _conditionSet->MoveConditions(newConditionSet.get());
@@ -326,132 +398,169 @@ void SubMod::Serialize(rapidjson::Document& a_doc, ConditionEditMode a_editMode)
 
     if (a_editMode == ConditionEditMode::kAuthor) {
         // write submod name
-        rapidjson::Value nameValue(rapidjson::StringRef(_name.data(), _name.length()));
-        a_doc.AddMember("name", nameValue, allocator);
+		{
+			rapidjson::Value value(rapidjson::StringRef(_name.data(), _name.length()));
+			a_doc.AddMember("name", value, allocator);
+		}
+        
 
         // write submod description
         if (!_description.empty()) {
-            rapidjson::Value descriptionValue(rapidjson::StringRef(_description.data(), _description.length()));
-            a_doc.AddMember("description", descriptionValue, allocator);
+			rapidjson::Value value(rapidjson::StringRef(_description.data(), _description.length()));
+			a_doc.AddMember("description", value, allocator);
         }
     }
 
     // write submod priority
-    rapidjson::Value priorityValue(_priority);
-    a_doc.AddMember("priority", priorityValue, allocator);
+    {
+		rapidjson::Value value(_priority);
+		a_doc.AddMember("priority", value, allocator);
+    }
 
     // write submod disabled
     if (_bDisabled) {
-        rapidjson::Value disabledValue(_bDisabled);
-        a_doc.AddMember("disabled", disabledValue, allocator);
+		rapidjson::Value value(_bDisabled);
+		a_doc.AddMember("disabled", value, allocator);
     }
 
     // write replacement anim datas (only save those that have non-default settings)
-	rapidjson::Value replacementAnimationDatasValue(rapidjson::kArrayType);
-	for (auto& replacementAnimation : _replacementAnimations) {
-		if (replacementAnimation->ShouldSaveToJson()) {
-			rapidjson::Value animValue(rapidjson::kObjectType);
+    {
+		rapidjson::Value value(rapidjson::kArrayType);
+		for (auto& replacementAnimation : _replacementAnimations) {
+			if (replacementAnimation->ShouldSaveToJson()) {
+				rapidjson::Value animValue(rapidjson::kObjectType);
 
-			animValue.AddMember("projectName", rapidjson::StringRef(replacementAnimation->GetProjectName().data(), replacementAnimation->GetProjectName().length()), allocator);
-			animValue.AddMember("path", rapidjson::StringRef(replacementAnimation->GetAnimPath().data(), replacementAnimation->GetAnimPath().length()), allocator);
-			if (replacementAnimation->GetDisabled()) {
-				animValue.AddMember("disabled", replacementAnimation->GetDisabled(), allocator);
-			}
-
-			if (replacementAnimation->HasVariants()) {
-				rapidjson::Value variantsValue(rapidjson::kArrayType);
-				replacementAnimation->ForEachVariant([&](const ReplacementAnimation::Variant& a_variant) {
-					if (a_variant.ShouldSaveToJson()) {
-						rapidjson::Value variantValue(rapidjson::kObjectType);
-
-						variantValue.AddMember("filename", rapidjson::StringRef(a_variant.GetFilename().data(), a_variant.GetFilename().length()), allocator);
-						if (a_variant.GetWeight() != 1.f) {
-							variantValue.AddMember("weight", a_variant.GetWeight(), allocator);
-						}
-						if (a_variant.IsDisabled()) {
-							variantValue.AddMember("disabled", a_variant.IsDisabled(), allocator);
-						}
-
-						variantsValue.PushBack(variantValue, allocator);
-					}
-
-					return RE::BSVisit::BSVisitControl::kContinue;
-				});
-
-				if (!variantsValue.Empty()) {
-					animValue.AddMember("variants", variantsValue, allocator);
+				animValue.AddMember("projectName", rapidjson::StringRef(replacementAnimation->GetProjectName().data(), replacementAnimation->GetProjectName().length()), allocator);
+				animValue.AddMember("path", rapidjson::StringRef(replacementAnimation->GetAnimPath().data(), replacementAnimation->GetAnimPath().length()), allocator);
+				if (replacementAnimation->GetDisabled()) {
+					animValue.AddMember("disabled", replacementAnimation->GetDisabled(), allocator);
 				}
-			}
 
-			replacementAnimationDatasValue.PushBack(animValue, allocator);
+				if (replacementAnimation->HasVariants()) {
+					rapidjson::Value variantsValue(rapidjson::kArrayType);
+					replacementAnimation->ForEachVariant([&](const ReplacementAnimation::Variant& a_variant) {
+						if (a_variant.ShouldSaveToJson()) {
+							rapidjson::Value variantValue(rapidjson::kObjectType);
+
+							variantValue.AddMember("filename", rapidjson::StringRef(a_variant.GetFilename().data(), a_variant.GetFilename().length()), allocator);
+							if (a_variant.GetWeight() != 1.f) {
+								variantValue.AddMember("weight", a_variant.GetWeight(), allocator);
+							}
+							if (a_variant.IsDisabled()) {
+								variantValue.AddMember("disabled", a_variant.IsDisabled(), allocator);
+							}
+
+							variantsValue.PushBack(variantValue, allocator);
+						}
+
+						return RE::BSVisit::BSVisitControl::kContinue;
+					});
+
+					if (!variantsValue.Empty()) {
+						animValue.AddMember("variants", variantsValue, allocator);
+					}
+				}
+
+				value.PushBack(animValue, allocator);
+			}
 		}
-	}
-	if (!replacementAnimationDatasValue.Empty()) {
-		a_doc.AddMember("replacementAnimDatas", replacementAnimationDatasValue, allocator);
-	}
+		if (!value.Empty()) {
+			a_doc.AddMember("replacementAnimDatas", value, allocator);
+		}
+    }
 
     // write override animations folder
     if (!_overrideAnimationsFolder.empty()) {
-        rapidjson::Value overrideAnimationsFolderValue(rapidjson::StringRef(_overrideAnimationsFolder.data(), _overrideAnimationsFolder.length()));
-        a_doc.AddMember("overrideAnimationsFolder", overrideAnimationsFolderValue, allocator);
+        rapidjson::Value value(rapidjson::StringRef(_overrideAnimationsFolder.data(), _overrideAnimationsFolder.length()));
+		a_doc.AddMember("overrideAnimationsFolder", value, allocator);
     }
 
     // write required project name
     if (!_requiredProjectName.empty()) {
-        rapidjson::Value requiredProjectNameValue(rapidjson::StringRef(_requiredProjectName.data(), _requiredProjectName.length()));
-        a_doc.AddMember("requiredProjectName", requiredProjectNameValue, allocator);
+		rapidjson::Value value(rapidjson::StringRef(_requiredProjectName.data(), _requiredProjectName.length()));
+		a_doc.AddMember("requiredProjectName", value, allocator);
     }
 
     // write ignore DONT_CONVERT_ANNOTATIONS_TO_TRIGGERS flag
     if (_bIgnoreDontConvertAnnotationsToTriggersFlag) {
-        rapidjson::Value ignoreNoTriggersValue(_bIgnoreDontConvertAnnotationsToTriggersFlag);
-        a_doc.AddMember("ignoreDontConvertAnnotationsToTriggersFlag", ignoreNoTriggersValue, allocator);
+		rapidjson::Value value(_bIgnoreDontConvertAnnotationsToTriggersFlag);
+		a_doc.AddMember("ignoreDontConvertAnnotationsToTriggersFlag", value, allocator);
     }
 
 	// write triggers from annotations only
 	if (_bTriggersFromAnnotationsOnly) {
-		rapidjson::Value triggersOnlyValue(_bTriggersFromAnnotationsOnly);
-		a_doc.AddMember("triggersFromAnnotationsOnly", triggersOnlyValue, allocator);
+		rapidjson::Value value(_bTriggersFromAnnotationsOnly);
+		a_doc.AddMember("triggersFromAnnotationsOnly", value, allocator);
 	}
 
     // write interruptible
     if (_bInterruptible) {
-        rapidjson::Value interruptibleValue(_bInterruptible);
-        a_doc.AddMember("interruptible", interruptibleValue, allocator);
+		rapidjson::Value value(_bInterruptible);
+		a_doc.AddMember("interruptible", value, allocator);
     }
+
+	// write custom blend time on interrupt
+	if (_bInterruptible && _bCustomBlendTimeOnInterrupt) {
+		rapidjson::Value value(_bCustomBlendTimeOnInterrupt);
+		a_doc.AddMember("hasCustomBlendTimeOnInterrupt", value, allocator);
+
+		rapidjson::Value blendValue(_blendTimeOnInterrupt);
+		a_doc.AddMember("blendTimeOnInterrupt", blendValue, allocator);
+	}
 
 	// write replace on loop (true is default so skip)
 	if (!_bReplaceOnLoop) {
-		rapidjson::Value interruptibleValue(_bReplaceOnLoop);
-		a_doc.AddMember("replaceOnLoop", interruptibleValue, allocator);
+		rapidjson::Value value(_bReplaceOnLoop);
+		a_doc.AddMember("replaceOnLoop", value, allocator);
+	}
+
+	// write custom blend time on loop
+	if (_bReplaceOnLoop && _bCustomBlendTimeOnLoop) {
+		rapidjson::Value value(_bCustomBlendTimeOnLoop);
+		a_doc.AddMember("hasCustomBlendTimeOnLoop", value, allocator);
+
+		rapidjson::Value blendValue(_blendTimeOnLoop);
+		a_doc.AddMember("blendTimeOnLoop", blendValue, allocator);
 	}
 
 	// write replace on echo
 	if (_bReplaceOnEcho) {
-		rapidjson::Value interruptibleValue(_bReplaceOnEcho);
-		a_doc.AddMember("replaceOnEcho", interruptibleValue, allocator);
+		rapidjson::Value value(_bReplaceOnEcho);
+		a_doc.AddMember("replaceOnEcho", value, allocator);
+	}
+
+	// write custom blend time on echo
+	if (_bReplaceOnEcho && _bCustomBlendTimeOnEcho) {
+		rapidjson::Value value(_bCustomBlendTimeOnEcho);
+		a_doc.AddMember("hasCustomBlendTimeOnEcho", value, allocator);
+
+		rapidjson::Value blendValue(_blendTimeOnEcho);
+		a_doc.AddMember("blendTimeOnEcho", blendValue, allocator);
 	}
 
     // write keep random result on loop
     if (_bKeepRandomResultsOnLoop) {
-        rapidjson::Value keepRandomResultsOnLoopValue(_bKeepRandomResultsOnLoop);
-        a_doc.AddMember("keepRandomResultsOnLoop", keepRandomResultsOnLoopValue, allocator);
+		rapidjson::Value value(_bKeepRandomResultsOnLoop);
+		a_doc.AddMember("keepRandomResultsOnLoop", value, allocator);
     }
 
 	// write share random results
 	if (_bShareRandomResults) {
-		rapidjson::Value shareRandomResultsValue(_bShareRandomResults);
-		a_doc.AddMember("shareRandomResults", shareRandomResultsValue, allocator);
+		rapidjson::Value value(_bShareRandomResults);
+		a_doc.AddMember("shareRandomResults", value, allocator);
 	}
 
     // write conditions
-    rapidjson::Value conditionArrayValue = _conditionSet->Serialize(allocator);
-    a_doc.AddMember("conditions", conditionArrayValue, allocator);
+    {
+		rapidjson::Value value = _conditionSet->Serialize(allocator);
+		a_doc.AddMember("conditions", value, allocator);
+    }
+	
 
 	// write paired conditions
 	if (_synchronizedConditionSet) {
-	    rapidjson::Value pairedConditionArrayValue = _synchronizedConditionSet->Serialize(allocator);
-        a_doc.AddMember("pairedConditions", pairedConditionArrayValue, allocator);
+	    rapidjson::Value value = _synchronizedConditionSet->Serialize(allocator);
+		a_doc.AddMember("pairedConditions", value, allocator);
 	}
 }
 
@@ -473,7 +582,7 @@ void SubMod::ResetToLegacy()
 {
     const std::filesystem::path directoryPath(_path);
 
-    if (_path.find("_CustomConditions"sv) != std::string::npos) {
+    if (Utils::ContainsStringIgnoreCase(_path, "_CustomConditions"sv)) {
         _name = directoryPath.stem().string();
         std::from_chars(_name.data(), _name.data() + _name.length(), _priority);
         _configSource = Parsing::ConfigSource::kLegacy;
@@ -497,8 +606,14 @@ void SubMod::ResetToLegacy()
     _bIgnoreDontConvertAnnotationsToTriggersFlag = false;
 	_bTriggersFromAnnotationsOnly = false;
     _bInterruptible = false;
+	_bCustomBlendTimeOnInterrupt = false;
+	_blendTimeOnInterrupt = Settings::fDefaultBlendTimeOnInterrupt;
 	_bReplaceOnLoop = true;
+	_bCustomBlendTimeOnLoop = false;
+	_blendTimeOnLoop = Settings::fDefaultBlendTimeOnLoop;
 	_bReplaceOnEcho = false;
+	_bCustomBlendTimeOnEcho = false;
+	_blendTimeOnEcho = Settings::fDefaultBlendTimeOnEcho;
     _bKeepRandomResultsOnLoop = false;
 	_bShareRandomResults = false;
 
@@ -517,8 +632,14 @@ void SubMod::ResetReplacementAnimationsToLegacy()
 		anim->SetIgnoreDontConvertAnnotationsToTriggersFlag(_bIgnoreDontConvertAnnotationsToTriggersFlag);
 		anim->SetTriggersFromAnnotationsOnly(_bTriggersFromAnnotationsOnly);
 		anim->SetInterruptible(_bInterruptible);
+		anim->ToggleCustomBlendTime(CustomBlendType::kInterrupt, false);
+		anim->SetCustomBlendTime(CustomBlendType::kInterrupt, Settings::fDefaultBlendTimeOnInterrupt);
 		anim->SetReplaceOnLoop(_bReplaceOnLoop);
+		anim->ToggleCustomBlendTime(CustomBlendType::kLoop, false);
+		anim->SetCustomBlendTime(CustomBlendType::kLoop, Settings::fDefaultBlendTimeOnLoop);
 		anim->SetReplaceOnEcho(_bReplaceOnEcho);
+		anim->ToggleCustomBlendTime(CustomBlendType::kEcho, false);
+		anim->SetCustomBlendTime(CustomBlendType::kEcho, Settings::fDefaultBlendTimeOnEcho);
 		anim->SetKeepRandomResultsOnLoop(_bKeepRandomResultsOnLoop);
 		anim->SetShareRandomResults(_bShareRandomResults);
 		anim->UpdateVariantCache();

@@ -56,7 +56,7 @@ namespace UI
     {
         // disable idle camera rotation
         if (const auto playerCamera = RE::PlayerCamera::GetSingleton()) {
-            playerCamera->idleTimer = 0.f;
+            playerCamera->GetRuntimeData2().idleTimer = 0.f;
         }
 
         //ImGui::ShowDemoWindow();
@@ -116,11 +116,14 @@ namespace UI
             const std::string animationLogButtonName = "Animation Log";
             const float animationLogButtonWidth = (ImGui::CalcTextSize(animationLogButtonName.data()).x + style.FramePadding.x * 2 + style.ItemSpacing.x);
 
+			const std::string animationEventLogButtonName = "Event Log";
+			const float animationEventLogButtonWidth = (ImGui::CalcTextSize(animationEventLogButtonName.data()).x + style.FramePadding.x * 2 + style.ItemSpacing.x);
+
             const std::string settingsButtonName = _bShowSettings ? "Settings <" : "Settings >";
             const float settingsButtonWidth = (ImGui::CalcTextSize(settingsButtonName.data()).x + style.FramePadding.x * 2 + style.ItemSpacing.x);
 
             // Bottom bar
-            if (ImGui::BeginChild("BottomBar", ImVec2(ImGui::GetContentRegionAvail().x - animationLogButtonWidth - settingsButtonWidth, 0.f), true)) {
+            if (ImGui::BeginChild("BottomBar", ImVec2(ImGui::GetContentRegionAvail().x - animationLogButtonWidth - animationEventLogButtonWidth - settingsButtonWidth, 0.f), true)) {
                 ImGui::AlignTextToFramePadding();
                 // Status text
 
@@ -274,11 +277,18 @@ namespace UI
             ImGui::EndChild();
 
             // Animation log button
-            ImGui::SameLine(ImGui::GetWindowWidth() - animationLogButtonWidth - settingsButtonWidth);
+			ImGui::SameLine(ImGui::GetWindowWidth() - animationLogButtonWidth - animationEventLogButtonWidth - settingsButtonWidth);
             if (ImGui::Button(animationLogButtonName.data(), ImVec2(0.f, bottomBarHeight - style.ItemSpacing.y))) {
                 Settings::bEnableAnimationLog = !Settings::bEnableAnimationLog;
                 Settings::WriteSettings();
             }
+
+			// Animation event log button
+			ImGui::SameLine(ImGui::GetWindowWidth() - animationEventLogButtonWidth - settingsButtonWidth);
+			if (ImGui::Button(animationEventLogButtonName.data(), ImVec2(0.f, bottomBarHeight - style.ItemSpacing.y))) {
+				Settings::bEnableAnimationEventLog = !Settings::bEnableAnimationEventLog;
+				Settings::WriteSettings();
+			}
 
             // Settings button
             ImGui::SameLine(ImGui::GetWindowWidth() - settingsButtonWidth);
@@ -301,6 +311,10 @@ namespace UI
     void UIMain::OnOpen()
     {
         UIManager::GetSingleton().AddInputConsumer();
+
+		auto& detectedProblems = DetectedProblems::GetSingleton();
+		detectedProblems.CheckForSubModsSharingPriority();
+		detectedProblems.CheckForSubModsWithInvalidConditions();
     }
 
     void UIMain::OnClose()
@@ -482,7 +496,7 @@ namespace UI
             ImGui::SameLine();
             UICommon::HelpMarker("Enable to only log animation clips from the active behavior graph - filter out first person animations when in third person, etc.");
 
-            if (ImGui::Checkbox("Write to log file", &Settings::bAnimationLogWriteToTextLog)) {
+            if (ImGui::Checkbox("Write to log file##AnimationLog", &Settings::bAnimationLogWriteToTextLog)) {
                 Settings::WriteSettings();
             }
             ImGui::SameLine();
@@ -490,6 +504,40 @@ namespace UI
 
             ImGui::Spacing();
             ImGui::Separator();
+
+			 // Animation event log settings
+			ImGui::AlignTextToFramePadding();
+			ImGui::TextUnformatted("Animation Event Log Settings");
+			ImGui::Spacing();
+
+			float tempSize[2] = { Settings::fAnimationEventLogWidth, Settings::fAnimationEventLogHeight };
+			if (ImGui::SliderFloat2("Event Log Size", tempSize, 300.f, 1500.f, "%.0f")) {
+				Settings::fAnimationEventLogWidth = tempSize[0];
+				Settings::fAnimationEventLogHeight = tempSize[1];
+				Settings::WriteSettings();
+			}
+			ImGui::SameLine();
+			UICommon::HelpMarker("Width and height of the animation event log.");
+
+            if (ImGui::Checkbox("Write to log file##EventLog", &Settings::bAnimationEventLogWriteToTextLog)) {
+				Settings::WriteSettings();
+			}
+			ImGui::SameLine();
+			UICommon::HelpMarker("Enable to also log animation events into the file at 'Documents\\My Games\\Skyrim Special Edition\\SKSE\\OpenAnimationReplacer.log'.");
+
+			ImGui::Spacing();
+
+			float tempOffset[2] = { Settings::fAnimationLogsOffsetX, Settings::fAnimationLogsOffsetY };
+			if (ImGui::SliderFloat2("Log Offset", tempOffset, 0.f, 500.f, "%.0f")) {
+				Settings::fAnimationLogsOffsetX = tempOffset[0];
+				Settings::fAnimationLogsOffsetY = tempOffset[1];
+				Settings::WriteSettings();
+			}
+			ImGui::SameLine();
+			UICommon::HelpMarker("Position offset from the corner of the screen used by the logs.");
+
+			ImGui::Spacing();
+			ImGui::Separator();
 
             // Workarounds
             ImGui::AlignTextToFramePadding();
@@ -1079,6 +1127,45 @@ namespace UI
                 }
             }
 
+			const auto drawBlendTimeOption = [this, a_subMod](CustomBlendType a_type, std::string_view a_boolLabel, std::string_view a_sliderLabel, std::string_view a_tooltip) {
+				if (_editMode != ConditionEditMode::kNone) {
+					bool tempHasCustomBlendTime = a_subMod->HasCustomBlendTime(a_type);
+					if (ImGui::Checkbox(a_boolLabel.data(), &tempHasCustomBlendTime)) {
+						a_subMod->ToggleCustomBlendTime(a_type, tempHasCustomBlendTime);
+						OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::UpdateSubModJob>(a_subMod, false);
+						a_subMod->SetDirty(true);
+					}
+					ImGui::SameLine();
+					ImGui::BeginDisabled(!a_subMod->HasCustomBlendTime(a_type));
+					float tempBlendTime = a_subMod->GetCustomBlendTime(a_type);
+					ImGui::SetNextItemWidth(200.f);
+					if (ImGui::SliderFloat(a_sliderLabel.data(), &tempBlendTime, 0.f, 1.f, "%.2f s", ImGuiSliderFlags_AlwaysClamp)) {
+						a_subMod->SetCustomBlendTime(a_type, tempBlendTime);
+						OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::UpdateSubModJob>(a_subMod, false);
+						a_subMod->SetDirty(true);
+					}
+					ImGui::EndDisabled();
+					ImGui::SameLine();
+					UICommon::HelpMarker(a_tooltip.data());
+				} else if (a_subMod->HasCustomBlendTime(a_type)) {
+					ImGui::BeginDisabled();
+					float tempBlendTime = a_subMod->GetCustomBlendTime(a_type);
+					ImGui::SetNextItemWidth(200.f);
+					ImGui::SliderFloat(a_sliderLabel.data(), &tempBlendTime, 0.f, 1.f, "%.2f s", ImGuiSliderFlags_AlwaysClamp);
+					ImGui::EndDisabled();
+					ImGui::SameLine();
+					UICommon::HelpMarker(a_tooltip.data());
+				}
+			};
+
+			// Submod custom blend time on interrupt
+			if (a_subMod->IsInterruptible()) {
+				const std::string hasCustomBlendTimeLabel = "##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "hasCustomBlendTimeOnInterrupt";
+				const std::string blendTimeLabel = "Custom blend time on interrupt##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "blendTimeOnInterrupt";
+				const std::string blendTimeTooltip = "Sets custom blend time between an animation from this submod and a new one on interrupt.";
+				drawBlendTimeOption(CustomBlendType::kInterrupt, hasCustomBlendTimeLabel, blendTimeLabel, blendTimeTooltip);
+            }
+
 			// Submod replace on loop
 			{
 				std::string replaceOnLoopLabel = "Replace on loop##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "replaceOnLoop";
@@ -1103,6 +1190,14 @@ namespace UI
 				}
 			}
 
+			// Submod custom blend time on loop
+			if (a_subMod->IsReevaluatingOnLoop()) {
+				const std::string hasCustomBlendTimeLabel = "##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "hasCustomBlendTimeOnLoop";
+				const std::string blendTimeLabel = "Custom blend time on loop##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "blendTimeOnLoop";
+				const std::string blendTimeTooltip = "Sets custom blend time between an animation from this submod and a new one when replacing on loop.";
+				drawBlendTimeOption(CustomBlendType::kLoop, hasCustomBlendTimeLabel, blendTimeLabel, blendTimeTooltip);
+			}
+
 			// Submod replace on echo
 			{
 				std::string replaceOnEchoLabel = "Replace on echo##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "replaceOnEcho";
@@ -1125,6 +1220,14 @@ namespace UI
 					ImGui::SameLine();
 					UICommon::HelpMarker(replaceOnEchoTooltip.data());
 				}
+			}
+
+			// Submod custom blend time on echo
+			if (a_subMod->IsReevaluatingOnEcho()) {
+				const std::string hasCustomBlendTimeLabel = "##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "hasCustomBlendTimeOnEcho";
+				const std::string blendTimeLabel = "Custom blend time on echo##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "blendTimeOnEcho";
+				const std::string blendTimeTooltip = "Sets custom blend time between an animation from this submod and a new one when replacing on echo.";
+				drawBlendTimeOption(CustomBlendType::kEcho, hasCustomBlendTimeLabel, blendTimeLabel, blendTimeTooltip);
 			}
 
             // Submod keep random results on loop
@@ -1985,7 +2088,7 @@ namespace UI
                         auto component = a_condition->GetComponent(i);
 
                         if (auto multiConditionComponent = dynamic_cast<Conditions::IMultiConditionComponent*>(component)) {
-							if (DrawConditionSet(multiConditionComponent->GetConditions(), a_editMode, a_condition->GetRefrToEvaluate(a_refrToEvaluate), true, cursorPos)) {
+							if (DrawConditionSet(multiConditionComponent->GetConditions(), a_editMode, multiConditionComponent->GetShouldDrawEvaluateResultForChildConditions() ? a_condition->GetRefrToEvaluate(a_refrToEvaluate) : nullptr, true, cursorPos)) {
                                 a_conditionSet->SetDirty(true);
                                 a_bOutSetDirty = true;
                             }

@@ -6,6 +6,8 @@
 #include "ReplacerMods.h"
 #include "Jobs.h"
 
+#include <unordered_set>
+
 class OpenAnimationReplacer
 {
 public:
@@ -40,8 +42,11 @@ public:
     void RemoveActiveClip(RE::hkbClipGenerator* a_clipGenerator);
 
 	[[nodiscard]] ActiveSynchronizedAnimation* GetActiveSynchronizedAnimationForRefr(RE::TESObjectREFR* a_refr) const;
-	ActiveSynchronizedAnimation* AddOrGetActiveSynchronizedAnimation(RE::BGSSynchronizedAnimationInstance* a_synchronizedAnimationInstance, const RE::hkbContext& a_context);
+	ActiveSynchronizedAnimation* AddOrGetActiveSynchronizedAnimation(RE::BGSSynchronizedAnimationInstance* a_synchronizedAnimationInstance);
+	[[nodiscard]] ActiveSynchronizedAnimation* GetActiveSynchronizedAnimation(RE::BGSSynchronizedAnimationInstance* a_synchronizedAnimationInstance);
 	void RemoveActiveSynchronizedAnimation(RE::BGSSynchronizedAnimationInstance* a_synchronizedAnimationInstance);
+	void OnSynchronizedClipPreUpdate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context, float a_timestep);
+	void OnSynchronizedClipPostUpdate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context, float a_timestep);
 	void OnSynchronizedClipDeactivate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context);
 
 	[[nodiscard]] bool HasActiveAnimationPreviews() const { return !_activeAnimationPreviews.empty(); }
@@ -140,6 +145,11 @@ protected:
 
 	mutable SharedLock _activeSynchronizedAnimationsLock;
 	std::unordered_map<RE::BGSSynchronizedAnimationInstance*, std::unique_ptr<ActiveSynchronizedAnimation>> _activeSynchronizedAnimations;
+
+	// For clips that are part of a synchronized animation where one of the involved animations is replaced and wants non annotation triggers removed.
+	// Solves the issue where vanilla triggers from first person killmoves have effect while third person animations are replaced.
+	mutable SharedLock _clipsPendingNonAnnotationTriggersRemovalLock;
+	std::unordered_set<RE::hkbClipGenerator*> _clipsPendingNonAnnotationTriggersRemoval;
 
 	mutable SharedLock _activeAnimationPreviewsLock;
 	std::unordered_map<RE::hkbBehaviorGraph*, std::unique_ptr<ActiveAnimationPreview>> _activeAnimationPreviews;

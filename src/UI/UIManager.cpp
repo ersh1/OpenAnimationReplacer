@@ -1,5 +1,7 @@
 #include "UIManager.h"
 
+#include "UIAnimationEventLog.h"
+
 #include <imgui.h>
 #include <imgui_impl_dx11.h>
 #include <imgui_impl_win32.h>
@@ -597,6 +599,7 @@ namespace UI
         _windows{
             std::make_unique<UIMain>(),
             std::make_unique<UIAnimationLog>(),
+			std::make_unique<UIAnimationEventLog>(),
             std::make_unique<UIAnimationQueue>(),
             std::make_unique<UIErrorBanner>(),
             std::make_unique<UIWelcomeBanner>()

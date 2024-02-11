@@ -93,6 +93,19 @@ namespace Utils
         return it != a_string.end();
     }
 
+    size_t FindStringIgnoreCase(std::string_view a_string, std::string_view a_substring)
+    {
+		const auto it = std::ranges::search(a_string, a_substring, [](const char a_a, const char a_b) {
+			return std::tolower(a_a) == std::tolower(a_b);
+		}).begin();
+
+		if (it != a_string.end()) {
+			return std::distance(a_string.begin(), it);
+		}
+
+		return std::string::npos;
+    }
+
     std::string GetFormNameString(const RE::TESForm* a_form)
     {
         if (a_form) {
@@ -277,6 +290,10 @@ namespace Utils
 
     bool GetTarget([[maybe_unused]] RE::Actor* a_actor, RE::TESObjectREFRPtr& a_outPtr)
     {
+		if (const auto target = Actor_GetTarget(a_actor)) {
+		    return target;
+		}
+
 		if (const auto process = a_actor->GetActorRuntimeData().currentProcess) {
 		    return RE::LookupReferenceByHandle(process->target, a_outPtr);
 		}
@@ -419,6 +436,9 @@ namespace Utils
         if (g_mergeMapperInterface) {
             const auto [newModName, newFormID] = g_mergeMapperInterface->GetNewFormID(a_modName.data(), a_localFormID);
             formID = RE::TESDataHandler::GetSingleton()->LookupFormID(newFormID, newModName);
+			if ((newModName != a_modName) || (newFormID != a_localFormID)) {
+				logger::info("Mergemapper searched for 0x{:x}~{} and found 0x{:x}~{}; returning formid 0x{:x}", a_localFormID, a_modName, newFormID, newModName, formID);
+			}
         } else {
             formID = RE::TESDataHandler::GetSingleton()->LookupFormID(a_localFormID, a_modName);
         }

@@ -243,10 +243,20 @@ namespace RE
     public:
         class hkbDefaultSynchronizedScene : public hkReferencedObject
         {
+        public:
             inline static constexpr auto RTTI = RTTI_BSSynchronizedClipGenerator__hkbDefaultSynchronizedScene;
             inline static constexpr auto VTABLE = VTABLE_BSSynchronizedClipGenerator__hkbDefaultSynchronizedScene;
 
             ~hkbDefaultSynchronizedScene() override; // 00
+
+			// add
+			virtual bool AreAllClipsActivated();  // 03
+			virtual bool IsDoneReorientingSupportChar(); // 04
+			virtual float GetUnk18(); // 05
+			virtual void UpdateUnk94(float a1); // 06
+			virtual void OnSynchronizedClipDeactivate(); // 07
+			virtual void OnSynchronizedClipActivate(); // 08
+			virtual void Unk_09(void); // 09
 
             // members
             BSReadWriteLock lock; // 10
@@ -270,29 +280,29 @@ namespace RE
         ~BSSynchronizedClipGenerator() override; // 00
 
         // members
-		uint32_t unk48;
-		uint32_t unk4C;
-		hkbClipGenerator* clipGenerator;                            // 50
-		hkStringPtr syncAnimPrefix;                                 // 58
-		bool syncClipIgnoreMarkPlacement;                           // 60
-		float getToMarkTime;                                        // 64
-		float markErrorThreshold;                                   // 68
-		bool leadCharacter;                                         // 6C
-		bool reorientSupportChar;                                   // 6D
-		bool applyMotionFromRoot;                                   // 6E
-		class BGSSynchronizedAnimationInstance* synchronizedScene;  // 70
-		uint32_t unk78;
-		uint32_t unk7C;
+		uint32_t unk48;                                                              // 48
+		uint32_t unk4C;                                                              // 4C
+		hkbClipGenerator* clipGenerator;                                             // 50
+		hkStringPtr syncAnimPrefix;                                                  // 58
+		bool syncClipIgnoreMarkPlacement;                                            // 60
+		float getToMarkTime;                                                         // 64
+		float markErrorThreshold;                                                    // 68
+		bool leadCharacter;                                                          // 6C
+		bool reorientSupportChar;                                                    // 6D
+		bool applyMotionFromRoot;                                                    // 6E
+		class BGSSynchronizedAnimationInstance* synchronizedScene;                   // 70
+		uint32_t unk78;                                                              // 78
+		uint32_t unk7C;                                                              // 7C
 		hkQsTransform startingWorldFromModel;                                        // 80
 		hkQsTransform worldFromModelWithRootMotion;                                  // B0
-		hkQsTransform unkTransform;                                                  // E0
+		hkQsTransform posOffset;                                                     // E0
 		float getToMarkProgress;                                                     // 110
 		hkaAnimationBinding* binding;                                                // 118
 		hkPointerMap<int32_t, int32_t>* eventWithPrefixIdToEventWithoutPrefixIdMap;  // 120  hkPointerMap<int, int>*
 		uint16_t synchronizedAnimationBindingIndex;                                  // 128
 		bool doneReorientingSupportChar;                                             // 12A
-		bool unk12B;                                                                 // 12B
-		bool unk12C;                                                                 // 12C
+		bool allClipsActivated;                                                      // 12B
+		bool allClipsInSceneAreDoneReorientingSupportChar;                           // 12C
     };
     static_assert(sizeof(BSSynchronizedClipGenerator) == 0x130);
 	static_assert(offsetof(BSSynchronizedClipGenerator, synchronizedAnimationBindingIndex) == 0x128);
@@ -333,33 +343,40 @@ namespace RE
     class BGSSynchronizedAnimationInstance : public BSSynchronizedClipGenerator::hkbSynchronizedAnimationScene
     {
     public:
-		struct SynchronizedAnimationRef
+		struct ActorSyncInfo
 		{
-			ActorHandle refHandle;                          // 00
-			uint32_t pad04;                                 // 04
-			BSSynchronizedClipGenerator* synchronizedClip;  // 08
-			hkbCharacter* character;                        // 10
+			ActorHandle refHandle;                                   // 00
+			uint32_t pad04;                                          // 04
+			BSSynchronizedClipGenerator* synchronizedClipGenerator;  // 08
+			hkbCharacter* character;                                 // 10
 		};
-		static_assert(sizeof(SynchronizedAnimationRef) == 0x18);
+		static_assert(sizeof(ActorSyncInfo) == 0x18);
 
         inline static constexpr auto RTTI = RTTI_BGSSynchronizedAnimationInstance;
         inline static constexpr auto VTABLE = VTABLE_BGSSynchronizedAnimationInstance;
 
         ~BGSSynchronizedAnimationInstance() override; // 00
 
-		bool HasRef(const RE::ObjectRefHandle& a_handle)
+		bool HasRef(const ObjectRefHandle& a_handle)
 		{
 			using func_t = decltype(&BGSSynchronizedAnimationInstance::HasRef);
 			REL::Relocation<func_t> func{ REL::VariantID(32031, 32784, 0x4FB080) };  // 4EAE10, 503680, 4FB080
 			return func(this, a_handle);
 		}
 
-		float unk18;                                       // 18
-		uint32_t numCharacters;                            // 1C
-		BSTSmallArray<SynchronizedAnimationRef, 3> refs;   // 20
+		ActorHandle& GetLeadRef(ActorHandle& a_outHandle)
+		{
+			using func_t = decltype(&BGSSynchronizedAnimationInstance::GetLeadRef);
+			REL::Relocation<func_t> func{ REL::VariantID(32032, 32785, 0x4FB140) };  // 4EAED0, 503680, 4FB140
+			return func(this, a_outHandle);
+		}
+
+		float unk18;                                       // 18  // nothing reads this?
+		uint32_t numActors;                                // 1C
+		BSTSmallArray<ActorSyncInfo, 3> actorSyncInfos;    // 20
 		BSTSmallArray<ObjectRefHandle, 2> refHandles;      // 78
-		uint32_t numActiveClips;                           // 90
-		uint32_t unk94;                                    // 94
+		uint32_t numActivated;						       // 90
+		uint32_t currentGenerator;                         // 94  // Generate calls a function that constantly cycles this from 0 to numActivated, on 0 sets unk18. nothing else seems to access them
 		uint32_t lastTimestampMs;                          // 98
 		uint32_t pad9C;                                    // 9C
     };

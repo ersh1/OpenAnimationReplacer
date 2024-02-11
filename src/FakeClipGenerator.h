@@ -9,6 +9,7 @@ class FakeClipGenerator
 {
 public:
 	FakeClipGenerator(RE::hkbClipGenerator* a_clipGenerator);
+	FakeClipGenerator(RE::hkbClipGenerator* a_clipGenerator, bool a_bProcessTriggersOnUpdate);
 	FakeClipGenerator(RE::hkbBehaviorGraph* a_behaviorGraph, const ReplacementAnimation* a_replacementAnimation, std::string_view a_syncAnimationPrefix, std::optional<uint16_t> a_variantIndex = std::nullopt);
 	~FakeClipGenerator();
 
@@ -25,7 +26,7 @@ public:
 	uint64_t pad38 = 0;
 	uint64_t pad40 = 0;
 	uint64_t pad48 = 0;
-	uint64_t pad50 = 0;
+    RE::hkRefPtr<RE::hkbClipTriggerArray> triggers;                            // 050
 	float cropStartAmountLocalTime = 0.f;                                      // 058
 	float cropEndAmountLocalTime = 0.f;                                        // 05C
 	float startTime = 0.f;                                                     // 060

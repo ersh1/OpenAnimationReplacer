@@ -57,9 +57,7 @@ bool ActiveClip::ShouldReplaceAnimation(const ReplacementAnimation* a_newReplace
 
 void ActiveClip::ReplaceAnimation(const ReplacementAnimation* a_replacementAnimation, std::optional<uint16_t> a_variantIndex /* = std::nullopt*/)
 {
-    if (_currentReplacementAnimation) {
-        RestoreOriginalAnimation();
-    }
+	RestoreOriginalAnimation();
 
     _currentReplacementAnimation = a_replacementAnimation;
 
@@ -79,22 +77,20 @@ void ActiveClip::RestoreOriginalAnimation()
     _clipGenerator->animationBindingIndex = _originalIndex;
 	_clipGenerator->mode = _originalMode;
     _clipGenerator->flags = _originalFlags;
-	if (_originalTriggers) {
-		_clipGenerator->originalTriggers = _originalTriggers;
-	}
+	RestoreBackupTriggers();
     if (_currentReplacementAnimation) {
         _currentReplacementAnimation = nullptr;
     }
 }
 
-void ActiveClip::QueueReplacementAnimation(ReplacementAnimation* a_replacementAnimation, float a_blendTime, AnimationLogEntry::Event a_replacementEvent, std::optional<uint16_t> a_variantIndex/* = std::nullopt*/)
+void ActiveClip::QueueReplacementAnimation(ReplacementAnimation* a_replacementAnimation, float a_blendTime, bool a_bRestart, AnimationLogEntry::Event a_replacementEvent, std::optional<uint16_t> a_variantIndex /* = std::nullopt*/)
 {
-    _queuedReplacement = { a_replacementAnimation, a_blendTime, a_replacementEvent, a_variantIndex };
+    _queuedReplacement = { a_replacementAnimation, a_blendTime, a_bRestart, a_replacementEvent, a_variantIndex };
 }
 
 ReplacementAnimation* ActiveClip::PopQueuedReplacementAnimation()
 {
-    if (!_queuedReplacement) {
+    if (!HasQueuedReplacement()) {
         return nullptr;
     }
 
@@ -109,21 +105,34 @@ void ActiveClip::ReplaceActiveAnimation(RE::hkbClipGenerator* a_clipGenerator, c
 {
     const float blendTime = _queuedReplacement->blendTime;
     const auto replacementEvent = _queuedReplacement->replacementEvent;
+	const bool bRestart = _queuedReplacement->bRestart;
+
+	float startTime = 0.f;
+	if (!bRestart && a_clipGenerator->animationControl) {
+		startTime = a_clipGenerator->animationControl->localTime;
+	}
 
     if (blendTime > 0.f) {
         StartBlend(a_clipGenerator, a_context, blendTime);
 
-        // set to null before deactivation so it isn't cleared when hkbClipGenerator::Deactivate is called (we continue using this animation control in the copied clip generator)
+        // set to null before deactivation so it isn't destroyed when hkbClipGenerator::Deactivate is called (we continue using this animation control object in the fake clip generator)
         a_clipGenerator->animationControl = nullptr;
     }
 
     SetTransitioning(true);
-    a_clipGenerator->Deactivate(a_context);
+	if (_parentSynchronizedClipGenerator) {
+		_parentSynchronizedClipGenerator->Deactivate(a_context);
+	} else {
+		a_clipGenerator->Deactivate(a_context);
+	}
 
 	const std::optional<uint16_t> newIndex = _queuedReplacement ? _queuedReplacement->variantIndex : std::nullopt;
 	const auto replacement = PopQueuedReplacementAnimation();
-
 	ReplaceAnimation(replacement, newIndex);
+
+	if (_parentSynchronizedClipGenerator) {
+		BackupTriggers(a_clipGenerator);
+	}
 
     auto& animationLog = AnimationLog::GetSingleton();
 
@@ -131,8 +140,26 @@ void ActiveClip::ReplaceActiveAnimation(RE::hkbClipGenerator* a_clipGenerator, c
         animationLog.LogAnimation(replacementEvent, this, a_context.character);
     }
 
-    a_clipGenerator->Activate(a_context);
+	if (_parentSynchronizedClipGenerator) {
+		_parentSynchronizedClipGenerator->Activate(a_context);
+	} else {
+		a_clipGenerator->Activate(a_context);
+	}
     SetTransitioning(false);
+
+	if (!bRestart) {
+	    a_clipGenerator->animationControl->localTime = startTime;
+	}
+}
+
+void ActiveClip::SetTransitioning(bool a_bValue)
+{
+	_bTransitioning = a_bValue;
+	if (_parentSynchronizedClipGenerator) {
+		if (const auto synchronizedAnim = OpenAnimationReplacer::GetSingleton().GetActiveSynchronizedAnimation(_parentSynchronizedClipGenerator->synchronizedScene)) {
+			synchronizedAnim->SetTransitioning(a_bValue);
+		}
+	}
 }
 
 void ActiveClip::StartBlend(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context, float a_blendTime)
@@ -154,20 +181,64 @@ void ActiveClip::StopBlend()
 
 void ActiveClip::PreUpdate(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context, [[maybe_unused]] float a_timestep)
 {
-    // check if the animation should be interrupted (queue a replacement if so)
-    if (!_queuedReplacement && IsInterruptible()) {
-        const auto newReplacementAnim = OpenAnimationReplacer::GetSingleton().GetReplacementAnimation(a_context.character, a_clipGenerator, _originalIndex);
-		// do not try to replace with other variants here
-		std::optional<uint16_t> dummy = std::nullopt;
-        if (ShouldReplaceAnimation(newReplacementAnim, false, dummy)) {
-            QueueReplacementAnimation(newReplacementAnim, Settings::fBlendTimeOnInterrupt, AnimationLogEntry::Event::kInterrupt);
-        }
-    }
+	if (IsSynchronizedClip()) {
+	    return;  // Analogous function already ran by ActiveSynchronizedAnimation
+	}
+
+	if (!HasQueuedReplacement()) {
+		// check if the animation should be interrupted (queue a replacement if so)
+		if (IsInterruptible()) {
+			const auto newReplacementAnim = OpenAnimationReplacer::GetSingleton().GetReplacementAnimation(a_context.character, a_clipGenerator, _originalIndex);
+			// do not try to replace with other variants here
+			std::optional<uint16_t> dummy = std::nullopt;
+			if (ShouldReplaceAnimation(newReplacementAnim, false, dummy)) {
+				const float blendTime = HasReplacementAnimation() ? GetReplacementAnimation()->GetCustomBlendTime(CustomBlendType::kInterrupt) : Settings::fDefaultBlendTimeOnInterrupt;
+				QueueReplacementAnimation(newReplacementAnim, blendTime, true, AnimationLogEntry::Event::kInterrupt);
+			}
+		}
+	}
+
+	if (!HasQueuedReplacement()) {
+		// check if the animation is going to loop in this update
+		if (a_clipGenerator->mode == RE::hkbClipGenerator::PlaybackMode::kModeLooping) {
+			// calculate numLoops in this update, with added blend time so we replace just before it loops
+			float prevLocalTime = 0.f;
+			float newLocalTime = 0.f;
+			int32_t numLoops = 0;
+			bool newAtEnd = false;
+			float blendTime = HasReplacementAnimation() ? GetReplacementAnimation()->GetCustomBlendTime(CustomBlendType::kLoop) : Settings::fDefaultBlendTimeOnLoop;
+			if (hkbClipGenerator_GetAnimDuration(a_clipGenerator) <= blendTime) {
+			    blendTime = 0.f;
+			}
+			hkbClipGenerator_ComputeBeginAndEndLocalTime(a_clipGenerator, a_timestep + blendTime, &prevLocalTime, &newLocalTime, &numLoops, &newAtEnd);
+			if (numLoops > 0) {
+				// recheck conditions to see if we should replace the animation
+				if (!OnLoop(a_clipGenerator)) {
+					auto& animationLog = AnimationLog::GetSingleton();
+					constexpr auto event = AnimationLogEntry::Event::kLoop;
+					if (animationLog.ShouldLogAnimations() && animationLog.ShouldLogAnimationsForActiveClip(this, event)) {
+						animationLog.LogAnimation(event, this, GetCharacter());
+					}
+				}
+			}
+		}
+	}
 
     // replace anim if queued
-    if (_queuedReplacement) {
+	if (HasQueuedReplacement()) {
         ReplaceActiveAnimation(a_clipGenerator, a_context);
     }
+
+	if (IsBlending()) {
+		const float currentGameTime = OpenAnimationReplacer::gameTimeCounter;
+		const float deltaTime = currentGameTime - _lastGameTime;
+		_blendElapsedTime += deltaTime;
+		_lastGameTime = currentGameTime;
+
+		if (_blendElapsedTime < _blendDuration) {
+			_blendFromClipGenerator->Update(a_context, deltaTime);
+		}
+	}
 }
 
 void ActiveClip::PreGenerate([[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] const RE::hkbContext& a_context, [[maybe_unused]] RE::hkbGeneratorOutput& a_output)
@@ -197,6 +268,10 @@ void ActiveClip::OnActivate(RE::hkbClipGenerator* a_clipGenerator, const RE::hkb
 			}
             if (const auto replacementAnimation = replacements->EvaluateConditionsAndGetReplacementAnimation(refr, a_clipGenerator)) {
                 ReplaceAnimation(replacementAnimation);
+
+				if (_currentReplacementAnimation && _currentReplacementAnimation->GetTriggersFromAnnotationsOnly()) {
+					BackupTriggers(a_clipGenerator);
+				}
             }
         }
     }
@@ -207,25 +282,49 @@ void ActiveClip::OnPostActivate(RE::hkbClipGenerator* a_clipGenerator, [[maybe_u
 	if (_currentReplacementAnimation) {
 		// handle "triggers from annotations only" setting
 		if (_currentReplacementAnimation->GetTriggersFromAnnotationsOnly()) {
-			// backup original triggers
-		    _originalTriggers = a_clipGenerator->originalTriggers;
-
-			// remove non-annotation triggers from both arrays (originalTriggers and triggers)
-			if (a_clipGenerator->originalTriggers && !a_clipGenerator->originalTriggers->triggers.empty()) {
-				RemoveNonAnnotationTriggersFromClipTriggerArray(a_clipGenerator->originalTriggers);
-			}
-
-			if (a_clipGenerator->triggers && !a_clipGenerator->triggers->triggers.empty()) {
-				RemoveNonAnnotationTriggersFromClipTriggerArray(a_clipGenerator->triggers);
-			}
+			RemoveNonAnnotationTriggers(a_clipGenerator);
 		}
 	}
 }
 
-void ActiveClip::OnActivateSynchronized(AnimationReplacements* a_replacements, const ReplacementAnimation* a_replacementAnimation, std::optional<uint16_t> a_variantIndex)
+void ActiveClip::BackupTriggers(RE::hkbClipGenerator* a_clipGenerator)
+{
+	_originalTriggersBackup = a_clipGenerator->originalTriggers;
+	_triggersBackup = a_clipGenerator->triggers;
+	_bTriggersBackedUp = true;
+}
+
+void ActiveClip::RestoreBackupTriggers()
+{
+	if (_bTriggersBackedUp) {
+		_clipGenerator->triggers = _triggersBackup;
+		_triggersBackup = nullptr;
+		_clipGenerator->originalTriggers = _originalTriggersBackup;
+		_originalTriggersBackup = nullptr;
+		_bTriggersBackedUp = false;
+	}
+}
+
+void ActiveClip::RemoveNonAnnotationTriggers(RE::hkbClipGenerator* a_clipGenerator)
+{
+	if (!_bRemovedNonAnnotationTriggers) {
+		// remove non-annotation triggers from both arrays (originalTriggers and triggers)
+		if (a_clipGenerator->originalTriggers && !a_clipGenerator->originalTriggers->triggers.empty()) {
+			RemoveNonAnnotationTriggersFromClipTriggerArray(a_clipGenerator->originalTriggers);
+		}
+
+		if (a_clipGenerator->triggers && !a_clipGenerator->triggers->triggers.empty()) {
+			RemoveNonAnnotationTriggersFromClipTriggerArray(a_clipGenerator->triggers);
+		}
+	}
+}
+
+void ActiveClip::OnActivateSynchronized(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, AnimationReplacements* a_replacements, const ReplacementAnimation* a_replacementAnimation, std::optional<uint16_t> a_variantIndex)
 {
 	SetReplacements(a_replacements);
 	ReplaceAnimation(a_replacementAnimation, a_variantIndex);
+
+	BackupTriggers(a_synchronizedClipGenerator->clipGenerator);
 }
 
 void ActiveClip::OnGenerate([[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] const RE::hkbContext& a_context, RE::hkbGeneratorOutput& a_output)
@@ -274,7 +373,8 @@ bool ActiveClip::OnEcho(RE::hkbClipGenerator* a_clipGenerator, float a_echoDurat
 		const auto newReplacementAnim = OpenAnimationReplacer::GetSingleton().GetReplacementAnimation(_character, a_clipGenerator, _originalIndex);
 		std::optional<uint16_t> variantIndex = std::nullopt;
 		if (ShouldReplaceAnimation(newReplacementAnim, !ShouldKeepRandomResultsOnLoop(), variantIndex)) {
-			QueueReplacementAnimation(newReplacementAnim, a_echoDuration, AnimationLogEntry::Event::kEchoReplace);
+			const float blendTime = HasReplacementAnimation() ? GetReplacementAnimation()->GetCustomBlendTime(CustomBlendType::kEcho) : a_echoDuration;
+			QueueReplacementAnimation(newReplacementAnim, blendTime, true, AnimationLogEntry::Event::kEchoReplace);
 			return true;
 		}
 	}
@@ -294,7 +394,8 @@ bool ActiveClip::OnLoop(RE::hkbClipGenerator* a_clipGenerator)
 		const auto newReplacementAnim = OpenAnimationReplacer::GetSingleton().GetReplacementAnimation(_character, a_clipGenerator, _originalIndex);
 		std::optional<uint16_t> variantIndex = std::nullopt;
 		if (ShouldReplaceAnimation(newReplacementAnim, !ShouldKeepRandomResultsOnLoop(), variantIndex)) {
-			QueueReplacementAnimation(newReplacementAnim, Settings::fBlendTimeOnLoop, AnimationLogEntry::Event::kLoopReplace);
+			const float blendTime = HasReplacementAnimation() ? GetReplacementAnimation()->GetCustomBlendTime(CustomBlendType::kLoop) : Settings::fDefaultBlendTimeOnLoop;
+			QueueReplacementAnimation(newReplacementAnim, blendTime, true, AnimationLogEntry::Event::kLoopReplace);
 			return true;
 		}
 	}
@@ -387,4 +488,6 @@ void ActiveClip::RemoveNonAnnotationTriggersFromClipTriggerArray(RE::hkRefPtr<RE
 
 	// replace old array with new
 	a_clipTriggerArray = RE::hkRefPtr(newClipTriggerArray);
+
+	_bRemovedNonAnnotationTriggers = true;
 }

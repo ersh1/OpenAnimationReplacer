@@ -268,7 +268,7 @@ namespace UI::UICommon
         }
     }
 
-    bool ArrowButtonText(const char* a_label, ImGuiDir a_dir, const ImVec2& a_sizeArg /*= ImVec2(0, 0)*/, ImGuiButtonFlags a_flags /*= ImGuiButtonFlags_None*/)
+    bool ArrowButtonText(const char* a_label, ImGuiDir a_dir, bool a_bArrowOnRight, const ImVec2& a_sizeArg /*= ImVec2(0, 0)*/, ImGuiButtonFlags a_flags /*= ImGuiButtonFlags_None*/)
     {
         using namespace ImGui;
 
@@ -280,8 +280,12 @@ namespace UI::UICommon
         const ImGuiStyle& style = g.Style;
         const ImGuiID id = window->GetID(a_label);
         ImVec2 label_size = CalcTextSize(a_label, nullptr, true);
+		ImVec2 text_size = label_size;
         // add arrow size to label size
-        const float arrowSize = GetFrameHeight() + style.FramePadding.x;
+		float arrowSize = GetFrameHeight();
+		if (a_bArrowOnRight) {
+			arrowSize -= style.FramePadding.x;
+		}
         label_size.x += arrowSize;
 
         ImVec2 pos = window->DC.CursorPos;
@@ -312,10 +316,20 @@ namespace UI::UICommon
 
         if (g.LogEnabled)
             LogSetNextTextDecoration("[", "]");
-        RenderArrow(window->DrawList, bb.Min + ImVec2(style.FramePadding.x, ImMax(0.0f, (size.y - g.FontSize) * 0.5f)), text_col, a_dir);
-        ImVec2 textPos = bb.Min;
-        textPos.x += arrowSize;
-        RenderTextClipped(textPos + style.FramePadding, bb.Max - style.FramePadding, a_label, nullptr, &label_size, style.ButtonTextAlign, &bb);
+
+		if (a_bArrowOnRight) {
+			ImVec2 pos_max = bb.Max - style.FramePadding;
+			pos_max.x -= arrowSize;
+			RenderTextClipped(bb.Min + style.FramePadding, pos_max, a_label, nullptr, &text_size, style.ButtonTextAlign, &bb);
+			ImVec2 arrowPos = ImVec2(bb.Max.x, bb.Min.y);
+			arrowPos.x -= arrowSize;
+			RenderArrow(window->DrawList, arrowPos + ImVec2(0.f, ImMax(0.0f, (size.y - g.FontSize) * 0.5f)), text_col, a_dir);
+		} else {
+			RenderArrow(window->DrawList, bb.Min + ImVec2(style.FramePadding.x, ImMax(0.0f, (size.y - g.FontSize) * 0.5f)), text_col, a_dir);
+			ImVec2 textPos = bb.Min;
+			textPos.x += arrowSize;
+			RenderTextClipped(textPos + style.FramePadding, bb.Max - style.FramePadding, a_label, nullptr, &text_size, style.ButtonTextAlign, &bb);
+		}
 
         IMGUI_TEST_ENGINE_ITEM_INFO(id, a_label, g.LastItemData.StatusFlags);
         return pressed;
@@ -324,7 +338,7 @@ namespace UI::UICommon
     bool PopupToggleButton(const char* a_label, const char* a_popupId, const ImVec2& a_sizeArg /*= ImVec2(0, 0)*/)
     {
         const auto dir = ImGui::IsPopupOpen(a_popupId) ? ImGuiDir_Down : ImGuiDir_Right;
-        return ArrowButtonText(a_label, dir, a_sizeArg, ImGuiButtonFlags_None);
+        return ArrowButtonText(a_label, dir, false, a_sizeArg, ImGuiButtonFlags_None);
     }
 
     bool InputText(const char* a_label, std::string* a_str, int a_maxLength, ImGuiInputTextFlags a_flags /*= 0*/, ImGuiInputTextCallback a_callback /*= NULL*/, void* a_userData /*= NULL*/)

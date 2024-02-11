@@ -2,6 +2,7 @@
 
 #include "Conditions.h"
 #include "ReplacementAnimation.h"
+#include "Settings.h"
 
 #include <future>
 
@@ -100,8 +101,14 @@ namespace Parsing
         bool bIgnoreDontConvertAnnotationsToTriggersFlag = false;
 		bool bTriggersFromAnnotationsOnly = false;
         bool bInterruptible = false;
+		bool bCustomBlendTimeOnInterrupt = false;
+		float blendTimeOnInterrupt = Settings::fDefaultBlendTimeOnInterrupt;
 		bool bReplaceOnLoop = true;
+		bool bCustomBlendTimeOnLoop = false;
+		float blendTimeOnLoop = Settings::fDefaultBlendTimeOnLoop;
 		bool bReplaceOnEcho = false;
+		bool bCustomBlendTimeOnEcho = false;
+		float blendTimeOnEcho = Settings::fDefaultBlendTimeOnEcho;
         bool bKeepRandomResultsOnLoop = false;
 		bool bShareRandomResults = false;
         std::unique_ptr<Conditions::ConditionSet> conditionSet;

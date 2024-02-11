@@ -155,21 +155,21 @@ namespace Parsing
             }
 
             // read submod priority (required)
-            if (auto priorityIt = doc.FindMember("priority"); priorityIt != doc.MemberEnd() && priorityIt->value.IsInt()) {
-                a_outParseResult.priority = priorityIt->value.GetInt();
+			if (auto it = doc.FindMember("priority"); it != doc.MemberEnd() && it->value.IsInt()) {
+				a_outParseResult.priority = it->value.GetInt();
             } else {
                 logger::error("Failed to find submod priority in file: {}", a_jsonPath.string());
                 return false;
             }
 
             // read submod disabled (optional)
-            if (auto disabledIt = doc.FindMember("disabled"); disabledIt != doc.MemberEnd() && disabledIt->value.IsBool()) {
-                a_outParseResult.bDisabled = disabledIt->value.GetBool();
+			if (auto it = doc.FindMember("disabled"); it != doc.MemberEnd() && it->value.IsBool()) {
+				a_outParseResult.bDisabled = it->value.GetBool();
             }
 
             // read disabled animations (optional, json field deprecated and replaced by replacementAnimDatas - reading it kept for compatibility with older config versions)
-            if (auto disabledAnimationsIt = doc.FindMember("disabledAnimations"); disabledAnimationsIt != doc.MemberEnd() && disabledAnimationsIt->value.IsArray()) {
-                for (auto& disabledAnimation : disabledAnimationsIt->value.GetArray()) {
+			if (auto it = doc.FindMember("disabledAnimations"); it != doc.MemberEnd() && it->value.IsArray()) {
+				for (auto& disabledAnimation : it->value.GetArray()) {
                     if (disabledAnimation.IsObject()) {
                         auto projectNameIt = disabledAnimation.FindMember("projectName");
                         if (auto pathIt = disabledAnimation.FindMember("path"); projectNameIt != doc.MemberEnd() && projectNameIt->value.IsString() && pathIt != doc.MemberEnd() && pathIt->value.IsString()) {
@@ -180,8 +180,8 @@ namespace Parsing
             }
 
 			// read replacement animation datas (optional)
-			if (auto replacementAnimDatasIt = doc.FindMember("replacementAnimDatas"); replacementAnimDatasIt != doc.MemberEnd() && replacementAnimDatasIt->value.IsArray()) {
-				for (auto& replacementAnimData : replacementAnimDatasIt->value.GetArray()) {
+			if (auto it = doc.FindMember("replacementAnimDatas"); it != doc.MemberEnd() && it->value.IsArray()) {
+				for (auto& replacementAnimData : it->value.GetArray()) {
 					if (replacementAnimData.IsObject()) {
 						auto projectNameIt = replacementAnimData.FindMember("projectName");
 						if (auto pathIt = replacementAnimData.FindMember("path"); projectNameIt != doc.MemberEnd() && projectNameIt->value.IsString() && pathIt != doc.MemberEnd() && pathIt->value.IsString()) {
@@ -222,55 +222,91 @@ namespace Parsing
 			}
 
             // read override animations folder (optional)
-            if (auto overrideAnimationsFolderIt = doc.FindMember("overrideAnimationsFolder"); overrideAnimationsFolderIt != doc.MemberEnd() && overrideAnimationsFolderIt->value.IsString()) {
-                a_outParseResult.overrideAnimationsFolder = overrideAnimationsFolderIt->value.GetString();
+			if (auto it = doc.FindMember("overrideAnimationsFolder"); it != doc.MemberEnd() && it->value.IsString()) {
+				a_outParseResult.overrideAnimationsFolder = it->value.GetString();
             }
 
             // read required project name (optional)
-            if (auto requiredProjectNameIt = doc.FindMember("requiredProjectName"); requiredProjectNameIt != doc.MemberEnd() && requiredProjectNameIt->value.IsString()) {
-                a_outParseResult.requiredProjectName = requiredProjectNameIt->value.GetString();
+			if (auto it = doc.FindMember("requiredProjectName"); it != doc.MemberEnd() && it->value.IsString()) {
+				a_outParseResult.requiredProjectName = it->value.GetString();
             }
 
             // read ignore no triggers flag (optional)
-			if (auto ignoreDontConvertAnnotationsToTriggersFlagIt = doc.FindMember("ignoreDontConvertAnnotationsToTriggersFlag"); ignoreDontConvertAnnotationsToTriggersFlagIt != doc.MemberEnd() && ignoreDontConvertAnnotationsToTriggersFlagIt->value.IsBool()) {
-				a_outParseResult.bIgnoreDontConvertAnnotationsToTriggersFlag = ignoreDontConvertAnnotationsToTriggersFlagIt->value.GetBool();
-			} else if (auto ignoreNoTriggersIt = doc.FindMember("ignoreNoTriggersFlag"); ignoreNoTriggersIt != doc.MemberEnd() && ignoreNoTriggersIt->value.IsBool()) {  // old name
-				a_outParseResult.bIgnoreDontConvertAnnotationsToTriggersFlag = ignoreNoTriggersIt->value.GetBool();
+			if (auto it = doc.FindMember("ignoreDontConvertAnnotationsToTriggersFlag"); it != doc.MemberEnd() && it->value.IsBool()) {
+				a_outParseResult.bIgnoreDontConvertAnnotationsToTriggersFlag = it->value.GetBool();
+			} else if (auto oldNameIt = doc.FindMember("ignoreNoTriggersFlag"); oldNameIt != doc.MemberEnd() && oldNameIt->value.IsBool()) {  // old name
+				a_outParseResult.bIgnoreDontConvertAnnotationsToTriggersFlag = oldNameIt->value.GetBool();
             }
 
 			// read triggersOnly (optional)
-			if (auto triggersFromAnnotationsOnlyIt = doc.FindMember("triggersFromAnnotationsOnly"); triggersFromAnnotationsOnlyIt != doc.MemberEnd() && triggersFromAnnotationsOnlyIt->value.IsBool()) {
-				a_outParseResult.bTriggersFromAnnotationsOnly = triggersFromAnnotationsOnlyIt->value.GetBool();
+			if (auto it = doc.FindMember("triggersFromAnnotationsOnly"); it != doc.MemberEnd() && it->value.IsBool()) {
+				a_outParseResult.bTriggersFromAnnotationsOnly = it->value.GetBool();
 			}
 
             // read interruptible (optional)
-            if (auto interruptibleIt = doc.FindMember("interruptible"); interruptibleIt != doc.MemberEnd() && interruptibleIt->value.IsBool()) {
-                a_outParseResult.bInterruptible = interruptibleIt->value.GetBool();
+			if (auto it = doc.FindMember("interruptible"); it != doc.MemberEnd() && it->value.IsBool()) {
+				a_outParseResult.bInterruptible = it->value.GetBool();
             }
 
+			// read custom blend time on interrupt (optional) - only if interruptible is true
+			if (a_outParseResult.bInterruptible) {
+				if (auto it = doc.FindMember("hasCustomBlendTimeOnInterrupt"); it != doc.MemberEnd() && it->value.IsBool()) {
+					a_outParseResult.bCustomBlendTimeOnInterrupt = it->value.GetBool();
+				}
+				if (a_outParseResult.bCustomBlendTimeOnInterrupt) {
+					if (auto it = doc.FindMember("blendTimeOnInterrupt"); it != doc.MemberEnd() && it->value.IsNumber()) {
+						a_outParseResult.blendTimeOnInterrupt = it->value.GetFloat();
+					}
+				}
+			}
+
 			// read replace on loop (optional)
-			if (auto replaceOnLoopIt = doc.FindMember("replaceOnLoop"); replaceOnLoopIt != doc.MemberEnd() && replaceOnLoopIt->value.IsBool()) {
-				a_outParseResult.bReplaceOnLoop = replaceOnLoopIt->value.GetBool();
+			if (auto it = doc.FindMember("replaceOnLoop"); it != doc.MemberEnd() && it->value.IsBool()) {
+				a_outParseResult.bReplaceOnLoop = it->value.GetBool();
+			}
+
+			// read custom blend time on loop (optional) - only if replace on loop is true
+			if (a_outParseResult.bReplaceOnLoop) {
+				if (auto it = doc.FindMember("hasCustomBlendTimeOnLoop"); it != doc.MemberEnd() && it->value.IsBool()) {
+					a_outParseResult.bCustomBlendTimeOnLoop = it->value.GetBool();
+				}
+				if (a_outParseResult.bCustomBlendTimeOnLoop) {
+					if (auto it = doc.FindMember("blendTimeOnLoop"); it != doc.MemberEnd() && it->value.IsNumber()) {
+						a_outParseResult.blendTimeOnLoop = it->value.GetFloat();
+					}
+				}
 			}
 
 			// read replace on echo (optional)
-			if (auto replaceOnEchoIt = doc.FindMember("replaceOnEcho"); replaceOnEchoIt != doc.MemberEnd() && replaceOnEchoIt->value.IsBool()) {
-				a_outParseResult.bReplaceOnEcho = replaceOnEchoIt->value.GetBool();
+			if (auto it = doc.FindMember("replaceOnEcho"); it != doc.MemberEnd() && it->value.IsBool()) {
+				a_outParseResult.bReplaceOnEcho = it->value.GetBool();
+			}
+
+			// read custom blend time on echo (optional) - only if replace on echo is true
+			if (a_outParseResult.bReplaceOnEcho) {
+				if (auto it = doc.FindMember("hasCustomBlendTimeOnEcho"); it != doc.MemberEnd() && it->value.IsBool()) {
+					a_outParseResult.bCustomBlendTimeOnEcho = it->value.GetBool();
+				}
+				if (a_outParseResult.bCustomBlendTimeOnEcho) {
+					if (auto it = doc.FindMember("blendTimeOnEcho"); it != doc.MemberEnd() && it->value.IsNumber()) {
+						a_outParseResult.blendTimeOnEcho = it->value.GetFloat();
+					}
+				}
 			}
 
             // read keep random results on loop (optional)
-            if (auto keepRandomIt = doc.FindMember("keepRandomResultsOnLoop"); keepRandomIt != doc.MemberEnd() && keepRandomIt->value.IsBool()) {
-                a_outParseResult.bKeepRandomResultsOnLoop = keepRandomIt->value.GetBool();
+			if (auto it = doc.FindMember("keepRandomResultsOnLoop"); it != doc.MemberEnd() && it->value.IsBool()) {
+				a_outParseResult.bKeepRandomResultsOnLoop = it->value.GetBool();
             }
 
 			// read share random results (optional)
-			if (auto shareRandomIt = doc.FindMember("shareRandomResults"); shareRandomIt != doc.MemberEnd() && shareRandomIt->value.IsBool()) {
-				a_outParseResult.bShareRandomResults = shareRandomIt->value.GetBool();
+			if (auto it = doc.FindMember("shareRandomResults"); it != doc.MemberEnd() && it->value.IsBool()) {
+				a_outParseResult.bShareRandomResults = it->value.GetBool();
 			}
 
             // read conditions
-            if (auto conditionsIt = doc.FindMember("conditions"); conditionsIt != doc.MemberEnd() && conditionsIt->value.IsArray()) {
-                for (auto& conditionValue : conditionsIt->value.GetArray()) {
+			if (auto it = doc.FindMember("conditions"); it != doc.MemberEnd() && it->value.IsArray()) {
+				for (auto& conditionValue : it->value.GetArray()) {
                     auto condition = Conditions::CreateConditionFromJson(conditionValue);
                     if (!condition->IsValid()) {
                         logger::error("Failed to parse condition in file: {}", a_jsonPath.string());
@@ -286,8 +322,8 @@ namespace Parsing
                 }
             }
 
-			if (auto pairedConditionsIt = doc.FindMember("pairedConditions"); pairedConditionsIt != doc.MemberEnd() && pairedConditionsIt->value.IsArray()) {
-				for (auto& conditionValue : pairedConditionsIt->value.GetArray()) {
+			if (auto it = doc.FindMember("pairedConditions"); it != doc.MemberEnd() && it->value.IsArray()) {
+				for (auto& conditionValue : it->value.GetArray()) {
 					auto condition = Conditions::CreateConditionFromJson(conditionValue);
 					if (!condition->IsValid()) {
 						logger::error("Failed to parse paired condition in file: {}", a_jsonPath.string());
@@ -370,9 +406,9 @@ namespace Parsing
         // strips the OAR/DAR substring ([Open/Dynamic]AnimationReplacer\subdirectory\subdirectory")
         constexpr auto separator = "\\";
 
-        std::size_t substringStartPos = a_path.find("OpenAnimationReplacer"sv);
+        std::size_t substringStartPos = Utils::FindStringIgnoreCase(a_path, "OpenAnimationReplacer"sv);
         if (substringStartPos == std::string::npos) {
-            substringStartPos = a_path.find("DynamicAnimationReplacer"sv);
+			substringStartPos = Utils::FindStringIgnoreCase(a_path, "DynamicAnimationReplacer"sv);
             if (substringStartPos == std::string::npos) {
                 return a_path.data();
             }

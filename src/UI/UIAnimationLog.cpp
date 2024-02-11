@@ -12,10 +12,10 @@ namespace UI
 
     void UIAnimationLog::DrawImpl()
     {
-		SetWindowDimensions(0.f, 30.f, Settings::fAnimationLogWidth, -1.f, WindowAlignment::kTopRight, ImVec2(Settings::fAnimationLogWidth, -1), ImVec2(Settings::fAnimationLogWidth, -1));
+		SetWindowDimensions(Settings::fAnimationLogsOffsetX, Settings::fAnimationLogsOffsetY, Settings::fAnimationLogWidth, 0.f, WindowAlignment::kTopRight, ImVec2(Settings::fAnimationLogWidth, -1), ImVec2(Settings::fAnimationLogWidth, -1), ImGuiCond_Always);
 		ForceSetWidth(Settings::fAnimationLogWidth);
 
-        constexpr ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
+        constexpr ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings;
 
         if (ImGui::Begin("Animation Log", nullptr, windowFlags)) {
             if (UIManager::GetSingleton().GetRefrToEvaluate() != nullptr) {
@@ -104,6 +104,11 @@ namespace UI
             break;
         case Event::kInterrupt:
             UICommon::TextUnformattedColored(UICommon::LOG_INTERRUPTED_COLOR, "Interrupted");
+            break;
+        case Event::kPairedMismatch:
+			UICommon::TextUnformattedColored(UICommon::LOG_INTERRUPTED_COLOR, "Interrupted");
+			ImGui::SameLine();
+			UICommon::TextUnformattedColored(UICommon::LOG_SYNCHRONIZED_COLOR, "(Paired Mismatch)");
             break;
         }
 

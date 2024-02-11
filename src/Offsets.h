@@ -64,17 +64,29 @@ static REL::Relocation<thkaDefaultAnimationControl_copyCtor> hkaDefaultAnimation
 using thkbCharacterSetup_GetMirroredSkeleton = RE::hkaMirroredSkeleton* (*)(RE::hkbCharacterSetup* a_this);
 static REL::Relocation<thkbCharacterSetup_GetMirroredSkeleton> hkbCharacterSetup_GetMirroredSkeleton{ REL::VariantID(58817, 59480, 0xA5E8C0) }; // A23F10, A48720, A5E8C0
 
+using thkbClipGenerator_GetAnimDuration = float (*)(RE::hkbClipGenerator* a_this);
+static REL::Relocation<thkbClipGenerator_GetAnimDuration> hkbClipGenerator_GetAnimDuration{ REL::VariantID(58613, 59263, 0xA482C0) };  // A0D770, A31F80, A482C0
+
 using thkbClipGenerator_UnkUpdateFunc1 = void(*)(RE::hkbClipGenerator* a_this);
 static REL::Relocation<thkbClipGenerator_UnkUpdateFunc1> hkbClipGenerator_UnkUpdateFunc1{ REL::VariantID(58628, 59279, 0xA49FD0) }; // A0F480, A33C90, A49FD0
 
-using thkbClipGenerator_UnkUpdateFunc2 = void(*)(RE::hkbClipGenerator* a_this);
-static REL::Relocation<thkbClipGenerator_UnkUpdateFunc2> hkbClipGenerator_UnkUpdateFunc2{ REL::VariantID(58630, 59281, 0xA4A170) }; // A0F620, A33E30, A4A170
+using thkbClipGenerator_CheckAtEnd = bool(*)(RE::hkbClipGenerator* a_this);
+static REL::Relocation<thkbClipGenerator_CheckAtEnd> hkbClipGenerator_CheckAtEnd{ REL::VariantID(58630, 59281, 0xA4A170) };  // A0F620, A33E30, A4A170
 
-using thkbClipGenerator_UnkUpdateFunc3_CalcLocalTime = void(*)(RE::hkbClipGenerator* a_this, float a_deltaTime, float* a_outPrevLocalTime, float* a_outLocalTime, int32_t* a_outLoops, bool* a_outAtEnd);
-static REL::Relocation<thkbClipGenerator_UnkUpdateFunc3_CalcLocalTime> hkbClipGenerator_UnkUpdateFunc3_CalcLocalTime{ REL::VariantID(58622, 59273, 0xA48D60) }; // A0E210, A32A20, A48D60
+using thkbClipGenerator_ComputeBeginAndEndLocalTime = void(*)(RE::hkbClipGenerator* a_this, float a_deltaTime, float* a_outPrevLocalTime, float* a_outLocalTime, int32_t* a_outLoops, bool* a_outAtEnd);
+static REL::Relocation<thkbClipGenerator_ComputeBeginAndEndLocalTime> hkbClipGenerator_ComputeBeginAndEndLocalTime{ REL::VariantID(58622, 59273, 0xA48D60) };  // A0E210, A32A20, A48D60
 
-using thkbClipGenerator_UnkUpdateFunc4 = void(*)(RE::hkbClipGenerator* a_this, float a_prevLocalTime, float a_newLocalTime, int32_t a_loops, RE::hkbEventQueue* a_eventQueue);
-static REL::Relocation<thkbClipGenerator_UnkUpdateFunc4> hkbClipGenerator_UnkUpdateFunc4{ REL::VariantID(58619, 59270, 0xA48710) }; // A0DBC0, A323D0, A48710
+using thkbClipGenerator_ProcessCyclicTriggers = void(*)(RE::hkbClipGenerator* a_this, float a_prevLocalTime, float a_newLocalTime, int32_t a_loops, RE::hkbEventQueue* a_eventQueue, const RE::hkbContext& a_context);
+static REL::Relocation<thkbClipGenerator_ProcessCyclicTriggers> hkbClipGenerator_ProcessCyclicTriggers{ REL::VariantID(58619, 59270, 0xA48710) };  // A0DBC0, A323D0, A48710
+
+using thkbClipGenerator_ProcessAcyclicTriggers = void (*)(RE::hkbClipGenerator* a_this, float a_prevLocalTime, float a_newLocalTime, RE::hkbEventQueue* a_eventQueue, const RE::hkbContext& a_context);
+static REL::Relocation<thkbClipGenerator_ProcessAcyclicTriggers> hkbClipGenerator_ProcessAcyclicTriggers{ REL::VariantID(58620, 59271, 0xA488E0) };  // A0DD90, A325A0, A488E0
+
+using tBSSynchronizedClipGenerator_ActivateInternalClip = bool (*)(RE::BSSynchronizedClipGenerator* a_this, const RE::hkbContext& a_context, RE::hkbClipGenerator* a_clipGenerator);
+static REL::Relocation<tBSSynchronizedClipGenerator_ActivateInternalClip> BSSynchronizedClipGenerator_ActivateInternalClip{ REL::VariantID(62125, 63061, 0xB0DE60) };  // AD3390, AF7BA0, B0DE60
+
+using tBSSynchronizedClipGenerator_UnkActivate = bool (*)(RE::BSSynchronizedClipGenerator* a_this, const RE::hkbContext& a_context, RE::hkQsTransform& a_outTransform);
+static REL::Relocation<tBSSynchronizedClipGenerator_UnkActivate> BSSynchronizedClipGenerator_UnkActivate{ REL::VariantID(62122, 63058, 0xB0D7B0) };  // AD2D10, AF7520, B0D7B0
 
 using tTESObjectREFR_GetSubmergeLevel = float(*)(RE::TESObjectREFR* a_this, float a_zPos, RE::TESObjectCELL* a_parentCell);
 static REL::Relocation<tTESObjectREFR_GetSubmergeLevel> TESObjectREFR_GetSubmergeLevel{ REL::VariantID(36452, 37448, 0x5E9B60) }; // 5E1510, 607080, 5E9B60
@@ -138,3 +150,6 @@ static REL::Relocation<thkbClipTriggerArray_copyCtor> hkbClipTriggerArray_copyCt
 
 using tActor_GetLightLevel = float (*)(RE::Actor* a_this);
 static REL::Relocation<tActor_GetLightLevel> Actor_GetLightLevel{ REL::VariantID(36759, 37775, 0x606B80) };  // 5FE370, 6253D0, 606B80
+
+using tActor_GetTarget = RE::Actor* (*)(RE::Actor* a_this);
+static REL::Relocation<tActor_GetTarget> Actor_GetTarget{ REL::VariantID(37655, 38608, 0x630CE0) };  // 627E10, 64D900, 630CE0

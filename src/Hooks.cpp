@@ -82,7 +82,7 @@ namespace Hooks
     {
         const auto activeClip = OpenAnimationReplacer::GetSingleton().GetActiveClip(a_this);
         if (activeClip && activeClip->IsBlending()) {
-            activeClip->PreGenerate(a_this, a_context, a_output);
+            //activeClip->PreGenerate(a_this, a_context, a_output);
 
             // if the animation is not fully loaded yet, call generate with our fake clip generator containing the previous animation instead - this avoids seeing the reference pose for a frame
             if (a_this->userData != 0xC) {
@@ -118,32 +118,28 @@ namespace Hooks
         }
     }
 
-    void HavokHooks::hkbClipGenerator_computeBeginAndEndLocalTime(RE::hkbClipGenerator* a_this, const float a_timestep, float& a_outBeginLocalTime, float& a_outEndLocalTime, int32_t& a_outLoops, bool& a_outEndOfClip)
-	{
-		_hkbClipGenerator_computeBeginAndEndLocalTime(a_this, a_timestep, a_outBeginLocalTime, a_outEndLocalTime, a_outLoops, a_outEndOfClip);
-
-		if (a_this->mode == RE::hkbClipGenerator::PlaybackMode::kModeLooping && a_outLoops > 0) {
-			// if we're here, the animation just looped
-			// recheck conditions to see if we should replace the animation
-			if (const auto activeClip = OpenAnimationReplacer::GetSingleton().GetActiveClip(a_this)) {
-				if (!activeClip->OnLoop(a_this)) {
-					auto& animationLog = AnimationLog::GetSingleton();
-					constexpr auto event = AnimationLogEntry::Event::kLoop;
-					if (animationLog.ShouldLogAnimations() && animationLog.ShouldLogAnimationsForActiveClip(activeClip, event)) {
-						animationLog.LogAnimation(event, activeClip, activeClip->GetCharacter());
-					}
-				}
-			}
-		}
-	}
-
     void HavokHooks::BSSynchronizedClipGenerator_Activate(RE::BSSynchronizedClipGenerator* a_this, const RE::hkbContext& a_context)
     {
-		const auto activeSynchronizedAnimation = OpenAnimationReplacer::GetSingleton().AddOrGetActiveSynchronizedAnimation(a_this->synchronizedScene, a_context);
+		ActiveSynchronizedAnimation* activeSynchronizedAnimation = OpenAnimationReplacer::GetSingleton().GetActiveSynchronizedAnimation(a_this->synchronizedScene);
 
-		activeSynchronizedAnimation->OnSynchronizedClipActivate(a_this, a_context);
+		if (activeSynchronizedAnimation) {
+			activeSynchronizedAnimation->OnSynchronizedClipPreActivate(a_this, a_context);
+		}
 
 		_BSSynchronizedClipGenerator_Activate(a_this, a_context);
+
+		if (activeSynchronizedAnimation) {
+			activeSynchronizedAnimation->OnSynchronizedClipPostActivate(a_this, a_context);
+		}
+    }
+
+    void HavokHooks::BSSynchronizedClipGenerator_Update(RE::BSSynchronizedClipGenerator* a_this, const RE::hkbContext& a_context, float a_timestep)
+    {
+		OpenAnimationReplacer::GetSingleton().OnSynchronizedClipPreUpdate(a_this, a_context, a_timestep);
+
+		_BSSynchronizedClipGenerator_Update(a_this, a_context, a_timestep);
+
+		OpenAnimationReplacer::GetSingleton().OnSynchronizedClipPostUpdate(a_this, a_context, a_timestep);
     }
 
     void HavokHooks::BSSynchronizedClipGenerator_Deactivate(RE::BSSynchronizedClipGenerator* a_this, const RE::hkbContext& a_context)
@@ -158,6 +154,35 @@ namespace Hooks
 		OpenAnimationReplacer::GetSingleton().RemoveActiveSynchronizedAnimation(a_this);
 
         _BGSSynchronizedAnimationInstance_dtor(a_this);
+    }
+
+    void HavokHooks::BGSSynchronizedAnimationInstance_OnDeactivate(RE::BGSSynchronizedAnimationInstance* a_this)
+    {
+		if (const auto activeSynchronizedAnimation = OpenAnimationReplacer::GetSingleton().GetActiveSynchronizedAnimation(a_this)) {
+			if (activeSynchronizedAnimation->IsTransitioning()) {
+			    return;
+			}
+		}
+
+		_BGSSynchronizedAnimationInstance_OnDeactivate(a_this);
+    }
+
+    void HavokHooks::BGSSynchronizedAnimationInstance_Func9(RE::BGSSynchronizedAnimationInstance* a_this)
+    {
+		if (const auto activeSynchronizedAnimation = OpenAnimationReplacer::GetSingleton().GetActiveSynchronizedAnimation(a_this)) {
+			if (activeSynchronizedAnimation->IsTransitioning()) {
+				return;
+			}
+		}
+
+		_BGSSynchronizedAnimationInstance_Func9(a_this);
+    }
+
+    void HavokHooks::BGSSynchronizedAnimationInstance_Init(RE::BGSSynchronizedAnimationInstance* a_this)
+    {
+		_BGSSynchronizedAnimationInstance_Init(a_this);
+
+		OpenAnimationReplacer::GetSingleton().AddOrGetActiveSynchronizedAnimation(a_this);
     }
 
     void HavokHooks::hkbBehaviorGraph_Update(RE::hkbBehaviorGraph* a_this, const RE::hkbContext& a_context, float a_timestep)

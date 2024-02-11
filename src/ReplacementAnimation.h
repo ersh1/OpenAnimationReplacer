@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Conditions.h"
+#include "Settings.h"
 
 struct ReplacementAnimationFile
 {
@@ -21,6 +22,13 @@ struct ReplacementAnimationFile
 	std::string fullPath;
 	std::optional<std::string> hash = std::nullopt;
 	std::optional<std::vector<Variant>> variants = std::nullopt;
+};
+
+enum class CustomBlendType : int
+{
+	kInterrupt = 0,
+	kLoop = 1,
+	kEcho = 2
 };
 
 class ReplacementAnimation
@@ -98,6 +106,8 @@ public:
     bool GetInterruptible() const { return _bInterruptible; }
 	bool GetReplaceOnLoop() const { return _bReplaceOnLoop; }
 	bool GetReplaceOnEcho() const { return _bReplaceOnEcho; }
+	bool HasCustomBlendTime(CustomBlendType a_type) const;
+	float GetCustomBlendTime(CustomBlendType a_type) const;
     bool GetKeepRandomResultsOnLoop() const { return _bKeepRandomResultsOnLoop; }
     bool GetShareRandomResults() const { return _bShareRandomResults; }
     void SetPriority(int32_t a_priority) { _priority = a_priority; }
@@ -108,6 +118,8 @@ public:
     void SetInterruptible(bool a_bEnable) { _bInterruptible = a_bEnable; }
     void SetReplaceOnLoop(bool a_bEnable) { _bReplaceOnLoop = a_bEnable; }
     void SetReplaceOnEcho(bool a_bEnable) { _bReplaceOnEcho = a_bEnable; }
+	void ToggleCustomBlendTime(CustomBlendType a_type, bool a_bEnable);
+	void SetCustomBlendTime(CustomBlendType a_type, float a_value);
     void SetKeepRandomResultsOnLoop(bool a_bEnable) { _bKeepRandomResultsOnLoop = a_bEnable; }
 	void SetShareRandomResults(bool a_bEnable) { _bShareRandomResults = a_bEnable; }
     std::string_view GetAnimPath() const { return _path; }
@@ -136,9 +148,15 @@ protected:
     bool _bDisabled = false;
     bool _bIgnoreDontConvertAnnotationsToTriggersFlag = false;
 	bool _bTriggersFromAnnotationsOnly = false;
-    bool _bInterruptible = false;
+	bool _bInterruptible = false;
+	bool _bCustomBlendTimeOnInterrupt = false;
+	float _blendTimeOnInterrupt = Settings::fDefaultBlendTimeOnInterrupt;
 	bool _bReplaceOnLoop = true;
+	bool _bCustomBlendTimeOnLoop = false;
+	float _blendTimeOnLoop = Settings::fDefaultBlendTimeOnLoop;
 	bool _bReplaceOnEcho = false;
+	bool _bCustomBlendTimeOnEcho = false;
+	float _blendTimeOnEcho = Settings::fDefaultBlendTimeOnEcho;
     bool _bKeepRandomResultsOnLoop = false;
 	bool _bShareRandomResults = false;
     std::string _path;

@@ -186,6 +186,64 @@ uint16_t ReplacementAnimation::GetIndex(ActiveClip* a_activeClip) const
 	return std::get<uint16_t>(_index);
 }
 
+bool ReplacementAnimation::HasCustomBlendTime(CustomBlendType a_type) const
+{
+	switch (a_type) {
+	case CustomBlendType::kInterrupt:
+	    return _bCustomBlendTimeOnInterrupt;
+	case CustomBlendType::kLoop:
+		return _bCustomBlendTimeOnLoop;
+	case CustomBlendType::kEcho:
+		return _bCustomBlendTimeOnEcho;
+	}
+
+	return false;
+}
+
+float ReplacementAnimation::GetCustomBlendTime(CustomBlendType a_type) const
+{
+	switch (a_type) {
+	case CustomBlendType::kInterrupt:
+		return _bCustomBlendTimeOnInterrupt ? _blendTimeOnInterrupt : Settings::fDefaultBlendTimeOnInterrupt;
+	case CustomBlendType::kLoop:
+		return _bCustomBlendTimeOnLoop ? _blendTimeOnLoop : Settings::fDefaultBlendTimeOnLoop;
+	case CustomBlendType::kEcho:
+		return _bCustomBlendTimeOnEcho ? _blendTimeOnEcho : Settings::fDefaultBlendTimeOnEcho;
+	}
+
+	return 0.f;
+}
+
+void ReplacementAnimation::ToggleCustomBlendTime(CustomBlendType a_type, bool a_bEnable)
+{
+	switch (a_type) {
+	case CustomBlendType::kInterrupt:
+		_bCustomBlendTimeOnInterrupt = a_bEnable;
+		break;
+	case CustomBlendType::kLoop:
+		_bCustomBlendTimeOnLoop = a_bEnable;
+		break;
+	case CustomBlendType::kEcho:
+		_bCustomBlendTimeOnEcho = a_bEnable;
+		break;
+	}
+}
+
+void ReplacementAnimation::SetCustomBlendTime(CustomBlendType a_type, float a_value)
+{
+	switch (a_type) {
+	case CustomBlendType::kInterrupt:
+		_blendTimeOnInterrupt = a_value;
+		break;
+	case CustomBlendType::kLoop:
+		_blendTimeOnLoop = a_value;
+		break;
+	case CustomBlendType::kEcho:
+		_blendTimeOnEcho = a_value;
+		break;
+	}
+}
+
 SubMod* ReplacementAnimation::GetParentSubMod() const
 {
     return _parentSubMod;

@@ -10,6 +10,8 @@ set(SOURCE_FILES
 	"${SOURCE_DIR}/ActiveSynchronizedAnimation.h"
 	"${SOURCE_DIR}/AnimationFileHashCache.cpp"
 	"${SOURCE_DIR}/AnimationFileHashCache.h"
+	"${SOURCE_DIR}/AnimationEventLog.cpp"
+	"${SOURCE_DIR}/AnimationEventLog.h"
 	"${SOURCE_DIR}/AnimationLog.cpp"
 	"${SOURCE_DIR}/AnimationLog.h"
 	"${SOURCE_DIR}/BaseConditions.cpp"
@@ -50,6 +52,8 @@ set(SOURCE_FILES
 	"${SOURCE_DIR}/API/OpenAnimationReplacerAPI-UI.cpp"
 	"${SOURCE_DIR}/API/OpenAnimationReplacerAPI-UI.h"
 	"${SOURCE_DIR}/Havok/Havok.h"
+	"${SOURCE_DIR}/UI/UIAnimationEventLog.cpp"
+	"${SOURCE_DIR}/UI/UIAnimationEventLog.h"
 	"${SOURCE_DIR}/UI/UIAnimationLog.cpp"
 	"${SOURCE_DIR}/UI/UIAnimationLog.h"
 	"${SOURCE_DIR}/UI/UIAnimationQueue.cpp"
@@ -112,8 +116,6 @@ if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 			"/utf-8"	# Set Source and Executable character sets to UTF-8
 			"/Zi"	# Debug Information Format
 
-			"/await"
-
 			"/permissive-"	# Standards conformance
 			"/Zc:preprocessor"	# Enable preprocessor conformance mode
 
@@ -148,7 +150,7 @@ macro(find_dependency_path DEPENDENCY FILE)
 			STATUS
 			"Searching for ${DEPENDENCY} using file ${FILE}"
 		)
-		find_path("${DEPENDENCY}Path"
+		find_path(PATH
 			${FILE}
 			PATHS
 			"../extern/${DEPENDENCY}"
@@ -156,7 +158,11 @@ macro(find_dependency_path DEPENDENCY FILE)
 			"../external/${DEPENDENCY}"
 			"external/${DEPENDENCY}")
 
-		if("${${DEPENDENCY}Path}" STREQUAL "${DEPENDENCY}Path-NOTFOUND")
+		set("${DEPENDENCY}Path" "${PATH}")
+		message("${PATH}")
+		message("${DEPENDENCY}Path")
+		message("${${DEPENDENCY}Path}")
+		if("${${DEPENDENCY}Path}" STREQUAL "PATH-NOTFOUND")
 			# Check path
 			message(
 				STATUS
@@ -165,11 +171,13 @@ macro(find_dependency_path DEPENDENCY FILE)
 			set("${DEPENDENCY}Path" "$ENV{${DEPENDENCY}Path}")
 		endif()
 
-		message(
-			STATUS
-			"Found ${DEPENDENCY} in ${${DEPENDENCY}Path}; adding"
-		)
-		add_subdirectory("${${DEPENDENCY}Path}" ${DEPENDENCY})
+		if (NOT "${${DEPENDENCY}Path}" STREQUAL "")
+			message(
+				STATUS
+				"Found ${DEPENDENCY} in ${${DEPENDENCY}Path}; adding"
+			)
+			add_subdirectory("${${DEPENDENCY}Path}" ${DEPENDENCY})
+		endif()
 	endif()
 endmacro()
 

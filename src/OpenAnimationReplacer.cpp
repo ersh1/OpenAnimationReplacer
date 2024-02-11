@@ -255,16 +255,27 @@ ActiveSynchronizedAnimation* OpenAnimationReplacer::GetActiveSynchronizedAnimati
     return nullptr;
 }
 
-ActiveSynchronizedAnimation* OpenAnimationReplacer::AddOrGetActiveSynchronizedAnimation(RE::BGSSynchronizedAnimationInstance* a_synchronizedAnimationInstance, const RE::hkbContext& a_context)
+ActiveSynchronizedAnimation* OpenAnimationReplacer::AddOrGetActiveSynchronizedAnimation(RE::BGSSynchronizedAnimationInstance* a_synchronizedAnimationInstance)
 {
 	WriteLocker locker(_activeSynchronizedAnimationsLock);
 
 	auto [newClipIt, result] = _activeSynchronizedAnimations.try_emplace(a_synchronizedAnimationInstance, nullptr);
 	if (result) {
-		newClipIt->second = std::make_unique<ActiveSynchronizedAnimation>(a_synchronizedAnimationInstance, a_context);
+		newClipIt->second = std::make_unique<ActiveSynchronizedAnimation>(a_synchronizedAnimationInstance);
 	}
 
 	return newClipIt->second.get();
+}
+
+ActiveSynchronizedAnimation* OpenAnimationReplacer::GetActiveSynchronizedAnimation(RE::BGSSynchronizedAnimationInstance* a_synchronizedAnimationInstance)
+{
+	ReadLocker locker(_activeSynchronizedAnimationsLock);
+
+	if (const auto search = _activeSynchronizedAnimations.find(a_synchronizedAnimationInstance); search != _activeSynchronizedAnimations.end()) {
+		return search->second.get();
+	}
+
+	return nullptr;
 }
 
 void OpenAnimationReplacer::RemoveActiveSynchronizedAnimation(RE::BGSSynchronizedAnimationInstance* a_synchronizedAnimationInstance)
@@ -274,13 +285,34 @@ void OpenAnimationReplacer::RemoveActiveSynchronizedAnimation(RE::BGSSynchronize
 	_activeSynchronizedAnimations.erase(a_synchronizedAnimationInstance);
 }
 
+void OpenAnimationReplacer::OnSynchronizedClipPreUpdate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context, float a_timestep)
+{
+	ReadLocker locker(_activeSynchronizedAnimationsLock);
+
+	if (const auto synchronizedAnimationInstance = a_synchronizedClipGenerator->synchronizedScene) {
+		if (const auto search = _activeSynchronizedAnimations.find(synchronizedAnimationInstance); search != _activeSynchronizedAnimations.end()) {
+			search->second->OnSynchronizedClipPreUpdate(a_synchronizedClipGenerator, a_context, a_timestep);
+		}
+	}
+}
+
+void OpenAnimationReplacer::OnSynchronizedClipPostUpdate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context, float a_timestep)
+{
+	ReadLocker locker(_activeSynchronizedAnimationsLock);
+
+	if (const auto synchronizedAnimationInstance = a_synchronizedClipGenerator->synchronizedScene) {
+		if (const auto search = _activeSynchronizedAnimations.find(synchronizedAnimationInstance); search != _activeSynchronizedAnimations.end()) {
+			search->second->OnSynchronizedClipPostUpdate(a_synchronizedClipGenerator, a_context, a_timestep);
+		}
+	}
+}
+
 void OpenAnimationReplacer::OnSynchronizedClipDeactivate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context)
 {
 	ReadLocker locker(_activeSynchronizedAnimationsLock);
 
     if (const auto synchronizedAnimationInstance = a_synchronizedClipGenerator->synchronizedScene) {
-		auto search = _activeSynchronizedAnimations.find(synchronizedAnimationInstance);
-		if (search != _activeSynchronizedAnimations.end()) {
+		if (const auto search = _activeSynchronizedAnimations.find(synchronizedAnimationInstance); search != _activeSynchronizedAnimations.end()) {
 			search->second->OnSynchronizedClipDeactivate(a_synchronizedClipGenerator, a_context);
 		}
     }
@@ -752,6 +784,9 @@ void OpenAnimationReplacer::InitFactories()
 	_conditionFactories.emplace("PLAYER", []() { return std::make_unique<PLAYERCondition>(); });
 	_conditionFactories.emplace("LightLevel", []() { return std::make_unique<LightLevelCondition>(); });
 	_conditionFactories.emplace("LocationHasKeyword", []() { return std::make_unique<LocationHasKeywordCondition>(); });
+	_conditionFactories.emplace("LifeState", []() { return std::make_unique<LifeStateCondition>(); });
+	_conditionFactories.emplace("SitSleepState", []() { return std::make_unique<SitSleepStateCondition>(); });
+	_conditionFactories.emplace("XOR", []() { return std::make_unique<XORCondition>(); });
 
     // Hidden factories - not visible for selection in the UI, used for mapping legacy names to new conditions etc
     _hiddenConditionFactories.emplace("IsEquippedRight", []() { return std::make_unique<IsEquippedCondition>(false); });
@@ -957,6 +992,10 @@ RE::Character* OpenAnimationReplacer::CreateDummyCharacter(RE::TESNPC* a_baseFor
 
 void OpenAnimationReplacer::AddModParseResult(Parsing::ModParseResult& a_parseResult)
 {
+	if (!a_parseResult.bSuccess) {
+	    return;
+	}
+
 	// Get replacer mod or create it if it doesn't exist
 	auto replacerMod = GetReplacerMod(a_parseResult.path);
 	if (!replacerMod) {

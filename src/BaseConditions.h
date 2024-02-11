@@ -757,8 +757,15 @@ namespace Conditions
         [[nodiscard]] bool IsValid() const override { return !conditionSet->IsEmpty() && !conditionSet->HasInvalidConditions(); }
 
         [[nodiscard]] ConditionSet* GetConditions() const override { return conditionSet.get(); }
+		[[nodiscard]] bool EvaluateAll(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		[[nodiscard]] bool EvaluateAny(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		RE::BSVisit::BSVisitControl ForEachCondition(const std::function<RE::BSVisit::BSVisitControl(std::unique_ptr<ICondition>&)>& a_func) const override;
+
+		[[nodiscard]] bool GetShouldDrawEvaluateResultForChildConditions() const override { return bShouldDrawEvaluateResultForChildConditions; }
+		void SetShouldDrawEvaluateResultForChildConditions(bool a_bShouldDraw) override { bShouldDrawEvaluateResultForChildConditions = a_bShouldDraw; }
 
         std::unique_ptr<ConditionSet> conditionSet;
+		bool bShouldDrawEvaluateResultForChildConditions = true;
     };
 
     class FormConditionComponent : public IFormConditionComponent

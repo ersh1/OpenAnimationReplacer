@@ -161,6 +161,12 @@ namespace Conditions
         [[nodiscard]] RE::BSString GetDefaultDescription() const override { return DEFAULT_DESCRIPTION; }
 
         [[nodiscard]] virtual ConditionSet* GetConditions() const = 0;
+		[[nodiscard]] virtual bool EvaluateAll(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const = 0;
+		[[nodiscard]] virtual bool EvaluateAny(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const = 0;
+		virtual RE::BSVisit::BSVisitControl ForEachCondition(const std::function<RE::BSVisit::BSVisitControl(std::unique_ptr<ICondition>&)>& a_func) const = 0;
+
+		[[nodiscard]] virtual bool GetShouldDrawEvaluateResultForChildConditions() const = 0;
+		virtual void SetShouldDrawEvaluateResultForChildConditions(bool a_bShouldDraw) = 0;
     };
 
     class IFormConditionComponent : public IConditionComponent

@@ -2,6 +2,7 @@
 
 #include "API/OpenAnimationReplacerAPI-Conditions.h"
 #include "MergeMapperPluginAPI.h"
+#include "Havok/Havok.h"
 
 namespace Utils
 {
@@ -27,6 +28,7 @@ namespace Utils
 
     [[nodiscard]] bool CompareStringsIgnoreCase(std::string_view a_lhs, std::string_view a_rhs);
     [[nodiscard]] bool ContainsStringIgnoreCase(std::string_view a_string, std::string_view a_substring);
+	[[nodiscard]] size_t FindStringIgnoreCase(std::string_view a_string, std::string_view a_substring);
 
     [[nodiscard]] std::string GetFormNameString(const RE::TESForm* a_form);
     [[nodiscard]] std::string GetFormKeywords(RE::TESForm* a_form);
@@ -43,6 +45,15 @@ namespace Utils
 
         return nullptr;
     }
+
+	[[nodiscard]] inline RE::ActorHandle GetHandleFromHkbCharacter(RE::hkbCharacter* a_hkbCharacter)
+	{
+		if (const auto actor = GetActorFromHkbCharacter(a_hkbCharacter)) {
+		    return actor->GetHandle();
+		}
+
+		return RE::ActorHandle();
+	}
 
     [[nodiscard]] inline RE::hkbCharacterStringData* GetStringDataFromHkbCharacter(RE::hkbCharacter* a_hkbCharacter)
     {
@@ -135,4 +146,7 @@ namespace Utils
             return form->Is(T::FORMTYPE) ? static_cast<T*>(form) : nullptr;
         }
     }
+
+	RE::BGSSynchronizedAnimationInstance::ActorSyncInfo* GetLeadActorSyncInfo(RE::BGSSynchronizedAnimationInstance* a_synchronizedAnimationInstance, bool a_bFirstPerson);
+	RE::BGSSynchronizedAnimationInstance::ActorSyncInfo* GetSupportActorSyncInfo(RE::BGSSynchronizedAnimationInstance* a_synchronizedAnimationInstance);
 }

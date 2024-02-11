@@ -2123,4 +2123,85 @@ namespace Conditions
 	protected:
 		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
 	};
+
+	class LifeStateCondition : public ConditionBase
+	{
+	public:
+		LifeStateCondition()
+		{
+			comparisonComponent = AddComponent<ComparisonConditionComponent>("Comparison");
+			lifeStateComponent = AddComponent<NumericConditionComponent>("Life state", "The actor life state value used in the comparison.");
+		}
+
+		void PostInitialize() override;
+
+		[[nodiscard]] RE::BSString GetArgument() const override;
+		[[nodiscard]] RE::BSString GetCurrent(RE::TESObjectREFR* a_refr) const override;
+
+		[[nodiscard]] RE::BSString GetName() const override { return "LifeState"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks the actor's life state."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 2, 1, 0 }; }
+
+		ComparisonConditionComponent* comparisonComponent;
+		NumericConditionComponent* lifeStateComponent;
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+
+		RE::ACTOR_LIFE_STATE GetLifeState(RE::TESObjectREFR* a_refr) const;
+
+		std::string_view GetLifeStateName(RE::ACTOR_LIFE_STATE a_lifeState) const;
+		static std::map<int32_t, std::string_view> GetEnumMap();
+	};
+
+	class SitSleepStateCondition : public ConditionBase
+	{
+	public:
+		SitSleepStateCondition()
+		{
+			comparisonComponent = AddComponent<ComparisonConditionComponent>("Comparison");
+			sitSleepStateComponent = AddComponent<NumericConditionComponent>("Sit/Sleep state", "The actor sit/sleep state value used in the comparison.");
+		}
+
+		void PostInitialize() override;
+
+		[[nodiscard]] RE::BSString GetArgument() const override;
+		[[nodiscard]] RE::BSString GetCurrent(RE::TESObjectREFR* a_refr) const override;
+
+		[[nodiscard]] RE::BSString GetName() const override { return "SitSleepState"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks the actor's sit/sleep state."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 2, 1, 0 }; }
+
+		ComparisonConditionComponent* comparisonComponent;
+		NumericConditionComponent* sitSleepStateComponent;
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+
+		RE::SIT_SLEEP_STATE GetSitSleepState(RE::TESObjectREFR* a_refr) const;
+
+		std::string_view GetSitSleepStateName(RE::SIT_SLEEP_STATE a_sitSleepState) const;
+		static std::map<int32_t, std::string_view> GetEnumMap();
+	};
+
+	class XORCondition : public ConditionBase
+	{
+	public:
+		XORCondition()
+		{
+			conditionsComponent = AddComponent<MultiConditionComponent>("Conditions");
+		}
+
+		[[nodiscard]] RE::BSString GetArgument() const override { return conditionsComponent->GetArgument(); }
+		[[nodiscard]] RE::BSString GetName() const override { return "XOR"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if only one of the child conditions is true (Exclusive OR)."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 2, 1, 0 }; }
+
+		[[nodiscard]] bool IsValid() const override { return conditionsComponent->IsValid(); }
+
+		MultiConditionComponent* conditionsComponent;
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+	};
 }

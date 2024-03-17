@@ -52,13 +52,13 @@ namespace UI
 		AnimationLog::GetSingleton().SetLogAnimations(false);
 	}
 
-    bool UIAnimationLog::IsInteractable() const
+	bool UIAnimationLog::IsInteractable() const
 	{
 		// draw filter panel only when the main UI is open
 		return UIManager::GetSingleton().bShowMain;
 	}
 
-    void UIAnimationLog::DrawFilterPanel() const
+	void UIAnimationLog::DrawFilterPanel() const
 	{
 		auto& animationLog = AnimationLog::GetSingleton();
 
@@ -73,7 +73,7 @@ namespace UI
 		UICommon::HelpMarker("Type a part of the log event type / animation name / path / mod name / submod name to filter the log results. You can use regex.");
 	}
 
-    void UIAnimationLog::DrawLogEntry(AnimationLogEntry& a_logEntry) const
+	void UIAnimationLog::DrawLogEntry(AnimationLogEntry& a_logEntry) const
 	{
 		using Event = AnimationLogEntry::Event;
 		ImGui::TableNextRow();

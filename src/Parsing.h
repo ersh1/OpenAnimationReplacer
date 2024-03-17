@@ -15,8 +15,8 @@ struct ReplacementAnimData
 			bDisabled(a_bDisabled),
 			weight(a_weight),
 			order(a_order),
-	        bPlayOnce(a_bPlayOnce)
-	    {}
+			bPlayOnce(a_bPlayOnce)
+		{}
 
 		std::string filename;
 		bool bDisabled = false;
@@ -29,21 +29,21 @@ struct ReplacementAnimData
 		projectName(a_projectName),
 		path(a_path),
 		bDisabled(a_bDisabled)
-    {}
+	{}
 
 	ReplacementAnimData(std::string_view a_projectName, std::string_view a_path, bool a_bDisabled, std::optional<std::vector<Variant>>& a_variants, std::optional<ReplacementAnimation::VariantMode> a_variantMode, bool a_bLetReplaceOnLoop) :
 		projectName(a_projectName),
 		path(a_path),
 		bDisabled(a_bDisabled),
 		variants(std::move(a_variants)),
-        variantMode(a_variantMode),
+		variantMode(a_variantMode),
 		bLetReplaceOnLoop(a_bLetReplaceOnLoop)
-    {}
+	{}
 
 	ReplacementAnimData(const ReplacementAnimation* a_replacementAnimation) :
 		projectName(a_replacementAnimation->GetProjectName()),
 		path(a_replacementAnimation->GetAnimPath())
-    {}
+	{}
 
 	std::string projectName;
 	std::string path;

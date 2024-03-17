@@ -52,9 +52,9 @@ bool AnimationEventLogEntry::MatchesRegex(const std::regex& a_regex) const
 
 RE::BSEventNotifyControl AnimationEventLog::ProcessEvent(const RE::BSAnimationGraphEvent* a_event, RE::BSTEventSource<RE::BSAnimationGraphEvent>*)
 {
-    WriteLocker locker(_logLock);
-    _log.emplace_back(a_event);
-    _bHasNewEvent = true;
+	WriteLocker locker(_logLock);
+	_log.emplace_back(a_event);
+	_bHasNewEvent = true;
 
 	RefreshFilterInternal();
 
@@ -65,9 +65,9 @@ void AnimationEventLog::TryAddEvent(RE::IAnimationGraphManagerHolder* a_holder, 
 {
 	const auto holder = SKSE::stl::adjust_pointer<RE::TESObjectREFR>(a_holder, -0x38);
 	if (GetLogNotifies(holder->GetHandle())) {
-	    WriteLocker locker(_logLock);
-	    _log.emplace_back(holder, a_eventName, a_eventTriggeredTransition);
-	    _bHasNewEvent = true;
+		WriteLocker locker(_logLock);
+		_log.emplace_back(holder, a_eventName, a_eventTriggeredTransition);
+		_bHasNewEvent = true;
 
 		RefreshFilterInternal();
 	}
@@ -129,10 +129,10 @@ void AnimationEventLog::ForEachLogEntry(const std::function<void(AnimationEventL
 
 void AnimationEventLog::ClearLog()
 {
-    WriteLocker locker(_logLock);
+	WriteLocker locker(_logLock);
 
-    _log.clear();
-    _lastEventTimestamp = 0;
+	_log.clear();
+	_lastEventTimestamp = 0;
 
 	_filteredLog.clear();
 }

@@ -754,7 +754,7 @@ namespace UI
 		}
 	}
 
-    void UIMain::DrawReplacerMods()
+	void UIMain::DrawReplacerMods()
 	{
 		static char nameFilterBuf[32] = "";
 		ImGui::SetNextItemWidth(ImGui::GetFontSize() * 18);
@@ -895,7 +895,7 @@ namespace UI
 
 			// Condition presets
 			if (_editMode > ConditionEditMode::kNone || a_replacerMod->HasConditionPresets()) {
-			    const std::string conditionPresetsLabel = "Condition presets##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + "conditionPresets";
+				const std::string conditionPresetsLabel = "Condition presets##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + "conditionPresets";
 				ImGuiTreeNodeFlags flags = a_replacerMod->HasConditionPresets() ? ImGuiTreeNodeFlags_DefaultOpen : ImGuiTreeNodeFlags_None;
 				if (ImGui::CollapsingHeader(conditionPresetsLabel.data(), flags)) {
 					ImGui::AlignTextToFramePadding();
@@ -1618,7 +1618,7 @@ namespace UI
 													a_subMod->SetDirty(true);
 												}
 												UICommon::AddTooltip("If checked, the variant will only play once until the animation data resets after a while of inactivity.");
-											    ImGui::SameLine();
+												ImGui::SameLine();
 											}
 											break;
 										}
@@ -1635,13 +1635,13 @@ namespace UI
 											}
 											break;
 										case ReplacementAnimation::VariantMode::kSequential:
-										    {
-											    if (a_variant.ShouldPlayOnce()) {
+											{
+												if (a_variant.ShouldPlayOnce()) {
 													ImGui::TextUnformatted("[Play once]");
 													UICommon::AddTooltip("The variant will only play once until the animation data resets after a while of inactivity.");
 													ImGui::SameLine();
-											    }
-										    }
+												}
+											}
 											break;
 										}
 									}
@@ -1968,7 +1968,7 @@ namespace UI
 	bool UIMain::DrawConditionSet(Conditions::ConditionSet* a_conditionSet, SubMod* a_parentSubMod, ConditionEditMode a_editMode, Conditions::ConditionType a_conditionType, RE::TESObjectREFR* a_refrToEvaluate, bool a_bDrawLines, const ImVec2& a_drawStartPos)
 	{
 		if (!a_conditionSet) {
-		    return false;
+			return false;
 		}
 
 		//ImGui::TableNextRow();
@@ -2487,7 +2487,7 @@ namespace UI
 		return conditionRect;
 	}
 
-    bool UIMain::DrawConditionPreset(ReplacerMod* a_replacerMod, Conditions::ConditionPreset* a_conditionPreset, bool& a_bOutWasPresetRenamed)
+	bool UIMain::DrawConditionPreset(ReplacerMod* a_replacerMod, Conditions::ConditionPreset* a_conditionPreset, bool& a_bOutWasPresetRenamed)
 	{
 		bool bSetDirty = false;
 
@@ -2512,7 +2512,7 @@ namespace UI
 				});
 			};
 
-		    // context menu
+			// context menu
 			if (_editMode != ConditionEditMode::kNone) {
 				if (ImGui::BeginPopupContextItem()) {
 					// delete button
@@ -2530,8 +2530,8 @@ namespace UI
 					ImGui::EndPopup();
 				}
 			}
-			
-		    // condition preset name
+
+			// condition preset name
 			ImGui::SameLine();
 			if (!a_conditionPreset->IsEmpty() && !a_conditionPreset->HasInvalidConditions()) {
 				ImGui::TextUnformatted(a_conditionPreset->GetName().data());
@@ -2608,7 +2608,7 @@ namespace UI
 		return bSetDirty;
 	}
 
-    void UIMain::DrawConditionTooltip(const ConditionInfo& a_conditionInfo, ImGuiHoveredFlags a_flags) const
+	void UIMain::DrawConditionTooltip(const ConditionInfo& a_conditionInfo, ImGuiHoveredFlags a_flags) const
 	{
 		if (ImGui::IsItemHovered(a_flags)) {
 			ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 8, 8 });
@@ -2655,15 +2655,15 @@ namespace UI
 				switch (conditionType) {
 				case Conditions::ConditionType::kCustom:
 					color = UICommon::CUSTOM_CONDITION_COLOR;
-				    break;
-                case Conditions::ConditionType::kPreset:
+					break;
+				case Conditions::ConditionType::kPreset:
 					color = UICommon::CONDITION_PRESET_COLOR;
-                    break;
+					break;
 				case Conditions::ConditionType::kNormal:
 				default:
 					color = UICommon::DEFAULT_CONDITION_COLOR;
 					break;
-                }
+				}
 				_conditionInfos.emplace_back(a_name, tempCondition->GetDescription(), color, tempCondition->GetRequiredPluginName(), tempCondition->GetRequiredPluginAuthor(), tempCondition->GetRequiredVersion());
 				if (conditionType != Conditions::ConditionType::kPreset) {
 					_conditionInfosNoPRESET.emplace_back(a_name, tempCondition->GetDescription(), color, tempCondition->GetRequiredPluginName(), tempCondition->GetRequiredPluginAuthor(), tempCondition->GetRequiredVersion());
@@ -3276,14 +3276,14 @@ namespace UI
 		return false;
 	}
 
-    bool UIMain::ConditionContainsPreset(Conditions::ICondition* a_condition, Conditions::ConditionPreset* a_conditionPreset) const
+	bool UIMain::ConditionContainsPreset(Conditions::ICondition* a_condition, Conditions::ConditionPreset* a_conditionPreset) const
 	{
 		if (a_condition == nullptr) {
-		    return false;
+			return false;
 		}
 
 		if (a_condition->GetConditionType() == Conditions::ConditionType::kPreset) {
-		    return true;
+			return true;
 		}
 
 		if (const auto numComponents = a_condition->GetNumComponents(); numComponents > 0) {
@@ -3304,7 +3304,7 @@ namespace UI
 					const auto multiConditionComponent = static_cast<Conditions::IMultiConditionComponent*>(component);
 					if (const auto conditionSet = multiConditionComponent->GetConditions()) {
 						if (ConditionSetContainsPreset(conditionSet, a_conditionPreset)) {
-						    return true;
+							return true;
 						}
 					}
 				}
@@ -3314,7 +3314,7 @@ namespace UI
 		return false;
 	}
 
-    bool UIMain::ConditionSetContainsPreset(Conditions::ConditionSet* a_conditionSet, Conditions::ConditionPreset* a_conditionPreset) const
+	bool UIMain::ConditionSetContainsPreset(Conditions::ConditionSet* a_conditionSet, Conditions::ConditionPreset* a_conditionPreset) const
 	{
 		if (a_conditionSet == nullptr) {
 			return false;

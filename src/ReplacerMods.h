@@ -198,7 +198,7 @@ class ReplacerMod
 public:
 	ReplacerMod(bool a_bIsLegacy) :
 		_bIsLegacy(a_bIsLegacy)
-    {}
+	{}
 
 	ReplacerMod(std::string_view a_path, std::string_view a_name, std::string_view a_author, std::string_view a_description, bool a_bIsLegacy) :
 		_name(a_name),
@@ -206,7 +206,7 @@ public:
 		_description(a_description),
 		_bIsLegacy(a_bIsLegacy),
 		_path(a_path)
-    {}
+	{}
 
 	void LoadParseResult(Parsing::ModParseResult& a_parseResult);
 
@@ -240,7 +240,7 @@ public:
 	void LoadConditionPresets(std::vector<std::unique_ptr<Conditions::ConditionPreset>>& a_conditionPresets);
 	bool HasConditionPresets() const;
 	bool HasConditionPreset(std::string_view a_name) const;
-    Conditions::ConditionPreset* GetConditionPreset(std::string_view a_name) const;
+	Conditions::ConditionPreset* GetConditionPreset(std::string_view a_name) const;
 	RE::BSVisit::BSVisitControl ForEachConditionPreset(const std::function<RE::BSVisit::BSVisitControl(Conditions::ConditionPreset*)>& a_func) const;
 	void SortConditionPresets();
 

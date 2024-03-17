@@ -433,7 +433,7 @@ void SubMod::Serialize(rapidjson::Document& a_doc, ConditionEditMode a_editMode)
 							rapidjson::Value variantValue(rapidjson::kObjectType);
 
 							variantValue.AddMember("filename", rapidjson::StringRef(a_variant.GetFilename().data(), a_variant.GetFilename().length()), allocator);
-							
+
 							if (a_variant.IsDisabled()) {
 								variantValue.AddMember("disabled", a_variant.IsDisabled(), allocator);
 							}
@@ -814,7 +814,7 @@ void SubMod::SharedRandomFloats::RemoveActiveClip(ActiveClip* a_activeClip)
 void ReplacerMod::LoadParseResult(Parsing::ModParseResult& a_parseResult)
 {
 	_name = a_parseResult.name;
-    _author = a_parseResult.author;
+	_author = a_parseResult.author;
 	_description = a_parseResult.description;
 	_path = a_parseResult.path;
 
@@ -837,14 +837,14 @@ bool ReplacerMod::ReloadConfig()
 
 	std::filesystem::path directoryPath(_path);
 
-    const auto configPath = directoryPath / "config.json"sv;
+	const auto configPath = directoryPath / "config.json"sv;
 	const auto userPath = directoryPath / "user.json"sv;
 	const bool bConfigJsonFound = is_regular_file(configPath);
 	const bool bUserJsonFound = is_regular_file(userPath);
 
 	if (bConfigJsonFound || bUserJsonFound) {
-        bool bDeserializeSuccess = false;
-        if (bUserJsonFound) {
+		bool bDeserializeSuccess = false;
+		if (bUserJsonFound) {
 			parseResult.configSource = Parsing::ConfigSource::kUser;
 			if (!DeserializeMod(configPath, Parsing::DeserializeMode::kInfoOnly, parseResult)) {
 				return false;
@@ -992,7 +992,7 @@ void ReplacerMod::AddConditionPreset(std::unique_ptr<Conditions::ConditionPreset
 {
 	WriteLocker locker(_presetsLock);
 
-    const auto it = std::ranges::lower_bound(_conditionPresets, a_conditionPreset, [](const auto& a_lhs, const auto& a_rhs) {
+	const auto it = std::ranges::lower_bound(_conditionPresets, a_conditionPreset, [](const auto& a_lhs, const auto& a_rhs) {
 		return a_lhs->GetName() < a_rhs->GetName();
 	});
 
@@ -1008,7 +1008,7 @@ void ReplacerMod::RemoveConditionPreset(std::string_view a_name)
 	});
 
 	if (search == _conditionPresets.end()) {
-	    return;
+		return;
 	}
 
 	// remove it from all conditions. rather do this once than have the overhead of a weak pointer during gameplay
@@ -1027,7 +1027,7 @@ void ReplacerMod::RemoveConditionPreset(std::string_view a_name)
 		return RE::BSVisit::BSVisitControl::kContinue;
 	});
 
-    _conditionPresets.erase(search);
+	_conditionPresets.erase(search);
 }
 
 void ReplacerMod::LoadConditionPresets(std::vector<std::unique_ptr<Conditions::ConditionPreset>>& a_conditionPresets)
@@ -1046,14 +1046,14 @@ void ReplacerMod::LoadConditionPresets(std::vector<std::unique_ptr<Conditions::C
 		return RE::BSVisit::BSVisitControl::kContinue;
 	});
 
-    {
-        WriteLocker locker(_presetsLock);
+	{
+		WriteLocker locker(_presetsLock);
 
-	    _conditionPresets.clear();
-    }
+		_conditionPresets.clear();
+	}
 
 	for (auto& conditionPreset : a_conditionPresets) {
-	    AddConditionPreset(conditionPreset);
+		AddConditionPreset(conditionPreset);
 	}
 
 	// try to restore references in conditions
@@ -1131,7 +1131,7 @@ bool ReplacerMod::HasInvalidConditions() const
 
 	const auto result = ForEachConditionPreset([&](const Conditions::ConditionPreset* a_preset) {
 		if (a_preset->IsEmpty() || a_preset->HasInvalidConditions()) {
-		    return Result::kStop;
+			return Result::kStop;
 		}
 		return Result::kContinue;
 	});

@@ -33,7 +33,7 @@ std::string ReplacementAnimationFile::GetOriginalPath() const
 bool ReplacementAnimation::Variant::ShouldSaveToJson(VariantMode a_variantMode) const
 {
 	if (_bDisabled) {
-	    return true;
+		return true;
 	}
 
 	if (a_variantMode == VariantMode::kRandom && _weight != 1.f) {
@@ -139,7 +139,6 @@ void ReplacementAnimation::Variants::UpdateVariantCache()
 
 		break;
 	}
-	
 }
 
 RE::BSVisit::BSVisitControl ReplacementAnimation::Variants::ForEachVariant(const std::function<RE::BSVisit::BSVisitControl(Variant&)>& a_func)
@@ -230,7 +229,7 @@ bool ReplacementAnimation::ShouldSaveToJson() const
 		const auto variantMode = variants.GetVariantMode();
 
 		if (variantMode != VariantMode::kRandom) {
-		    return true;
+			return true;
 		}
 
 		variants.ForEachVariant([&](const Variant& a_variant) {

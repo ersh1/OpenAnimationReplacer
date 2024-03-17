@@ -92,23 +92,23 @@ namespace Parsing
 			}
 
 			if (a_deserializeMode != DeserializeMode::kDataOnly) {
-			    // read mod name (required)
-			    if (const auto nameIt = doc.FindMember("name"); nameIt != doc.MemberEnd() && nameIt->value.IsString()) {
-				    a_outParseResult.name = nameIt->value.GetString();
-			    } else {
-				    logger::error("Failed to find mod name in file: {}", a_jsonPath.string());
-				    return false;
-			    }
+				// read mod name (required)
+				if (const auto nameIt = doc.FindMember("name"); nameIt != doc.MemberEnd() && nameIt->value.IsString()) {
+					a_outParseResult.name = nameIt->value.GetString();
+				} else {
+					logger::error("Failed to find mod name in file: {}", a_jsonPath.string());
+					return false;
+				}
 
-			    // read mod author (optional)
-			    if (const auto authorIt = doc.FindMember("author"); authorIt != doc.MemberEnd() && authorIt->value.IsString()) {
-				    a_outParseResult.author = authorIt->value.GetString();
-			    }
+				// read mod author (optional)
+				if (const auto authorIt = doc.FindMember("author"); authorIt != doc.MemberEnd() && authorIt->value.IsString()) {
+					a_outParseResult.author = authorIt->value.GetString();
+				}
 
-			    // read mod description (optional)
-			    if (const auto descriptionIt = doc.FindMember("description"); descriptionIt != doc.MemberEnd() && descriptionIt->value.IsString()) {
-				    a_outParseResult.description = descriptionIt->value.GetString();
-			    }
+				// read mod description (optional)
+				if (const auto descriptionIt = doc.FindMember("description"); descriptionIt != doc.MemberEnd() && descriptionIt->value.IsString()) {
+					a_outParseResult.description = descriptionIt->value.GetString();
+				}
 			}
 
 			if (a_deserializeMode == DeserializeMode::kInfoOnly) {
@@ -125,7 +125,7 @@ namespace Parsing
 						if (const auto conditionPresetNameIt = conditionPresetObject.FindMember("name"); conditionPresetNameIt != conditionPresetObject.MemberEnd() && conditionPresetNameIt->value.IsString()) {
 							std::string conditionPresetName = conditionPresetNameIt->value.GetString();
 
-							std::string conditionPresetDescription = ""; // optional
+							std::string conditionPresetDescription = "";  // optional
 							if (const auto conditionPresetDescriptionIt = conditionPresetObject.FindMember("description"); conditionPresetDescriptionIt != conditionPresetObject.MemberEnd() && conditionPresetDescriptionIt->value.IsString()) {
 								conditionPresetDescription = conditionPresetDescriptionIt->value.GetString();
 							}
@@ -246,7 +246,7 @@ namespace Parsing
 									if (variantObj.IsObject()) {
 										if (auto variantFilenameIt = variantObj.FindMember("filename"); variantFilenameIt != doc.MemberEnd() && variantFilenameIt->value.IsString()) {
 											bool bVariantDisabled = false;
-										    float variantWeight = 1.f;
+											float variantWeight = 1.f;
 											bool bVariantPlayOnce = false;
 
 											if (auto variantDisabledIt = variantObj.FindMember("disabled"); variantDisabledIt != doc.MemberEnd() && variantDisabledIt->value.IsBool()) {

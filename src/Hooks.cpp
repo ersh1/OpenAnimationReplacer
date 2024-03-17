@@ -100,7 +100,7 @@ namespace Hooks
 		}
 	}
 
-    void HavokHooks::hkbClipGenerator_StartEcho(RE::hkbClipGenerator* a_this, float a_echoDuration)
+	void HavokHooks::hkbClipGenerator_StartEcho(RE::hkbClipGenerator* a_this, float a_echoDuration)
 	{
 		bool bReplaced = false;
 
@@ -205,7 +205,7 @@ namespace Hooks
 		}
 	}
 
-    bool HavokHooks::TESObjectREFR_IAnimationGraphManagerHolder_NotifyAnimationGraph(RE::IAnimationGraphManagerHolder* a_this, const RE::BSFixedString& a_eventName)
+	bool HavokHooks::TESObjectREFR_IAnimationGraphManagerHolder_NotifyAnimationGraph(RE::IAnimationGraphManagerHolder* a_this, const RE::BSFixedString& a_eventName)
 	{
 		const bool result = _TESObjectREFR_IAnimationGraphManagerHolder_NotifyAnimationGraph(a_this, a_eventName);
 
@@ -235,7 +235,7 @@ namespace Hooks
 		return result;
 	}
 
-    void HavokHooks::LoadClips(RE::hkbCharacterStringData* a_stringData, RE::hkbAnimationBindingSet* a_bindingSet, void* a_assetLoader, RE::hkbBehaviorGraph* a_rootBehavior, const char* a_animationPath, RE::BSTHashMap<RE::BSFixedString, uint32_t>* a_annotationToEventIdMap)
+	void HavokHooks::LoadClips(RE::hkbCharacterStringData* a_stringData, RE::hkbAnimationBindingSet* a_bindingSet, void* a_assetLoader, RE::hkbBehaviorGraph* a_rootBehavior, const char* a_animationPath, RE::BSTHashMap<RE::BSFixedString, uint32_t>* a_annotationToEventIdMap)
 	{
 		// create replacement animations and insert their paths into the string data
 		// do this before LoadClips actually runs because it reads the animation name array to create all the animation bindings and we need to add our new animations to it before that happens

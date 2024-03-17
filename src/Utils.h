@@ -152,7 +152,7 @@ namespace Utils
 
 	uint32_t GetAnimationGraphIndex(const RE::BSAnimationGraphManager* a_graphManager, const RE::BSTEventSource<RE::BSAnimationGraphEvent>* a_eventSource);
 
-    RE::NiPointer<RE::TESObjectREFR> GetConsoleRefr();
+	RE::NiPointer<RE::TESObjectREFR> GetConsoleRefr();
 
 	bool DoesUserConfigExist(std::string_view a_path);
 	void DeleteUserConfig(std::string_view a_path);

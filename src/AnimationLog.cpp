@@ -96,17 +96,17 @@ AnimationLogEntry::AnimationLogEntry(Event a_event, ActiveClip* a_activeClip, RE
 
 bool AnimationLogEntry::operator==(const AnimationLogEntry& a_rhs) const
 {
-	return event == a_rhs.event && 
-	    bOriginal == a_rhs.bOriginal && 
-		bVariant == a_rhs.bVariant && 
-		bInterruptible == a_rhs.bInterruptible &&
-		animationName == a_rhs.animationName &&
-		clipName == a_rhs.clipName &&
-		projectName == a_rhs.projectName &&
-		modName == a_rhs.modName &&
-		subModName == a_rhs.subModName &&
-		animPath == a_rhs.animPath &&
-		variantFilename == a_rhs.variantFilename;
+	return event == a_rhs.event &&
+	       bOriginal == a_rhs.bOriginal &&
+	       bVariant == a_rhs.bVariant &&
+	       bInterruptible == a_rhs.bInterruptible &&
+	       animationName == a_rhs.animationName &&
+	       clipName == a_rhs.clipName &&
+	       projectName == a_rhs.projectName &&
+	       modName == a_rhs.modName &&
+	       subModName == a_rhs.subModName &&
+	       animPath == a_rhs.animPath &&
+	       variantFilename == a_rhs.variantFilename;
 }
 
 bool AnimationLogEntry::operator!=(const AnimationLogEntry& a_rhs) const
@@ -117,7 +117,7 @@ bool AnimationLogEntry::operator!=(const AnimationLogEntry& a_rhs) const
 bool AnimationLogEntry::MatchesRegex(const std::regex& a_regex) const
 {
 	if (MatchesEvent(a_regex)) {
-	    return true;
+		return true;
 	}
 
 	if (std::regex_search(animationName, a_regex)) {
@@ -149,7 +149,7 @@ bool AnimationLogEntry::MatchesRegex(const std::regex& a_regex) const
 
 void AnimationLogEntry::IncreaseCount()
 {
-    ++count;
+	++count;
 	timeDrawn = 0.f;
 }
 
@@ -158,7 +158,7 @@ bool AnimationLogEntry::MatchesEvent(const std::regex& a_regex) const
 	auto getEventStrings = [](Event a_event) -> std::vector<std::string_view> {
 		switch (a_event) {
 		case Event::kNone:
-		    return { "None"sv };
+			return { "None"sv };
 		case Event::kActivate:
 			return { "Activate"sv };
 		case Event::kActivateSynchronized:
@@ -180,16 +180,16 @@ bool AnimationLogEntry::MatchesEvent(const std::regex& a_regex) const
 		case Event::kPairedMismatch:
 			return { "Synchronized"sv, "Paired"sv, "Mismatch"sv };
 		default:
-		    return { ""sv };
+			return { ""sv };
 		}
 	};
 
 	for (auto& str : getEventStrings(event)) {
 		if (std::regex_search(str.data(), a_regex)) {
-		    return true;
+			return true;
 		}
 	}
-	
+
 	return false;
 }
 
@@ -201,7 +201,7 @@ void AnimationLog::LogAnimation(AnimationLogEntry::Event a_event, ActiveClip* a_
 		const AnimationLogEntry newEntry{ a_event, a_activeClip, a_character };
 
 		// does it match the filter string?
-        if (bool bDoFilter = !filter.empty()) {
+		if (bool bDoFilter = !filter.empty()) {
 			std::regex filterRegex;
 			try {
 				filterRegex = std::regex(filter, std::regex::icase);

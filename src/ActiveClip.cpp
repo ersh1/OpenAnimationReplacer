@@ -70,7 +70,7 @@ bool ActiveClip::ShouldReplaceAnimation(const ReplacementAnimation* a_newReplace
 
 void ActiveClip::ReplaceAnimation(ReplacementAnimation* a_replacementAnimation, std::optional<uint16_t> a_variantIndex /* = std::nullopt*/)
 {
-    auto previousReplacementAnimation = _currentReplacementAnimation;
+	auto previousReplacementAnimation = _currentReplacementAnimation;
 
 	RestoreOriginalAnimation();
 
@@ -254,7 +254,7 @@ void ActiveClip::SetTransitioning(bool a_bValue)
 
 void ActiveClip::StartBlend(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context, float a_blendTime)
 {
-    const auto& newBlendingClip = _blendingClipGenerators.emplace_back(std::make_unique<BlendingClip>(a_clipGenerator, a_blendTime));
+	const auto& newBlendingClip = _blendingClipGenerators.emplace_back(std::make_unique<BlendingClip>(a_clipGenerator, a_blendTime));
 
 	_lastGameTime = OpenAnimationReplacer::gameTimeCounter;
 
@@ -352,11 +352,11 @@ void ActiveClip::PreUpdate(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbC
 		_lastGameTime = currentGameTime;
 
 		for (auto it = _blendingClipGenerators.begin(); it != _blendingClipGenerators.end();) {
-		    auto& blendingClip = *it;
+			auto& blendingClip = *it;
 			if (!blendingClip->Update(a_context, deltaTime)) {
 				it = _blendingClipGenerators.erase(it);
 			} else {
-			    ++it;
+				++it;
 			}
 		}
 	}
@@ -444,7 +444,7 @@ void ActiveClip::OnGenerate([[maybe_unused]] RE::hkbClipGenerator* a_clipGenerat
 	}
 
 	if (!IsBlending()) {
-	    return;
+		return;
 	}
 
 	if (a_output.IsValid(RE::hkbGeneratorOutput::StandardTracks::TRACK_POSE)) {
@@ -525,7 +525,7 @@ bool ActiveClip::OnLoop(RE::hkbClipGenerator* a_clipGenerator)
 RE::hkbClipGenerator* ActiveClip::GetLastBlendingClipGenerator() const
 {
 	if (_blendingClipGenerators.empty()) {
-	    return nullptr;
+		return nullptr;
 	}
 
 	return reinterpret_cast<RE::hkbClipGenerator*>(&_blendingClipGenerators.back()->clipGenerator);
@@ -555,7 +555,7 @@ size_t ActiveClip::GetVariantSequential(const ReplacementAnimation* a_replacemen
 		return next;
 	}
 
-    return 0;
+	return 0;
 }
 
 float ActiveClip::GetRandomFloat(const Conditions::IRandomConditionComponent* a_randomComponent, SubMod* a_parentSubMod)
@@ -671,7 +671,7 @@ bool ActiveClip::GetBlendedTracks(std::vector<RE::hkQsTransform>& a_outBlendedTr
 	const auto& firstClip = *it;
 	float blendWeight = firstClip->GetBlendWeight();
 	if (!getTracks(*it, a_outBlendedTracks)) {
-	    return false;
+		return false;
 	}
 	++it;
 

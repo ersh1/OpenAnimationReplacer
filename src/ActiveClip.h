@@ -12,7 +12,7 @@ public:
 	{
 		enum class Type
 		{
-		    kRestart,
+			kRestart,
 			kContinue,
 			kLoop
 		};
@@ -32,7 +32,8 @@ public:
 
 		ReplacementAnimation* replacementAnimation;
 		float blendTime;
-		Type type;;
+		Type type;
+		;
 		AnimationLogEntry::Event replacementEvent;
 		std::optional<uint16_t> variantIndex = std::nullopt;
 	};
@@ -76,7 +77,7 @@ public:
 		bool IsAtBeginningOfSequence(const ReplacementAnimation* a_replacementAnimation) const
 		{
 			if (nextSequentialVariant == 0) {
-			    return true;
+				return true;
 			}
 
 			if (a_replacementAnimation->HasVariants()) {

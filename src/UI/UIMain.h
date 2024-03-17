@@ -40,10 +40,10 @@ namespace UI
 				switch (a_condition->GetConditionType()) {
 				case Conditions::ConditionType::kPreset:
 					textColor = UICommon::CONDITION_PRESET_COLOR;
-				    break;
+					break;
 				case Conditions::ConditionType::kCustom:
 					textColor = UICommon::CUSTOM_CONDITION_COLOR;
-				    break;
+					break;
 				case Conditions::ConditionType::kNormal:
 				default:
 					textColor = UICommon::DEFAULT_CONDITION_COLOR;

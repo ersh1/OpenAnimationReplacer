@@ -830,9 +830,9 @@ namespace Conditions
 		}
 	}
 
-    void ConditionSet::SetAsParent(std::unique_ptr<ICondition>& a_condition)
+	void ConditionSet::SetAsParent(std::unique_ptr<ICondition>& a_condition)
 	{
-	    a_condition->SetParentConditionSet(this);
+		a_condition->SetParentConditionSet(this);
 
 		if (a_condition->GetConditionType() == ConditionType::kPreset) {
 			if (const auto numComponents = a_condition->GetNumComponents(); numComponents > 0) {
@@ -847,7 +847,7 @@ namespace Conditions
 		}
 	}
 
-    rapidjson::Value ConditionSet::Serialize(rapidjson::Document::AllocatorType& a_allocator)
+	rapidjson::Value ConditionSet::Serialize(rapidjson::Document::AllocatorType& a_allocator)
 	{
 		rapidjson::Value conditionArrayValue(rapidjson::kArrayType);
 
@@ -938,7 +938,7 @@ namespace Conditions
 		return false;
 	}
 
-    std::string ConditionSet::GetNumConditionsText() const
+	std::string ConditionSet::GetNumConditionsText() const
 	{
 		if (GetNumConditions() == 1) {
 			return "1 child condition";
@@ -1412,7 +1412,7 @@ namespace Conditions
 		return false;
 	}
 
-    void ConditionPresetComponent::InitializeComponent(void* a_value)
+	void ConditionPresetComponent::InitializeComponent(void* a_value)
 	{
 		auto& value = *static_cast<rapidjson::Value*>(a_value);
 		const auto object = value.GetObj();
@@ -1431,7 +1431,7 @@ namespace Conditions
 		val.AddMember(rapidjson::StringRef(_name.data(), _name.length()), rapidjson::StringRef(presetName.data(), presetName.length()), allocator);
 	}
 
-    bool ConditionPresetComponent::DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent)
+	bool ConditionPresetComponent::DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent)
 	{
 		bool bEdited = false;
 
@@ -1449,14 +1449,14 @@ namespace Conditions
 							if (!bSelected) {
 								conditionPreset = a_conditionPreset;
 								_presetName = conditionPreset->GetName();
-							    bEdited = true;
+								bEdited = true;
 							}
 						}
 						if (bSelected) {
 							ImGui::SetItemDefaultFocus();
 						}
 
-					    return RE::BSVisit::BSVisitControl::kContinue;
+						return RE::BSVisit::BSVisitControl::kContinue;
 					});
 					ImGui::EndCombo();
 				}
@@ -1472,7 +1472,7 @@ namespace Conditions
 		return bEdited;
 	}
 
-    RE::BSString ConditionPresetComponent::GetArgument() const
+	RE::BSString ConditionPresetComponent::GetArgument() const
 	{
 		if (conditionPreset) {
 			return conditionPreset->GetName();
@@ -1508,14 +1508,14 @@ namespace Conditions
 		return RE::BSVisit::BSVisitControl::kContinue;
 	}
 
-    void ConditionPresetComponent::TryFindPreset()
+	void ConditionPresetComponent::TryFindPreset()
 	{
 		if (const auto parentMod = GetParentMod()) {
 			conditionPreset = parentMod->GetConditionPreset(_presetName);
 		}
 	}
 
-    ReplacerMod* ConditionPresetComponent::GetParentMod() const
+	ReplacerMod* ConditionPresetComponent::GetParentMod() const
 	{
 		if (const auto parentCondition = GetParentCondition()) {
 			if (const auto parentConditionSet = parentCondition->GetParentConditionSet()) {

@@ -446,7 +446,7 @@ namespace Utils
 		return formID ? RE::TESForm::LookupByID(formID) : nullptr;
 	}
 
-    uint32_t GetAnimationGraphIndex(const RE::BSAnimationGraphManager* a_graphManager, const RE::BSTEventSource<RE::BSAnimationGraphEvent>* a_eventSource)
+	uint32_t GetAnimationGraphIndex(const RE::BSAnimationGraphManager* a_graphManager, const RE::BSTEventSource<RE::BSAnimationGraphEvent>* a_eventSource)
 	{
 		if (a_graphManager) {
 			for (uint32_t index = 0; index < a_graphManager->graphs.size(); ++index) {
@@ -461,13 +461,13 @@ namespace Utils
 		return 0;
 	}
 
-    RE::NiPointer<RE::TESObjectREFR> GetConsoleRefr()
+	RE::NiPointer<RE::TESObjectREFR> GetConsoleRefr()
 	{
 		static REL::Relocation<RE::ObjectRefHandle*> selectedRef{ RELOCATION_ID(519394, AE_CHECK(SKSE::RUNTIME_SSE_1_6_1130, 405935, 504099)) };
 		return selectedRef->get();
 	}
 
-    bool DoesUserConfigExist(std::string_view a_path)
+	bool DoesUserConfigExist(std::string_view a_path)
 	{
 		std::filesystem::path jsonPath(a_path);
 		jsonPath = jsonPath / "user.json"sv;
@@ -475,7 +475,7 @@ namespace Utils
 		return is_regular_file(jsonPath);
 	}
 
-    void DeleteUserConfig(std::string_view a_path)
+	void DeleteUserConfig(std::string_view a_path)
 	{
 		std::filesystem::path jsonPath(a_path);
 		jsonPath = jsonPath / "user.json"sv;
@@ -485,7 +485,7 @@ namespace Utils
 		}
 	}
 
-    RE::hkVector4 NormalizeHkVector4(const RE::hkVector4& a_vector)
+	RE::hkVector4 NormalizeHkVector4(const RE::hkVector4& a_vector)
 	{
 		const auto dot = _mm_dp_ps(a_vector.quad, a_vector.quad, 0xFF);
 		const auto length = _mm_sqrt_ps(dot);

@@ -2300,7 +2300,7 @@ namespace Conditions
 
 		static std::map<int32_t, std::string_view> GetEnumMap();
 
-        RE::NiPointer<RE::BGSAttackData> GetAttackData(RE::TESObjectREFR* a_refr) const;
+		RE::NiPointer<RE::BGSAttackData> GetAttackData(RE::TESObjectREFR* a_refr) const;
 	};
 
 	class MovementSurfaceAngleCondition : public ConditionBase

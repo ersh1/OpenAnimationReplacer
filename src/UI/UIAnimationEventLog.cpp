@@ -4,8 +4,8 @@
 #include "UICommon.h"
 #include "UIManager.h"
 
-#include "imgui_stdlib.h"
 #include "Utils.h"
+#include "imgui_stdlib.h"
 
 namespace UI
 {
@@ -99,7 +99,7 @@ namespace UI
 
 		ImGui::SetNextItemWidth(filterWidth);
 		if (ImGui::InputTextWithHint("##filter", "Filter...", &animationEventLog.filter)) {
-		    animationEventLog.RefreshFilter();
+			animationEventLog.RefreshFilter();
 		}
 		ImGui::SameLine();
 		UICommon::HelpMarker("Type a part of the event name / source name / payload to filter the log results. You can use regex.");
@@ -235,10 +235,10 @@ namespace UI
 
 		if (a_logEntry->bFromNotify) {
 			if (a_logEntry->bTriggeredTransition) {
-		        UICommon::TextUnformattedColored(UICommon::EVENT_LOG_TRIGGERED_TRANSITION_COLOR, "[Notify]");
-		    } else {
+				UICommon::TextUnformattedColored(UICommon::EVENT_LOG_TRIGGERED_TRANSITION_COLOR, "[Notify]");
+			} else {
 				UICommon::TextUnformattedDisabled("[Notify]");
-		    }
+			}
 
 			ImGui::SameLine();
 		}

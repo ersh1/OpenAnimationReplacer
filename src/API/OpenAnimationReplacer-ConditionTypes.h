@@ -27,7 +27,7 @@ namespace Conditions
 
 	enum class ConditionType : uint8_t
 	{
-	    kNormal,
+		kNormal,
 		kCustom,
 		kPreset
 	};

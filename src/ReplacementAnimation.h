@@ -36,7 +36,7 @@ class ReplacementAnimation
 public:
 	enum class VariantMode : uint8_t
 	{
-	    kRandom = 0,
+		kRandom = 0,
 		kSequential = 1
 	};
 
@@ -59,7 +59,7 @@ public:
 		void SetWeight(float a_weight) { _weight = a_weight; }
 
 		// sequential mode
-		int32_t GetOrder() const { return _order;}
+		int32_t GetOrder() const { return _order; }
 		void SetOrder(int32_t a_order) { _order = a_order; }
 
 		bool ShouldPlayOnce() const { return _bPlayOnce; }

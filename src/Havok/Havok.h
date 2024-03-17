@@ -579,14 +579,14 @@ namespace RE
 
 		// members
 		//uint64_t unk08;                            // 08
-		BSTHashMap<BSFixedString, NiPointer<AnimationClipData>> hashMap; // 10
-		BSTArray<uint64_t> array;  // 40
-		uint64_t unk58;  // 58
-		uint64_t unk60;  // 60
-		uint64_t unk68;  // 68
-		uint64_t unk70;  // 70
-		uint64_t unk78;  // 78
-		uint64_t unk80;  // 80
+		BSTHashMap<BSFixedString, NiPointer<AnimationClipData>> hashMap;  // 10
+		BSTArray<uint64_t> array;                                         // 40
+		uint64_t unk58;                                                   // 58
+		uint64_t unk60;                                                   // 60
+		uint64_t unk68;                                                   // 68
+		uint64_t unk70;                                                   // 70
+		uint64_t unk78;                                                   // 78
+		uint64_t unk80;                                                   // 80
 	};
 	static_assert(sizeof(AnimationClipDataSingleton) == 0x88);
 

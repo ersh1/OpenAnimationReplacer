@@ -148,14 +148,14 @@ bool DetectedProblems::CheckForProblems()
 {
 	bool bHasProblems = false;
 
-    if (CheckForSubModsSharingPriority()) {
-        bHasProblems = true;
-    }
+	if (CheckForSubModsSharingPriority()) {
+		bHasProblems = true;
+	}
 	if (CheckForSubModsWithInvalidConditions()) {
-	    bHasProblems = true;
+		bHasProblems = true;
 	}
 	if (CheckForReplacerModsWithInvalidConditions()) {
-	    bHasProblems = true;
+		bHasProblems = true;
 	}
 
 	return bHasProblems;

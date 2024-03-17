@@ -164,4 +164,6 @@ namespace Parsing
 	[[nodiscard]] std::optional<ReplacementAnimationFile> ParseReplacementAnimationEntry(std::string_view a_fullPath);
 	[[nodiscard]] std::optional<ReplacementAnimationFile> ParseReplacementAnimationVariants(std::string_view a_fullVariantsPath);
 	[[nodiscard]] std::vector<ReplacementAnimationFile> ParseAnimationsInDirectory(const std::filesystem::directory_entry& a_directory, bool a_bIsLegacy = false);
+
+	[[nodiscard]] bool IsPathValid(std::filesystem::path a_path);
 }

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.22)
 
 project(
 	OpenAnimationReplacer
-	VERSION 2.2.0
+	VERSION 2.2.1
 	LANGUAGES CXX
 )
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

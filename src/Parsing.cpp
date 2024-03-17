@@ -787,8 +787,6 @@ namespace Parsing
 			result.path = a_directory.path().string();
 		}
 
-		
-
 		return result;
 	}
 
@@ -824,7 +822,7 @@ namespace Parsing
 				if (IsPathValid(subEntry.path())) {
 					RE::FormID formID;
 					std::string directoryName = subEntry.path().filename().string();
-					
+
 					auto [ptr, ec]{ std::from_chars(directoryName.data(), directoryName.data() + directoryName.size(), formID, 16) };
 					if (ec == std::errc()) {
 						std::string fileString = a_directory.path().stem().string();
@@ -902,7 +900,7 @@ namespace Parsing
 				if (is_directory(fileEntry)) {
 					if (IsPathValid(fileEntry.path())) {
 						std::string directoryNameString = fileEntry.path().filename().string();
-						
+
 						if (directoryNameString.starts_with("_variants_"sv)) {
 							// parse variants directory
 							filenamesToSkip.emplace_back(ConvertVariantsPath(directoryNameString));

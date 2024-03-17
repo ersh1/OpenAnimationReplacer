@@ -14,7 +14,9 @@ ActiveSynchronizedAnimation::~ActiveSynchronizedAnimation()
 
 	for (auto& [synchronizedClipGenerator, replacementInfo] : _clipData) {
 		synchronizedClipGenerator->animationBindingIndex = replacementInfo->originalSynchronizedIndex;
-		synchronizedClipGenerator->clipGenerator->animationBindingIndex = replacementInfo->originalInternalClipIndex;
+		if (synchronizedClipGenerator->clipGenerator) {
+			synchronizedClipGenerator->clipGenerator->animationBindingIndex = replacementInfo->originalInternalClipIndex;
+		}
 	}
 }
 

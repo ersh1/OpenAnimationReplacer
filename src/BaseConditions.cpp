@@ -542,14 +542,14 @@ namespace Conditions
 		return arrayValue;
 	}
 
-	bool ConditionSet::EvaluateAll(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const
+	bool ConditionSet::EvaluateAll(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, SubMod* a_parentSubMod) const
 	{
 		ReadLocker locker(_lock);
 
-		return std::ranges::all_of(_conditions, [&](auto& a_condition) { return a_condition->Evaluate(a_refr, a_clipGenerator); });
+		return std::ranges::all_of(_conditions, [&](auto& a_condition) { return a_condition->Evaluate(a_refr, a_clipGenerator, a_parentSubMod); });
 	}
 
-	bool ConditionSet::EvaluateAny(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const
+	bool ConditionSet::EvaluateAny(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, SubMod* a_parentSubMod) const
 	{
 		ReadLocker locker(_lock);
 
@@ -561,7 +561,7 @@ namespace Conditions
 		for (const auto& condition : _conditions) {
 			if (!condition->IsDisabled()) {
 				bAllDisabled = false;
-				if (condition->Evaluate(a_refr, a_clipGenerator)) {
+				if (condition->Evaluate(a_refr, a_clipGenerator, a_parentSubMod)) {
 					bAnyMet = true;
 					break;
 				}
@@ -604,8 +604,8 @@ namespace Conditions
 
 		WriteLocker locker(_lock);
 
-		a_condition->SetParentConditionSet(this);
-		_conditions.emplace_back(std::move(a_condition));
+		auto& condition = _conditions.emplace_back(std::move(a_condition));
+		SetAsParent(condition);
 
 		if (a_bSetDirty) {
 			SetDirty(true);
@@ -656,14 +656,14 @@ namespace Conditions
 
 		if (a_insertAfter) {
 			if (const auto it = std::ranges::find(_conditions, a_insertAfter); it != _conditions.end()) {
-				a_conditionToInsert->SetParentConditionSet(this);
-				_conditions.insert(it + 1, std::move(a_conditionToInsert));
+				const auto condition = _conditions.insert(it + 1, std::move(a_conditionToInsert));
+				SetAsParent(*condition);
 				return;
 			}
 		}
 
-		a_conditionToInsert->SetParentConditionSet(this);
-		_conditions.emplace_back(std::move(a_conditionToInsert));
+		auto& condition = _conditions.emplace_back(std::move(a_conditionToInsert));
+		SetAsParent(condition);
 	}
 
 	void ConditionSet::ReplaceCondition(std::unique_ptr<ICondition>& a_conditionToSubstitute, std::unique_ptr<ICondition>& a_newCondition)
@@ -682,8 +682,11 @@ namespace Conditions
 			for (uint32_t i = 0; i < numComponents; i++) {
 				const auto component = a_conditionToSubstitute->GetComponent(i);
 
-				if (const auto multiConditionComponent = dynamic_cast<IMultiConditionComponent*>(component)) {
-					conditionSetsToSave.emplace_back(multiConditionComponent->GetConditions());
+				if (component->GetType() == ConditionComponentType::kMulti) {
+					const auto multiConditionComponent = static_cast<IMultiConditionComponent*>(component);
+					if (const auto conditionSet = multiConditionComponent->GetConditions()) {
+						conditionSetsToSave.emplace_back(conditionSet);
+					}
 				}
 			}
 		}
@@ -694,9 +697,11 @@ namespace Conditions
 				for (uint32_t i = 0; i < numComponents; i++) {
 					const auto component = a_newCondition->GetComponent(i);
 
-					if (const auto multiConditionComponent = dynamic_cast<IMultiConditionComponent*>(component)) {
-						const auto conditionSet = multiConditionComponent->GetConditions();
-						conditionSet->MoveConditions(conditionSetsToSave[movedSets++]);
+					if (component->GetType() == ConditionComponentType::kMulti) {
+						const auto multiConditionComponent = static_cast<IMultiConditionComponent*>(component);
+						if (const auto conditionSet = multiConditionComponent->GetConditions()) {
+							conditionSet->MoveConditions(conditionSetsToSave[movedSets++]);
+						}
 					}
 
 					if (movedSets >= conditionSetsToSave.size()) {
@@ -709,8 +714,8 @@ namespace Conditions
 		{
 			WriteLocker locker(_lock);
 
-			a_newCondition->SetParentConditionSet(this);
 			a_conditionToSubstitute = std::move(a_newCondition);
+			SetAsParent(a_conditionToSubstitute);
 		}
 
 		SetDirty(true);
@@ -762,15 +767,17 @@ namespace Conditions
 			WriteLocker locker(_lock);
 			const auto targetIt = std::ranges::find(_conditions, a_targetCondition);
 			auto extractedCondition = a_sourceSet->ExtractCondition(a_sourceCondition);
-			extractedCondition->SetParentConditionSet(this);
 			if (targetIt != _conditions.end()) {
 				if (a_bInsertAfter) {
-					_conditions.insert(targetIt + 1, std::move(extractedCondition));
+					const auto& condition = _conditions.insert(targetIt + 1, std::move(extractedCondition));
+					SetAsParent(*condition);
 				} else {
-					_conditions.insert(targetIt, std::move(extractedCondition));
+					const auto& condition = _conditions.insert(targetIt, std::move(extractedCondition));
+					SetAsParent(*condition);
 				}
 			} else {
-				_conditions.emplace_back(std::move(extractedCondition));
+				auto& condition = _conditions.emplace_back(std::move(extractedCondition));
+				SetAsParent(condition);
 			}
 
 			SetDirty(true);
@@ -782,7 +789,7 @@ namespace Conditions
 		WriteLocker locker(_lock);
 
 		a_otherSet->ForEachCondition([this](auto& a_condition) {
-			a_condition->SetParentConditionSet(this);
+			SetAsParent(a_condition);
 			return RE::BSVisit::BSVisitControl::kContinue;
 		});
 
@@ -794,7 +801,7 @@ namespace Conditions
 		WriteLocker locker(_lock);
 
 		a_otherSet->ForEachCondition([this](auto& a_condition) {
-			a_condition->SetParentConditionSet(this);
+			SetAsParent(a_condition);
 			return RE::BSVisit::BSVisitControl::kContinue;
 		});
 
@@ -823,7 +830,24 @@ namespace Conditions
 		}
 	}
 
-	rapidjson::Value ConditionSet::Serialize(rapidjson::Document::AllocatorType& a_allocator)
+    void ConditionSet::SetAsParent(std::unique_ptr<ICondition>& a_condition)
+	{
+	    a_condition->SetParentConditionSet(this);
+
+		if (a_condition->GetConditionType() == ConditionType::kPreset) {
+			if (const auto numComponents = a_condition->GetNumComponents(); numComponents > 0) {
+				for (uint32_t i = 0; i < numComponents; i++) {
+					const auto component = a_condition->GetComponent(i);
+					if (component->GetType() == ConditionComponentType::kPreset) {
+						const auto conditionPresetComponent = static_cast<ConditionPresetComponent*>(component);
+						conditionPresetComponent->TryFindPreset();
+					}
+				}
+			}
+		}
+	}
+
+    rapidjson::Value ConditionSet::Serialize(rapidjson::Document::AllocatorType& a_allocator)
 	{
 		rapidjson::Value conditionArrayValue(rapidjson::kArrayType);
 
@@ -846,10 +870,18 @@ namespace Conditions
 			return true;
 		}
 
-		for (auto& condition : _conditions) {
-			if (const auto multiCondition = dynamic_cast<IMultiConditionComponent*>(condition.get())) {
-				if (multiCondition->GetConditions()->IsDirtyRecursive()) {
-					return true;
+		for (const auto& condition : _conditions) {
+			if (const auto numComponents = condition->GetNumComponents(); numComponents > 0) {
+				for (uint32_t i = 0; i < numComponents; i++) {
+					const auto component = condition->GetComponent(i);
+					if (component->GetType() == ConditionComponentType::kMulti) {
+						const auto multiConditionComponent = static_cast<IMultiConditionComponent*>(component);
+						if (const auto conditionSet = multiConditionComponent->GetConditions()) {
+							if (conditionSet->IsDirtyRecursive()) {
+								return true;
+							}
+						}
+					}
 				}
 			}
 		}
@@ -861,9 +893,17 @@ namespace Conditions
 	{
 		ReadLocker locker(_lock);
 
-		for (auto& condition : _conditions) {
-			if (const auto multiCondition = dynamic_cast<IMultiConditionComponent*>(condition.get())) {
-				multiCondition->GetConditions()->SetDirtyRecursive(a_bDirty);
+		for (const auto& condition : _conditions) {
+			if (const auto numComponents = condition->GetNumComponents(); numComponents > 0) {
+				for (uint32_t i = 0; i < numComponents; i++) {
+					const auto component = condition->GetComponent(i);
+					if (component->GetType() == ConditionComponentType::kMulti) {
+						const auto multiConditionComponent = static_cast<IMultiConditionComponent*>(component);
+						if (const auto conditionSet = multiConditionComponent->GetConditions()) {
+							conditionSet->SetDirtyRecursive(a_bDirty);
+						}
+					}
+				}
 			}
 		}
 
@@ -872,20 +912,38 @@ namespace Conditions
 
 	bool ConditionSet::IsChildOf(ICondition* a_condition)
 	{
-		if (const auto multiCondition = dynamic_cast<IMultiConditionComponent*>(a_condition)) {
-			const auto& conditionSet = multiCondition->GetConditions();
-			if (conditionSet == this) {
-				return true;
-			}
+		if (const auto numComponents = a_condition->GetNumComponents(); numComponents > 0) {
+			for (uint32_t i = 0; i < numComponents; i++) {
+				const auto component = a_condition->GetComponent(i);
+				if (component->GetType() == ConditionComponentType::kMulti) {
+					const auto multiConditionComponent = static_cast<IMultiConditionComponent*>(component);
+					if (!multiConditionComponent->GetConditions()) {
+						continue;
+					}
 
-			for (const auto& condition : multiCondition->GetConditions()->_conditions) {
-				if (IsChildOf(condition.get())) {
-					return true;
+					const auto& conditionSet = multiConditionComponent->GetConditions();
+					if (conditionSet == this) {
+						return true;
+					}
+
+					for (const auto& childCondition : multiConditionComponent->GetConditions()->_conditions) {
+						if (IsChildOf(childCondition.get())) {
+							return true;
+						}
+					}
 				}
 			}
 		}
 
 		return false;
+	}
+
+    std::string ConditionSet::GetNumConditionsText() const
+	{
+		if (GetNumConditions() == 1) {
+			return "1 child condition";
+		}
+		return std::format("{} child conditions", GetNumConditions()).data();
 	}
 
 	SubMod* ConditionSet::GetParentSubMod() const
@@ -1024,20 +1082,17 @@ namespace Conditions
 
 	RE::BSString MultiConditionComponent::GetArgument() const
 	{
-		if (conditionSet->GetNumConditions() == 1) {
-			return "1 child condition";
-		}
-		return std::format("{} child conditions", conditionSet->GetNumConditions()).data();
+		return conditionSet->GetNumConditionsText().data();
 	}
 
-	bool MultiConditionComponent::EvaluateAll(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const
+	bool MultiConditionComponent::EvaluateAll(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const
 	{
-		return conditionSet->EvaluateAll(a_refr, a_clipGenerator);
+		return conditionSet->EvaluateAll(a_refr, a_clipGenerator, static_cast<SubMod*>(a_parentSubMod));
 	}
 
-	bool MultiConditionComponent::EvaluateAny(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const
+	bool MultiConditionComponent::EvaluateAny(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const
 	{
-		return conditionSet->EvaluateAny(a_refr, a_clipGenerator);
+		return conditionSet->EvaluateAny(a_refr, a_clipGenerator, static_cast<SubMod*>(a_parentSubMod));
 	}
 
 	RE::BSVisit::BSVisitControl MultiConditionComponent::ForEachCondition(const std::function<RE::BSVisit::BSVisitControl(std::unique_ptr<ICondition>&)>& a_func) const
@@ -1346,14 +1401,130 @@ namespace Conditions
 		return std::format("Random [{}, {}]", minValue, maxValue).data();
 	}
 
-	bool RandomConditionComponent::GetRandomFloat(RE::hkbClipGenerator* a_clipGenerator, float& a_outFloat) const
+	bool RandomConditionComponent::GetRandomFloat(RE::hkbClipGenerator* a_clipGenerator, float& a_outFloat, void* a_parentSubMod) const
 	{
 		if (const auto activeClip = OpenAnimationReplacer::GetSingleton().GetActiveClip(a_clipGenerator)) {
-			a_outFloat = activeClip->GetRandomFloat(this);
+			a_outFloat = activeClip->GetRandomFloat(this, static_cast<SubMod*>(a_parentSubMod));
 			return true;
 		}
 
 		a_outFloat = effolkronium::random_static::get<float>(minValue, maxValue);
 		return false;
+	}
+
+    void ConditionPresetComponent::InitializeComponent(void* a_value)
+	{
+		auto& value = *static_cast<rapidjson::Value*>(a_value);
+		const auto object = value.GetObj();
+		if (const auto presetNameIt = object.FindMember(rapidjson::StringRef(_name.data(), _name.length())); presetNameIt != object.MemberEnd() && presetNameIt->value.IsString()) {
+			_presetName = presetNameIt->value.GetString();
+		}
+	}
+
+	void ConditionPresetComponent::SerializeComponent(void* a_value, void* a_allocator)
+	{
+		auto& val = *static_cast<rapidjson::Value*>(a_value);
+		auto& allocator = *static_cast<rapidjson::Document::AllocatorType*>(a_allocator);
+
+		const auto presetName = conditionPreset ? conditionPreset->GetName() : std::string{};
+
+		val.AddMember(rapidjson::StringRef(_name.data(), _name.length()), rapidjson::StringRef(presetName.data(), presetName.length()), allocator);
+	}
+
+    bool ConditionPresetComponent::DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent)
+	{
+		bool bEdited = false;
+
+		if (a_bEditable) {
+			if (const auto parentMod = GetParentMod()) {
+				ImGui::SetNextItemWidth(UI::UICommon::FirstColumnWidth(a_firstColumnWidthPercent));
+				ImGui::PushID(&conditionPreset);
+				const auto currentEnumName = conditionPreset ? conditionPreset->GetName() : ""sv;
+
+				if (ImGui::BeginCombo("##Enum value", currentEnumName.data())) {
+					parentMod->ForEachConditionPreset([&](const auto a_conditionPreset) {
+						const auto enumName = a_conditionPreset->GetName();
+						const bool bSelected = currentEnumName == enumName;
+						if (ImGui::Selectable(enumName.data(), bSelected)) {
+							if (!bSelected) {
+								conditionPreset = a_conditionPreset;
+								_presetName = conditionPreset->GetName();
+							    bEdited = true;
+							}
+						}
+						if (bSelected) {
+							ImGui::SetItemDefaultFocus();
+						}
+
+					    return RE::BSVisit::BSVisitControl::kContinue;
+					});
+					ImGui::EndCombo();
+				}
+				ImGui::PopID();
+
+				if (conditionPreset) {
+					UI::UICommon::SecondColumn(a_firstColumnWidthPercent);
+					UI::UICommon::TextUnformattedEllipsis(conditionPreset->GetDescription().data());
+				}
+			}
+		}
+
+		return bEdited;
+	}
+
+    RE::BSString ConditionPresetComponent::GetArgument() const
+	{
+		if (conditionPreset) {
+			return conditionPreset->GetName();
+		}
+
+		return ""sv;
+	}
+
+	bool ConditionPresetComponent::EvaluateAll(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const
+	{
+		if (conditionPreset) {
+			return conditionPreset->EvaluateAll(a_refr, a_clipGenerator, static_cast<SubMod*>(a_parentSubMod));
+		}
+
+		return false;
+	}
+
+	bool ConditionPresetComponent::EvaluateAny(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const
+	{
+		if (conditionPreset) {
+			return conditionPreset->EvaluateAny(a_refr, a_clipGenerator, static_cast<SubMod*>(a_parentSubMod));
+		}
+
+		return false;
+	}
+
+	RE::BSVisit::BSVisitControl ConditionPresetComponent::ForEachCondition(const std::function<RE::BSVisit::BSVisitControl(std::unique_ptr<ICondition>&)>& a_func) const
+	{
+		if (conditionPreset) {
+			return conditionPreset->ForEachCondition(a_func);
+		}
+
+		return RE::BSVisit::BSVisitControl::kContinue;
+	}
+
+    void ConditionPresetComponent::TryFindPreset()
+	{
+		if (const auto parentMod = GetParentMod()) {
+			conditionPreset = parentMod->GetConditionPreset(_presetName);
+		}
+	}
+
+    ReplacerMod* ConditionPresetComponent::GetParentMod() const
+	{
+		if (const auto parentCondition = GetParentCondition()) {
+			if (const auto parentConditionSet = parentCondition->GetParentConditionSet()) {
+				if (const auto parentSubMod = parentConditionSet->GetParentSubMod()) {
+					return parentSubMod->GetParentMod();
+				}
+			}
+		}
+
+		return nullptr;
 	}
 }

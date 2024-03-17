@@ -19,9 +19,10 @@ bool SubMod::AddReplacementAnimation(std::string_view a_animPath, uint16_t a_ori
 		auto& animFile = search->second;
 		if (animFile.variants) {
 			std::vector<ReplacementAnimation::Variant> variants;
+			int32_t i = 0;
 			for (auto& variantToAdd : *animFile.variants) {
 				if (uint16_t newIndex = a_replacerProjectData->TryAddAnimationToAnimationBundleNames(variantToAdd.fullPath, variantToAdd.hash); newIndex != static_cast<uint16_t>(-1)) {
-					variants.emplace_back(newIndex, Utils::GetFileNameWithExtension(variantToAdd.fullPath));
+					variants.emplace_back(newIndex, Utils::GetFileNameWithExtension(variantToAdd.fullPath), i++);
 				}
 			}
 
@@ -228,24 +229,6 @@ void SubMod::SetCustomBlendTime(CustomBlendType a_type, float a_value)
 	}
 }
 
-bool SubMod::DoesUserConfigExist() const
-{
-	std::filesystem::path jsonPath(_path);
-	jsonPath = jsonPath / "user.json"sv;
-
-	return is_regular_file(jsonPath);
-}
-
-void SubMod::DeleteUserConfig() const
-{
-	std::filesystem::path jsonPath(_path);
-	jsonPath = jsonPath / "user.json"sv;
-
-	if (is_regular_file(jsonPath)) {
-		std::filesystem::remove(jsonPath);
-	}
-}
-
 bool SubMod::HasInvalidConditions() const
 {
 	return _conditionSet->HasInvalidConditions() || (_synchronizedConditionSet && _synchronizedConditionSet->HasInvalidConditions());
@@ -286,15 +269,15 @@ bool SubMod::ReloadConfig()
 				parseResult.name = _name;
 				parseResult.description = _description;
 				parseResult.configSource = Parsing::ConfigSource::kUser;
-				bDeserializeSuccess = DeserializeSubMod(userPath, Parsing::DeserializeMode::kWithoutNameDescription, parseResult);
+				bDeserializeSuccess = DeserializeSubMod(userPath, Parsing::DeserializeMode::kDataOnly, parseResult);
 			}
 		} else {
 			if (bUserJsonFound) {
 				parseResult.configSource = Parsing::ConfigSource::kUser;
-				if (!DeserializeSubMod(configPath, Parsing::DeserializeMode::kNameDescriptionOnly, parseResult)) {
+				if (!DeserializeSubMod(configPath, Parsing::DeserializeMode::kInfoOnly, parseResult)) {
 					return false;
 				}
-				bDeserializeSuccess = DeserializeSubMod(userPath, Parsing::DeserializeMode::kWithoutNameDescription, parseResult);
+				bDeserializeSuccess = DeserializeSubMod(userPath, Parsing::DeserializeMode::kDataOnly, parseResult);
 			} else {
 				parseResult.configSource = Parsing::ConfigSource::kAuthor;
 				bDeserializeSuccess = DeserializeSubMod(configPath, Parsing::DeserializeMode::kFull, parseResult);
@@ -435,17 +418,34 @@ void SubMod::Serialize(rapidjson::Document& a_doc, ConditionEditMode a_editMode)
 				}
 
 				if (replacementAnimation->HasVariants()) {
+					auto variantMode = replacementAnimation->GetVariants().GetVariantMode();
+					animValue.AddMember("variantMode", static_cast<int>(variantMode), allocator);
+
+					if (variantMode == ReplacementAnimation::VariantMode::kSequential) {
+						if (replacementAnimation->GetVariants().CanReplaceOnLoopBeforeSequenceFinishes()) {
+							animValue.AddMember("letReplaceOnLoopBeforeSequenceFinishes", replacementAnimation->GetVariants().CanReplaceOnLoopBeforeSequenceFinishes(), allocator);
+						}
+					}
+
 					rapidjson::Value variantsValue(rapidjson::kArrayType);
 					replacementAnimation->ForEachVariant([&](const ReplacementAnimation::Variant& a_variant) {
-						if (a_variant.ShouldSaveToJson()) {
+						if (a_variant.ShouldSaveToJson(variantMode)) {
 							rapidjson::Value variantValue(rapidjson::kObjectType);
 
 							variantValue.AddMember("filename", rapidjson::StringRef(a_variant.GetFilename().data(), a_variant.GetFilename().length()), allocator);
-							if (a_variant.GetWeight() != 1.f) {
-								variantValue.AddMember("weight", a_variant.GetWeight(), allocator);
-							}
+							
 							if (a_variant.IsDisabled()) {
 								variantValue.AddMember("disabled", a_variant.IsDisabled(), allocator);
+							}
+
+							if (variantMode == ReplacementAnimation::VariantMode::kRandom && a_variant.GetWeight() != 1.f) {
+								variantValue.AddMember("weight", a_variant.GetWeight(), allocator);
+							}
+
+							if (variantMode == ReplacementAnimation::VariantMode::kSequential) {
+								if (a_variant.ShouldPlayOnce()) {
+									variantValue.AddMember("playOnce", a_variant.ShouldPlayOnce(), allocator);
+								}
 							}
 
 							variantsValue.PushBack(variantValue, allocator);
@@ -811,12 +811,59 @@ void SubMod::SharedRandomFloats::RemoveActiveClip(ActiveClip* a_activeClip)
 	}
 }
 
+void ReplacerMod::LoadParseResult(Parsing::ModParseResult& a_parseResult)
+{
+	_name = a_parseResult.name;
+    _author = a_parseResult.author;
+	_description = a_parseResult.description;
+	_path = a_parseResult.path;
+
+	LoadConditionPresets(a_parseResult.conditionPresets);
+
+	SetDirty(false);
+}
+
 void ReplacerMod::SetName(std::string_view a_name)
 {
 	const auto previousName = _name;
 	_name = a_name;
 
 	OpenAnimationReplacer::GetSingleton().OnReplacerModNameChanged(previousName, this);
+}
+
+bool ReplacerMod::ReloadConfig()
+{
+	Parsing::ModParseResult parseResult;
+
+	std::filesystem::path directoryPath(_path);
+
+    const auto configPath = directoryPath / "config.json"sv;
+	const auto userPath = directoryPath / "user.json"sv;
+	const bool bConfigJsonFound = is_regular_file(configPath);
+	const bool bUserJsonFound = is_regular_file(userPath);
+
+	if (bConfigJsonFound || bUserJsonFound) {
+        bool bDeserializeSuccess = false;
+        if (bUserJsonFound) {
+			parseResult.configSource = Parsing::ConfigSource::kUser;
+			if (!DeserializeMod(configPath, Parsing::DeserializeMode::kInfoOnly, parseResult)) {
+				return false;
+			}
+			bDeserializeSuccess = DeserializeMod(userPath, Parsing::DeserializeMode::kDataOnly, parseResult);
+		} else {
+			parseResult.configSource = Parsing::ConfigSource::kAuthor;
+			bDeserializeSuccess = DeserializeMod(configPath, Parsing::DeserializeMode::kFull, parseResult);
+		}
+
+		if (bDeserializeSuccess) {
+			LoadParseResult(parseResult);
+			auto& detectedProblems = DetectedProblems::GetSingleton();
+			detectedProblems.CheckForReplacerModsWithInvalidConditions();
+			return true;
+		}
+	}
+
+	return false;
 }
 
 void ReplacerMod::SaveConfig(ConditionEditMode a_editMode)
@@ -860,13 +907,32 @@ void ReplacerMod::Serialize(rapidjson::Document& a_doc) const
 	// write mod description
 	rapidjson::Value descriptionValue(rapidjson::StringRef(_description.data(), _description.length()));
 	a_doc.AddMember("description", descriptionValue, allocator);
+
+	// write condition presets
+	rapidjson::Value presetArrayValue(rapidjson::kArrayType);
+	ForEachConditionPreset([&](Conditions::ConditionPreset* a_preset) {
+		rapidjson::Value conditionPresetValue(rapidjson::kObjectType);
+		conditionPresetValue.AddMember("name", rapidjson::StringRef(a_preset->GetName().data(), a_preset->GetName().length()), allocator);
+		const auto conditionPresetDescription = a_preset->GetDescription();
+		if (!conditionPresetDescription.empty()) {
+			conditionPresetValue.AddMember("description", rapidjson::StringRef(conditionPresetDescription.data(), conditionPresetDescription.length()), allocator);
+		}
+		rapidjson::Value conditionsValue = a_preset->Serialize(allocator);
+		conditionPresetValue.AddMember("conditions", conditionsValue, allocator);
+
+		presetArrayValue.PushBack(conditionPresetValue, allocator);
+
+		return RE::BSVisit::BSVisitControl::kContinue;
+	});
+
+	if (!presetArrayValue.Empty()) {
+		a_doc.AddMember("conditionPresets", presetArrayValue, allocator);
+	}
 }
 
 void ReplacerMod::AddSubMod(std::unique_ptr<SubMod>& a_subMod)
 {
 	WriteLocker locker(_dataLock);
-
-	a_subMod->_parentMod = this;
 
 	const auto insertPos = std::ranges::upper_bound(_subMods, a_subMod, [](const auto& a_lhs, const auto& a_rhs) {
 		return a_lhs->GetPriority() > a_rhs->GetPriority();
@@ -891,7 +957,7 @@ SubMod* ReplacerMod::GetSubMod(std::string_view a_path) const
 	});
 
 	if (it != _subMods.end()) {
-		return (*it).get();
+		return it->get();
 	}
 
 	return nullptr;
@@ -920,6 +986,157 @@ void ReplacerMod::SortSubMods()
 	std::ranges::sort(_subMods, [](const auto& a_lhs, const auto& a_rhs) {
 		return a_lhs->GetPriority() > a_rhs->GetPriority();
 	});
+}
+
+void ReplacerMod::AddConditionPreset(std::unique_ptr<Conditions::ConditionPreset>& a_conditionPreset)
+{
+	WriteLocker locker(_presetsLock);
+
+    const auto it = std::ranges::lower_bound(_conditionPresets, a_conditionPreset, [](const auto& a_lhs, const auto& a_rhs) {
+		return a_lhs->GetName() < a_rhs->GetName();
+	});
+
+	_conditionPresets.insert(it, std::move(a_conditionPreset));
+}
+
+void ReplacerMod::RemoveConditionPreset(std::string_view a_name)
+{
+	WriteLocker locker(_presetsLock);
+
+	const auto search = std::ranges::find_if(_conditionPresets, [&](const auto& a_conditionPreset) {
+		return a_conditionPreset->GetName() == a_name;
+	});
+
+	if (search == _conditionPresets.end()) {
+	    return;
+	}
+
+	// remove it from all conditions. rather do this once than have the overhead of a weak pointer during gameplay
+	ForEachSubMod([&](SubMod* a_subMod) {
+		if (const auto conditionSet = a_subMod->GetConditionSet()) {
+			conditionSet->ForEachCondition([&](std::unique_ptr<Conditions::ICondition>& a_condition) {
+				if (a_condition->GetConditionType() == Conditions::ConditionType::kPreset) {
+					const auto presetCondition = static_cast<Conditions::PRESETCondition*>(a_condition.get());
+					if (presetCondition->conditionsComponent->conditionPreset == search->get()) {
+						presetCondition->conditionsComponent->conditionPreset = nullptr;
+					}
+				}
+				return RE::BSVisit::BSVisitControl::kContinue;
+			});
+		}
+		return RE::BSVisit::BSVisitControl::kContinue;
+	});
+
+    _conditionPresets.erase(search);
+}
+
+void ReplacerMod::LoadConditionPresets(std::vector<std::unique_ptr<Conditions::ConditionPreset>>& a_conditionPresets)
+{
+	// remove references from all conditions
+	ForEachSubMod([&](SubMod* a_subMod) {
+		if (const auto conditionSet = a_subMod->GetConditionSet()) {
+			conditionSet->ForEachCondition([&](std::unique_ptr<Conditions::ICondition>& a_condition) {
+				if (a_condition->GetConditionType() == Conditions::ConditionType::kPreset) {
+					const auto presetCondition = static_cast<Conditions::PRESETCondition*>(a_condition.get());
+					presetCondition->conditionsComponent->conditionPreset = nullptr;
+				}
+				return RE::BSVisit::BSVisitControl::kContinue;
+			});
+		}
+		return RE::BSVisit::BSVisitControl::kContinue;
+	});
+
+    {
+        WriteLocker locker(_presetsLock);
+
+	    _conditionPresets.clear();
+    }
+
+	for (auto& conditionPreset : a_conditionPresets) {
+	    AddConditionPreset(conditionPreset);
+	}
+
+	// try to restore references in conditions
+	ForEachSubMod([&](SubMod* a_subMod) {
+		if (const auto conditionSet = a_subMod->GetConditionSet()) {
+			conditionSet->ForEachCondition([&](std::unique_ptr<Conditions::ICondition>& a_condition) {
+				if (a_condition->GetConditionType() == Conditions::ConditionType::kPreset) {
+					const auto presetCondition = static_cast<Conditions::PRESETCondition*>(a_condition.get());
+					presetCondition->conditionsComponent->TryFindPreset();
+				}
+				return RE::BSVisit::BSVisitControl::kContinue;
+			});
+		}
+		return RE::BSVisit::BSVisitControl::kContinue;
+	});
+}
+
+bool ReplacerMod::HasConditionPresets() const
+{
+	ReadLocker locker(_presetsLock);
+
+	return _conditionPresets.size() > 0;
+}
+
+bool ReplacerMod::HasConditionPreset(std::string_view a_name) const
+{
+	ReadLocker locker(_presetsLock);
+
+	return GetConditionPreset(a_name) != nullptr;
+}
+
+Conditions::ConditionPreset* ReplacerMod::GetConditionPreset(std::string_view a_name) const
+{
+	ReadLocker locker(_presetsLock);
+
+	const auto it = std::ranges::find_if(_conditionPresets, [&](const auto& a_conditionPreset) {
+		return a_conditionPreset->GetName() == a_name;
+	});
+
+	if (it != _conditionPresets.end()) {
+		return it->get();
+	}
+
+	return nullptr;
+}
+
+RE::BSVisit::BSVisitControl ReplacerMod::ForEachConditionPreset(const std::function<RE::BSVisit::BSVisitControl(Conditions::ConditionPreset*)>& a_func) const
+{
+	using Result = RE::BSVisit::BSVisitControl;
+
+	ReadLocker locker(_presetsLock);
+
+	for (auto& preset : _conditionPresets) {
+		const auto result = a_func(preset.get());
+		if (result == Result::kStop) {
+			return result;
+		}
+	}
+
+	return Result::kContinue;
+}
+
+void ReplacerMod::SortConditionPresets()
+{
+	WriteLocker locker(_presetsLock);
+
+	std::ranges::sort(_conditionPresets, [](const auto& a_lhs, const auto& a_rhs) {
+		return a_lhs->GetName() < a_rhs->GetName();
+	});
+}
+
+bool ReplacerMod::HasInvalidConditions() const
+{
+	using Result = RE::BSVisit::BSVisitControl;
+
+	const auto result = ForEachConditionPreset([&](const Conditions::ConditionPreset* a_preset) {
+		if (a_preset->IsEmpty() || a_preset->HasInvalidConditions()) {
+		    return Result::kStop;
+		}
+		return Result::kContinue;
+	});
+
+	return result == Result::kStop;
 }
 
 ReplacementAnimation* AnimationReplacements::EvaluateConditionsAndGetReplacementAnimation(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const

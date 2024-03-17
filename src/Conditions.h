@@ -32,7 +32,7 @@ namespace Conditions
 		[[nodiscard]] bool IsValid() const override { return false; }
 
 	protected:
-		bool EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const override { return false; }
+		bool EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const override { return false; }
 		std::string _argument;
 	};
 
@@ -56,7 +56,7 @@ namespace Conditions
 		[[nodiscard]] bool IsDeprecated() const override { return true; }
 
 	protected:
-		bool EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const override { return false; }
+		bool EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const override { return false; }
 		std::string _argument;
 	};
 
@@ -78,7 +78,7 @@ namespace Conditions
 		MultiConditionComponent* conditionsComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class ANDCondition : public ConditionBase
@@ -99,7 +99,7 @@ namespace Conditions
 		MultiConditionComponent* conditionsComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsFormCondition : public ConditionBase
@@ -120,7 +120,7 @@ namespace Conditions
 		FormConditionComponent* formComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsEquippedCondition : public ConditionBase
@@ -146,7 +146,7 @@ namespace Conditions
 		BoolConditionComponent* boolComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		RE::TESForm* GetEquippedForm(RE::TESObjectREFR* a_refr) const;
 	};
 
@@ -175,7 +175,7 @@ namespace Conditions
 		BoolConditionComponent* boolComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		RE::TESForm* GetEquippedForm(RE::TESObjectREFR* a_refr) const;
 		int8_t GetEquippedType(RE::TESObjectREFR* a_refr) const;
 
@@ -205,7 +205,7 @@ namespace Conditions
 		BoolConditionComponent* boolComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		RE::BGSKeywordForm* GetEquippedKeywordForm(RE::TESObjectREFR* a_refr) const;
 	};
 
@@ -228,7 +228,7 @@ namespace Conditions
 		FormConditionComponent* formComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		static RE::TESForm* GetEquippedPower(RE::TESObjectREFR* a_refr);
 	};
 
@@ -250,7 +250,7 @@ namespace Conditions
 		FormConditionComponent* formComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsWornHasKeywordCondition : public ConditionBase
@@ -271,7 +271,7 @@ namespace Conditions
 		KeywordConditionComponent* keywordComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsFemaleCondition : public ConditionBase
@@ -282,7 +282,7 @@ namespace Conditions
 		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 0, 0 }; }
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsChildCondition : public ConditionBase
@@ -293,7 +293,7 @@ namespace Conditions
 		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 0, 0 }; }
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsPlayerTeammateCondition : public ConditionBase
@@ -304,7 +304,7 @@ namespace Conditions
 		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 0, 0 }; }
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsInInteriorCondition : public ConditionBase
@@ -315,7 +315,7 @@ namespace Conditions
 		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 0, 0 }; }
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsInFactionCondition : public ConditionBase
@@ -336,7 +336,7 @@ namespace Conditions
 		FormConditionComponent* formComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class HasKeywordCondition : public ConditionBase
@@ -357,7 +357,7 @@ namespace Conditions
 		KeywordConditionComponent* keywordComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class HasMagicEffectCondition : public ConditionBase
@@ -380,7 +380,7 @@ namespace Conditions
 		BoolConditionComponent* boolComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class HasMagicEffectWithKeywordCondition : public ConditionBase
@@ -403,7 +403,7 @@ namespace Conditions
 		BoolConditionComponent* boolComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class HasPerkCondition : public ConditionBase
@@ -424,7 +424,7 @@ namespace Conditions
 		FormConditionComponent* formComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class HasSpellCondition : public ConditionBase
@@ -445,7 +445,7 @@ namespace Conditions
 		FormConditionComponent* formComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class CompareValues : public ConditionBase
@@ -484,7 +484,7 @@ namespace Conditions
 		ComparisonConditionComponent* comparisonComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class LevelCondition : public ConditionBase
@@ -511,7 +511,7 @@ namespace Conditions
 		NumericConditionComponent* numericComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsActorBaseCondition : public ConditionBase
@@ -533,7 +533,7 @@ namespace Conditions
 		FormConditionComponent* formComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		static RE::TESNPC* GetActorBase(RE::TESObjectREFR* a_refr);
 	};
 
@@ -556,7 +556,7 @@ namespace Conditions
 		FormConditionComponent* formComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		static RE::TESRace* GetRace(RE::TESObjectREFR* a_refr);
 	};
 
@@ -579,7 +579,7 @@ namespace Conditions
 		FormConditionComponent* formComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class CurrentGameTimeCondition : public ConditionBase
@@ -604,7 +604,7 @@ namespace Conditions
 		NumericConditionComponent* numericComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		[[nodiscard]] static float GetHours();
 	};
 
@@ -632,7 +632,7 @@ namespace Conditions
 		NumericConditionComponent* numericComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsUniqueCondition : public ConditionBase
@@ -643,7 +643,7 @@ namespace Conditions
 		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 0, 0 }; }
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsClassCondition : public ConditionBase
@@ -665,7 +665,7 @@ namespace Conditions
 		FormConditionComponent* formComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		static RE::TESClass* GetTESClass(RE::TESObjectREFR* a_refr);
 	};
 
@@ -688,7 +688,7 @@ namespace Conditions
 		FormConditionComponent* formComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		static RE::TESCombatStyle* GetCombatStyle(RE::TESObjectREFR* a_refr);
 	};
 
@@ -711,7 +711,7 @@ namespace Conditions
 		FormConditionComponent* formComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		static RE::BGSVoiceType* GetVoiceType(RE::TESObjectREFR* a_refr);
 	};
 
@@ -723,7 +723,7 @@ namespace Conditions
 		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 0, 0 }; }
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsRunningCondition : public ConditionBase
@@ -734,7 +734,7 @@ namespace Conditions
 		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 0, 0 }; }
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsSneakingCondition : public ConditionBase
@@ -745,7 +745,7 @@ namespace Conditions
 		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 0, 0 }; }
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsSprintingCondition : public ConditionBase
@@ -756,7 +756,7 @@ namespace Conditions
 		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 0, 0 }; }
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsInAirCondition : public ConditionBase
@@ -767,7 +767,7 @@ namespace Conditions
 		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 0, 0 }; }
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsInCombatCondition : public ConditionBase
@@ -778,7 +778,7 @@ namespace Conditions
 		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 0, 0 }; }
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsWeaponDrawnCondition : public ConditionBase
@@ -789,7 +789,7 @@ namespace Conditions
 		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 0, 0 }; }
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsInLocationCondition : public ConditionBase
@@ -811,7 +811,7 @@ namespace Conditions
 		FormConditionComponent* formComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		static bool IsLocation(RE::BGSLocation* a_location, RE::BGSLocation* a_locationToCompare);
 	};
 
@@ -834,7 +834,7 @@ namespace Conditions
 	protected:
 		LocRefTypeConditionComponent* locRefTypeComponent;
 
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsParentCellCondition : public ConditionBase
@@ -856,7 +856,7 @@ namespace Conditions
 		FormConditionComponent* formComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsWorldSpaceCondition : public ConditionBase
@@ -878,7 +878,7 @@ namespace Conditions
 		FormConditionComponent* formComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class FactionRankCondition : public ConditionBase
@@ -906,7 +906,7 @@ namespace Conditions
 		NumericConditionComponent* numericComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 
 		int32_t GetFactionRank(RE::TESObjectREFR* a_refr) const;
 	};
@@ -930,7 +930,7 @@ namespace Conditions
 		NumericConditionComponent* numericComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 
 		static std::map<int32_t, std::string_view> GetEnumMap();
 	};
@@ -956,7 +956,7 @@ namespace Conditions
 		FormConditionComponent* formComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		static RE::TESShout* GetEquippedShout(RE::TESObjectREFR* a_refr);
 	};
 
@@ -980,7 +980,7 @@ namespace Conditions
 		//NumericConditionComponent* numericComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 
 		//static std::map<int32_t, std::string_view> GetEnumMap();
 	};
@@ -1005,7 +1005,7 @@ namespace Conditions
 		NumericConditionComponent* numericComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsReplacerEnabledCondition : public ConditionBase
@@ -1030,7 +1030,7 @@ namespace Conditions
 		TextConditionComponent* textComponentSubmod;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsCurrentPackageCondition : public ConditionBase
@@ -1052,7 +1052,7 @@ namespace Conditions
 		FormConditionComponent* formComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		static RE::TESPackage* GetCurrentPackage(RE::TESObjectREFR* a_refr);
 	};
 
@@ -1077,7 +1077,7 @@ namespace Conditions
 		KeywordConditionComponent* keywordComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 
 		static std::map<int32_t, std::string_view> GetEnumMap();
 	};
@@ -1102,7 +1102,7 @@ namespace Conditions
 		NumericConditionComponent* numericComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class HeightCondition : public ConditionBase
@@ -1125,7 +1125,7 @@ namespace Conditions
 		NumericConditionComponent* numericComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class WeightCondition : public ConditionBase
@@ -1148,7 +1148,7 @@ namespace Conditions
 		NumericConditionComponent* numericComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class MovementSpeedCondition : public ConditionBase
@@ -1175,7 +1175,7 @@ namespace Conditions
 		NumericConditionComponent* numericComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		float GetMovementSpeed(RE::Actor* a_actor) const;
 
 		static std::map<int32_t, std::string_view> GetEnumMap();
@@ -1201,7 +1201,7 @@ namespace Conditions
 		NumericConditionComponent* numericComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class WindSpeedCondition : public ConditionBase
@@ -1224,7 +1224,7 @@ namespace Conditions
 		NumericConditionComponent* numericComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		static float GetWindSpeed();
 	};
 
@@ -1252,7 +1252,7 @@ namespace Conditions
 		BoolConditionComponent* absoluteComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		float GetWindAngleDifference(RE::TESObjectREFR* a_refr) const;
 	};
 
@@ -1278,7 +1278,7 @@ namespace Conditions
 		NumericConditionComponent* numericComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsBlockingCondition : public ConditionBase
@@ -1289,7 +1289,7 @@ namespace Conditions
 		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 1, 0 }; }
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsCombatStateCondition : public ConditionBase
@@ -1312,7 +1312,7 @@ namespace Conditions
 		NumericConditionComponent* combatStateComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		RE::ACTOR_COMBAT_STATE GetCombatState(RE::Actor* a_actor) const;
 		std::string_view GetCombatStateName(RE::ACTOR_COMBAT_STATE a_state) const;
 
@@ -1341,7 +1341,7 @@ namespace Conditions
 		NumericConditionComponent* numericComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		int GetItemCount(RE::TESObjectREFR* a_refr) const;
 	};
 
@@ -1365,7 +1365,7 @@ namespace Conditions
 		NumericConditionComponent* numericComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		static float GetFallDistance(RE::TESObjectREFR* a_refr);
 	};
 
@@ -1389,7 +1389,7 @@ namespace Conditions
 		NumericConditionComponent* numericComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		static float GetFallDamage(RE::TESObjectREFR* a_refr);
 	};
 
@@ -1413,7 +1413,7 @@ namespace Conditions
 		NumericConditionComponent* packageProcedureTypeComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		RE::PACKAGE_PROCEDURE_TYPE GetPackageProcedureType(RE::Actor* a_actor) const;
 		std::string_view GetPackageProcedureTypeName(RE::PACKAGE_PROCEDURE_TYPE a_type) const;
 
@@ -1428,7 +1428,7 @@ namespace Conditions
 		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 1, 0 }; }
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsRidingCondition : public ConditionBase
@@ -1452,7 +1452,7 @@ namespace Conditions
 		BoolConditionComponent* boolComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsRidingHasKeywordCondition : public ConditionBase
@@ -1473,7 +1473,7 @@ namespace Conditions
 		KeywordConditionComponent* keywordComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsBeingRiddenCondition : public ConditionBase
@@ -1484,7 +1484,7 @@ namespace Conditions
 		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 1, 0 }; }
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsBeingRiddenByCondition : public ConditionBase
@@ -1508,7 +1508,7 @@ namespace Conditions
 		BoolConditionComponent* boolComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class CurrentFurnitureCondition : public ConditionBase
@@ -1532,7 +1532,7 @@ namespace Conditions
 		BoolConditionComponent* boolComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class CurrentFurnitureHasKeywordCondition : public ConditionBase
@@ -1556,7 +1556,7 @@ namespace Conditions
 		BoolConditionComponent* boolComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class TargetConditionBase : public ConditionBase
@@ -1586,7 +1586,7 @@ namespace Conditions
 		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 1, 0 }; }
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class CurrentTargetDistanceCondition : public TargetConditionBase
@@ -1609,7 +1609,7 @@ namespace Conditions
 		NumericConditionComponent* numericComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 
 		RE::TESObjectREFRPtr GetTarget(RE::TESObjectREFR* a_refr) const;
 	};
@@ -1636,7 +1636,7 @@ namespace Conditions
 		NumericConditionComponent* numericComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 
 		RE::TESObjectREFRPtr GetTarget(RE::TESObjectREFR* a_refr) const;
 		RE::TESNPC* GetActorBase(RE::TESObjectREFR* a_refr) const;
@@ -1667,7 +1667,7 @@ namespace Conditions
 		NumericConditionComponent* numericComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		RE::TESForm* GetEquippedForm(RE::TESObjectREFR* a_refr) const;
 	};
 
@@ -1708,7 +1708,7 @@ namespace Conditions
 		NumericConditionComponent* castingTypeComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		bool GetCastingType(RE::Actor* a_actor, RE::MagicSystem::CastingSource a_source, RE::MagicSystem::CastingType& a_outType) const;
 		std::string_view GetCastingTypeName(RE::MagicSystem::CastingType a_type) const;
 
@@ -1735,7 +1735,7 @@ namespace Conditions
 		NumericConditionComponent* deliveryTypeComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		bool GetDeliveryType(RE::Actor* a_actor, RE::MagicSystem::CastingSource a_source, RE::MagicSystem::Delivery& a_outDeliveryType) const;
 		std::string_view GetDeliveryTypeName(RE::MagicSystem::Delivery a_deliveryType) const;
 
@@ -1761,7 +1761,7 @@ namespace Conditions
 		NumericConditionComponent* stageIndexComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class CurrentWeatherHasFlagCondition : public ConditionBase
@@ -1784,7 +1784,7 @@ namespace Conditions
 		NumericConditionComponent* weatherFlagComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		std::string_view GetFlagName(int32_t a_index) const;
 
 		static std::map<int32_t, std::string_view> GetEnumMap();
@@ -1812,7 +1812,7 @@ namespace Conditions
 		NumericConditionComponent* numericComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		int GetItemCount(RE::TESObjectREFR* a_refr) const;
 	};
 
@@ -1840,7 +1840,7 @@ namespace Conditions
 		BoolConditionComponent* absoluteComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 
 		RE::TESObjectREFRPtr GetTarget(RE::TESObjectREFR* a_refr) const;
 		float GetRelativeAngle(RE::TESObjectREFR* a_refr) const;
@@ -1863,7 +1863,7 @@ namespace Conditions
 		BoolConditionComponent* boolComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 
 		RE::TESObjectREFRPtr GetTarget(RE::TESObjectREFR* a_refr) const;
 	};
@@ -1888,7 +1888,7 @@ namespace Conditions
 		NumericConditionComponent* numericComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsTalkingCondition : public ConditionBase
@@ -1899,7 +1899,7 @@ namespace Conditions
 		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 2, 0 }; }
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsGreetingPlayerCondition : public ConditionBase
@@ -1910,7 +1910,7 @@ namespace Conditions
 		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 2, 0 }; }
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsInSceneCondition : public ConditionBase
@@ -1921,7 +1921,7 @@ namespace Conditions
 		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 2, 0 }; }
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsInSpecifiedSceneCondition : public ConditionBase
@@ -1942,7 +1942,7 @@ namespace Conditions
 		FormConditionComponent* formComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsScenePlayingCondition : public ConditionBase
@@ -1962,18 +1962,18 @@ namespace Conditions
 		FormConditionComponent* formComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class IsDoingFavorCondition : public ConditionBase
 	{
 	public:
-		[[nodiscard]] RE::BSString GetName() const override { return "IsDoingFavor "sv.data(); }
+		[[nodiscard]] RE::BSString GetName() const override { return "IsDoingFavor"sv.data(); }
 		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the ref has been asked to do something by the player."sv.data(); }
 		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 2, 0 }; }
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class AttackStateCondition : public ConditionBase
@@ -1998,7 +1998,7 @@ namespace Conditions
 		NumericConditionComponent* attackStateComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 
 		RE::ATTACK_STATE_ENUM GetAttackState(RE::TESObjectREFR* a_refr) const;
 
@@ -2024,7 +2024,7 @@ namespace Conditions
 		TextConditionComponent* textComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class TARGETCondition : public TargetConditionBase
@@ -2049,7 +2049,7 @@ namespace Conditions
 		MultiConditionComponent* conditionsComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 
 		RE::TESObjectREFRPtr GetTarget(RE::TESObjectREFR* a_refr) const;
 	};
@@ -2075,7 +2075,7 @@ namespace Conditions
 		MultiConditionComponent* conditionsComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class LightLevelCondition : public ConditionBase
@@ -2100,7 +2100,7 @@ namespace Conditions
 		NumericConditionComponent* numericComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class LocationHasKeywordCondition : public ConditionBase
@@ -2121,7 +2121,7 @@ namespace Conditions
 		KeywordConditionComponent* keywordComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 
 	class LifeStateCondition : public ConditionBase
@@ -2146,7 +2146,7 @@ namespace Conditions
 		NumericConditionComponent* lifeStateComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 
 		RE::ACTOR_LIFE_STATE GetLifeState(RE::TESObjectREFR* a_refr) const;
 
@@ -2176,7 +2176,7 @@ namespace Conditions
 		NumericConditionComponent* sitSleepStateComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 
 		RE::SIT_SLEEP_STATE GetSitSleepState(RE::TESObjectREFR* a_refr) const;
 
@@ -2202,6 +2202,203 @@ namespace Conditions
 		MultiConditionComponent* conditionsComponent;
 
 	protected:
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+	};
+
+	class PRESETCondition : public ConditionBase
+	{
+	public:
+		PRESETCondition()
+		{
+			conditionsComponent = AddComponent<ConditionPresetComponent>("Preset");
+		}
+
+		[[nodiscard]] RE::BSString GetArgument() const override { return conditionsComponent->GetArgument(); }
+		[[nodiscard]] RE::BSString GetName() const override { return "PRESET"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Evaluate a condition preset defined in the replacer mod in place of this condition. Useful if you want to reuse the same set of conditions in multiple submods.\n\nManage condition presets in the replacer mod and don't forget to save the config!"sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 2, 2, 0 }; }
+
+		[[nodiscard]] bool IsValid() const override { return conditionsComponent->IsValid(); }
+
+		[[nodiscard]] ConditionType GetConditionType() const override { return ConditionType::kPreset; }
+
+		ConditionPresetComponent* conditionsComponent;
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+	};
+
+	class MOUNTCondition : public ConditionBase
+	{
+	public:
+		MOUNTCondition()
+		{
+			conditionsComponent = AddComponent<MultiConditionComponent>("Conditions");
+		}
+
+		[[nodiscard]] RE::BSString GetArgument() const override { return conditionsComponent->GetArgument(); }
+
+		[[nodiscard]] RE::BSString GetName() const override { return "MOUNT"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if all of the child conditions are true, but evaluates them for the mount instead."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 2, 2, 0 }; }
+
+		[[nodiscard]] bool IsValid() const override { return conditionsComponent->IsValid(); }
+
+		[[nodiscard]] RE::TESObjectREFR* GetRefrToEvaluate(RE::TESObjectREFR* a_refr) const override;
+
+		MultiConditionComponent* conditionsComponent;
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+	};
+
+	class IsAttackTypeKeywordCondition : public ConditionBase
+	{
+	public:
+		IsAttackTypeKeywordCondition()
+		{
+			keywordComponent = AddComponent<KeywordConditionComponent>("Keyword");
+		}
+
+		[[nodiscard]] RE::BSString GetArgument() const override { return keywordComponent->GetArgument(); }
+		[[nodiscard]] RE::BSString GetCurrent(RE::TESObjectREFR* a_refr) const override;
+
+		[[nodiscard]] RE::BSString GetName() const override { return "IsAttackTypeKeyword"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the performed attack type is equal to the specified keyword."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 2, 2, 0 }; }
+
+		KeywordConditionComponent* keywordComponent;
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+
+		RE::BGSKeyword* GetAttackType(RE::TESObjectREFR* a_refr) const;
+	};
+
+	class IsAttackTypeFlagCondition : public ConditionBase
+	{
+	public:
+		IsAttackTypeFlagCondition()
+		{
+			attackFlagComponent = AddComponent<NumericConditionComponent>("Flag", "The performed attack must have this flag enabled.");
+		}
+
+		void PostInitialize() override;
+
+		[[nodiscard]] RE::BSString GetArgument() const override;
+		[[nodiscard]] RE::BSString GetCurrent(RE::TESObjectREFR* a_refr) const override;
+
+		[[nodiscard]] RE::BSString GetName() const override { return "IsAttackTypeFlag"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the performed attack has the specified flag enabled."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 2, 2, 0 }; }
+
+		NumericConditionComponent* attackFlagComponent;
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+		std::string_view GetFlagName(int32_t a_index) const;
+
+		static std::map<int32_t, std::string_view> GetEnumMap();
+
+        RE::NiPointer<RE::BGSAttackData> GetAttackData(RE::TESObjectREFR* a_refr) const;
+	};
+
+	class MovementSurfaceAngleCondition : public ConditionBase
+	{
+	public:
+		MovementSurfaceAngleCondition()
+		{
+			comparisonComponent = AddComponent<ComparisonConditionComponent>("Comparison");
+			numericComponent = AddComponent<NumericConditionComponent>("Numeric value");
+			degreesComponent = AddComponent<BoolConditionComponent>("Degrees", "Whether the angle values are in degrees or radians.");
+		}
+
+		[[nodiscard]] RE::BSString GetArgument() const override;
+		[[nodiscard]] RE::BSString GetCurrent(RE::TESObjectREFR* a_refr) const override;
+
+		[[nodiscard]] RE::BSString GetName() const override { return "MovementSurfaceAngle"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Tests the angle of the surface that the ref is walking on against a numeric value.\nThe angle is calculated by comparing the surface's normal vector and the ref's forward vector."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 2, 2, 0 }; }
+
+		ComparisonConditionComponent* comparisonComponent;
+		NumericConditionComponent* numericComponent;
+		BoolConditionComponent* degreesComponent;
+		BoolConditionComponent* absoluteComponent;
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+		float GetSurfaceAngle(RE::TESObjectREFR* a_refr) const;
+	};
+
+	class LocationClearedCondition : public ConditionBase
+	{
+	public:
+		[[nodiscard]] RE::BSString GetName() const override { return "LocationCleared"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the current location is cleared."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 2, 2, 0 }; }
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+	};
+
+	class IsSummonedCondition : public ConditionBase
+	{
+	public:
+		[[nodiscard]] RE::BSString GetName() const override { return "IsSummoned"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the ref is a summoned creature."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 2, 2, 0 }; }
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+	};
+
+	class IsEquippedHasEnchantmentCondition : public ConditionBase
+	{
+	public:
+		IsEquippedHasEnchantmentCondition()
+		{
+			formComponent = AddComponent<FormConditionComponent>("Enchantment", "The enchantment to check.");
+			leftHandComponent = AddComponent<BoolConditionComponent>("Left hand", "Enable to check left hand. Disable to check right hand.");
+			chargedComponent = AddComponent<BoolConditionComponent>("Charged", "Enable to check if the enchantment has enough charge.");
+		}
+
+		[[nodiscard]] RE::BSString GetArgument() const override;
+		[[nodiscard]] RE::BSString GetCurrent(RE::TESObjectREFR* a_refr) const override;
+
+		[[nodiscard]] RE::BSString GetName() const override { return "IsEquippedHasEnchantment"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the ref has an item equipped in the right or left hand that has the specified enchantment."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 2, 2, 0 }; }
+
+		FormConditionComponent* formComponent;
+		BoolConditionComponent* leftHandComponent;
+		BoolConditionComponent* chargedComponent;
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+	};
+
+	class IsEquippedHasEnchantmentWithKeywordCondition : public ConditionBase
+	{
+	public:
+		IsEquippedHasEnchantmentWithKeywordCondition()
+		{
+			keywordComponent = AddComponent<KeywordConditionComponent>("Keyword");
+			leftHandComponent = AddComponent<BoolConditionComponent>("Left hand", "Enable to check left hand. Disable to check right hand.");
+			chargedComponent = AddComponent<BoolConditionComponent>("Charged", "Enable to check if the enchantment has enough charge.");
+		}
+
+		[[nodiscard]] RE::BSString GetArgument() const override;
+		[[nodiscard]] RE::BSString GetCurrent(RE::TESObjectREFR* a_refr) const override;
+
+		[[nodiscard]] RE::BSString GetName() const override { return "IsEquippedHasEnchantmentWithKeyword"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the ref has an item equipped in the right or left hand that has an enchantment with the specified keyword."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 2, 2, 0 }; }
+
+		KeywordConditionComponent* keywordComponent;
+		BoolConditionComponent* leftHandComponent;
+		BoolConditionComponent* chargedComponent;
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 }

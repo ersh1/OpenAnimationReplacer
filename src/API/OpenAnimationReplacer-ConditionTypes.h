@@ -20,7 +20,16 @@ namespace Conditions
 		kComparison,
 		kRandom,
 
-		kCustom
+		kCustom,
+
+		kPreset
+	};
+
+	enum class ConditionType : uint8_t
+	{
+	    kNormal,
+		kCustom,
+		kPreset
 	};
 
 	enum class ComparisonOperator : uint8_t
@@ -58,7 +67,7 @@ namespace Conditions
 	public:
 		virtual ~ICondition() = default;
 
-		[[nodiscard]] virtual bool Evaluate(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const = 0;
+		[[nodiscard]] virtual bool Evaluate(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const = 0;
 
 		virtual void Initialize(void* a_value) = 0;  // rapidjson::Value* a_value
 		virtual void InitializeLegacy([[maybe_unused]] const char* a_argument) {}
@@ -86,7 +95,7 @@ namespace Conditions
 		[[nodiscard]] virtual IConditionComponent* GetComponent(uint32_t a_index) const = 0;
 		virtual IConditionComponent* AddComponent(ConditionComponentFactory a_factory, const char* a_name, const char* a_description = "") = 0;
 
-		[[nodiscard]] virtual bool IsCustomCondition() const = 0;
+		[[nodiscard]] virtual ConditionType GetConditionType() const = 0;
 		[[nodiscard]] virtual ICondition* GetWrappedCondition() const = 0;
 
 		[[nodiscard]] virtual bool IsDeprecated() const { return false; }
@@ -96,7 +105,7 @@ namespace Conditions
 		void SetParentConditionSet(ConditionSet* a_conditionSet) { _parentConditionSet = a_conditionSet; }
 
 	protected:
-		virtual bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const = 0;
+		virtual bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_subMod) const = 0;
 
 		ConditionSet* _parentConditionSet = nullptr;
 	};
@@ -161,8 +170,8 @@ namespace Conditions
 		[[nodiscard]] RE::BSString GetDefaultDescription() const override { return DEFAULT_DESCRIPTION; }
 
 		[[nodiscard]] virtual ConditionSet* GetConditions() const = 0;
-		[[nodiscard]] virtual bool EvaluateAll(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const = 0;
-		[[nodiscard]] virtual bool EvaluateAny(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const = 0;
+		[[nodiscard]] virtual bool EvaluateAll(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const = 0;
+		[[nodiscard]] virtual bool EvaluateAny(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const = 0;
 		virtual RE::BSVisit::BSVisitControl ForEachCondition(const std::function<RE::BSVisit::BSVisitControl(std::unique_ptr<ICondition>&)>& a_func) const = 0;
 
 		[[nodiscard]] virtual bool GetShouldDrawEvaluateResultForChildConditions() const = 0;
@@ -302,7 +311,7 @@ namespace Conditions
 		[[nodiscard]] RE::BSString GetDefaultDescription() const override { return DEFAULT_DESCRIPTION; }
 
 		// Returns true if the given clip generator is active. This means that the random float is going to be stable for this clip and won't be randomized again on each evaluation until explicitly reset
-		virtual bool GetRandomFloat(RE::hkbClipGenerator* a_clipGenerator, float& a_outFloat) const = 0;
+		virtual bool GetRandomFloat(RE::hkbClipGenerator* a_clipGenerator, float& a_outFloat, void* a_parentSubMod) const = 0;
 		[[nodiscard]] virtual float GetMinValue() const = 0;
 		[[nodiscard]] virtual float GetMaxValue() const = 0;
 		virtual void SetMinValue(float a_min) = 0;
@@ -332,7 +341,7 @@ namespace Conditions
 	public:
 		CustomCondition();
 
-		bool Evaluate(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		bool Evaluate(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 
 		void Initialize(void* a_value) override { return _wrappedCondition->Initialize(a_value); }
 		void Serialize(void* a_value, void* a_allocator, [[maybe_unused]] ICondition* a_outerCondition) override { _wrappedCondition->Serialize(a_value, a_allocator, this); }
@@ -355,7 +364,7 @@ namespace Conditions
 		[[nodiscard]] IConditionComponent* GetComponent(uint32_t a_index) const override { return _wrappedCondition->GetComponent(a_index); }
 		IConditionComponent* AddComponent(ConditionComponentFactory a_factory, const char* a_name, const char* a_description = "") override { return _wrappedCondition->AddComponent(a_factory, a_name, a_description); }
 
-		[[nodiscard]] bool IsCustomCondition() const override { return true; }
+		[[nodiscard]] ConditionType GetConditionType() const override { return ConditionType::kCustom; }
 		[[nodiscard]] ICondition* GetWrappedCondition() const override { return _wrappedCondition.get(); }
 
 		IConditionComponent* AddBaseComponent(ConditionComponentType a_componentType, const char* a_name, const char* a_description = "");

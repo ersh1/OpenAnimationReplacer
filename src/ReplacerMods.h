@@ -20,7 +20,8 @@ enum class ConditionEditMode : int
 class SubMod
 {
 public:
-	SubMod()
+	SubMod(ReplacerMod* a_parentMod) :
+		_parentMod(a_parentMod)
 	{
 		_conditionSet = std::make_unique<Conditions::ConditionSet>(this);
 	}
@@ -89,8 +90,6 @@ public:
 	bool IsFromUserConfig() const { return _configSource == Parsing::ConfigSource::kUser; }
 	bool IsFromLegacyConfig() const { return _configSource >= Parsing::ConfigSource::kLegacy; }
 	bool IsFromLegacyActorBase() const { return _configSource == Parsing::ConfigSource::kLegacyActorBase; }
-	bool DoesUserConfigExist() const;
-	void DeleteUserConfig() const;
 	void SetDirty(bool a_bDirty) { _bDirty = a_bDirty; }
 
 	void SetDirtyRecursive(bool a_bDirty)
@@ -197,12 +196,19 @@ private:
 class ReplacerMod
 {
 public:
+	ReplacerMod(bool a_bIsLegacy) :
+		_bIsLegacy(a_bIsLegacy)
+    {}
+
 	ReplacerMod(std::string_view a_path, std::string_view a_name, std::string_view a_author, std::string_view a_description, bool a_bIsLegacy) :
 		_name(a_name),
 		_author(a_author),
 		_description(a_description),
 		_bIsLegacy(a_bIsLegacy),
-		_path(a_path) {}
+		_path(a_path)
+    {}
+
+	void LoadParseResult(Parsing::ModParseResult& a_parseResult);
 
 	std::string_view GetName() const { return _name; }
 	void SetName(std::string_view a_name);
@@ -214,19 +220,31 @@ public:
 	std::string_view GetPath() const { return _path; }
 	bool IsLegacy() const { return _bIsLegacy; }
 
+	Parsing::ConfigSource GetConfigSource() const { return _configSource; }
+
 	bool IsDirty() const { return _bDirty; }
 	void SetDirty(bool a_bDirty) { _bDirty = a_bDirty; }
 
+	bool ReloadConfig();
 	void SaveConfig(ConditionEditMode a_editMode);
 	void Serialize(rapidjson::Document& a_doc) const;
 
 	void AddSubMod(std::unique_ptr<SubMod>& a_subMod);
-
 	bool HasSubMod(std::string_view a_path) const;
 	SubMod* GetSubMod(std::string_view a_path) const;
 	RE::BSVisit::BSVisitControl ForEachSubMod(const std::function<RE::BSVisit::BSVisitControl(SubMod*)>& a_func) const;
-
 	void SortSubMods();
+
+	void AddConditionPreset(std::unique_ptr<Conditions::ConditionPreset>& a_conditionPreset);
+	void RemoveConditionPreset(std::string_view a_name);
+	void LoadConditionPresets(std::vector<std::unique_ptr<Conditions::ConditionPreset>>& a_conditionPresets);
+	bool HasConditionPresets() const;
+	bool HasConditionPreset(std::string_view a_name) const;
+    Conditions::ConditionPreset* GetConditionPreset(std::string_view a_name) const;
+	RE::BSVisit::BSVisitControl ForEachConditionPreset(const std::function<RE::BSVisit::BSVisitControl(Conditions::ConditionPreset*)>& a_func) const;
+	void SortConditionPresets();
+
+	bool HasInvalidConditions() const;
 
 private:
 	std::string _name;
@@ -234,9 +252,13 @@ private:
 	std::string _description;
 	bool _bIsLegacy = false;
 	std::string _path;
+	Parsing::ConfigSource _configSource = Parsing::ConfigSource::kAuthor;
 
 	mutable SharedLock _dataLock;
 	std::vector<std::unique_ptr<SubMod>> _subMods;
+
+	mutable SharedLock _presetsLock;
+	std::vector<std::unique_ptr<Conditions::ConditionPreset>> _conditionPresets;
 
 	bool _bDirty = false;
 };

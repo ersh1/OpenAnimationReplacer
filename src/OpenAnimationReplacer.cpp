@@ -448,7 +448,7 @@ void OpenAnimationReplacer::CreateReplacerMods()
 
 	auto endTime = std::chrono::high_resolution_clock::now();
 
-	logger::info("Time spent creating replacer mods...:");
+	logger::info("Time spent creating replacer mods:");
 	logger::info("  Parsing: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfParsingTime - startTime).count());
 	logger::info("  Adding mods: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfModsTime - endOfParsingTime).count());
 	logger::info("  Adding legacy mods: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfLegacyModsTime - endOfModsTime).count());
@@ -791,6 +791,15 @@ void OpenAnimationReplacer::InitFactories()
 	_conditionFactories.emplace("LifeState", []() { return std::make_unique<LifeStateCondition>(); });
 	_conditionFactories.emplace("SitSleepState", []() { return std::make_unique<SitSleepStateCondition>(); });
 	_conditionFactories.emplace("XOR", []() { return std::make_unique<XORCondition>(); });
+	_conditionFactories.emplace("PRESET", []() { return std::make_unique<PRESETCondition>(); });
+	_conditionFactories.emplace("MOUNT", []() { return std::make_unique<MOUNTCondition>(); });
+	_conditionFactories.emplace("IsAttackTypeKeyword", []() { return std::make_unique<IsAttackTypeKeywordCondition>(); });
+	_conditionFactories.emplace("IsAttackTypeFlag", []() { return std::make_unique<IsAttackTypeFlagCondition>(); });
+	_conditionFactories.emplace("MovementSurfaceAngle", []() { return std::make_unique<MovementSurfaceAngleCondition>(); });
+	_conditionFactories.emplace("LocationCleared", []() { return std::make_unique<LocationClearedCondition>(); });
+	_conditionFactories.emplace("IsSummoned", []() { return std::make_unique<IsSummonedCondition>(); });
+	_conditionFactories.emplace("IsEquippedHasEnchantment", []() { return std::make_unique<IsEquippedHasEnchantmentCondition>(); });
+	_conditionFactories.emplace("IsEquippedHasEnchantmentWithKeyword", []() { return std::make_unique<IsEquippedHasEnchantmentWithKeywordCondition>(); });
 
 	// Hidden factories - not visible for selection in the UI, used for mapping legacy names to new conditions etc
 	_hiddenConditionFactories.emplace("IsEquippedRight", []() { return std::make_unique<IsEquippedCondition>(false); });
@@ -1003,7 +1012,8 @@ void OpenAnimationReplacer::AddModParseResult(Parsing::ModParseResult& a_parseRe
 	// Get replacer mod or create it if it doesn't exist
 	auto replacerMod = GetReplacerMod(a_parseResult.path);
 	if (!replacerMod) {
-		auto newReplacerMod = std::make_unique<ReplacerMod>(a_parseResult.path, a_parseResult.name, a_parseResult.author, a_parseResult.description, false);
+		auto newReplacerMod = std::make_unique<ReplacerMod>(false);
+		newReplacerMod->LoadParseResult(a_parseResult);
 		replacerMod = newReplacerMod.get();
 		AddReplacerMod(a_parseResult.path, newReplacerMod);
 	}
@@ -1017,7 +1027,7 @@ void OpenAnimationReplacer::AddModParseResult(Parsing::ModParseResult& a_parseRe
 void OpenAnimationReplacer::AddSubModParseResult(ReplacerMod* a_replacerMod, Parsing::SubModParseResult& a_parseResult)
 {
 	if (!a_replacerMod->HasSubMod(a_parseResult.path)) {
-		auto newSubMod = std::make_unique<SubMod>();
+		auto newSubMod = std::make_unique<SubMod>(a_replacerMod);
 		newSubMod->SetAnimationFiles(a_parseResult.animationFiles);
 		newSubMod->LoadParseResult(a_parseResult);
 		a_replacerMod->AddSubMod(newSubMod);

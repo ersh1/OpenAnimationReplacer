@@ -445,4 +445,50 @@ namespace Utils
 
 		return formID ? RE::TESForm::LookupByID(formID) : nullptr;
 	}
+
+    uint32_t GetAnimationGraphIndex(const RE::BSAnimationGraphManager* a_graphManager, const RE::BSTEventSource<RE::BSAnimationGraphEvent>* a_eventSource)
+	{
+		if (a_graphManager) {
+			for (uint32_t index = 0; index < a_graphManager->graphs.size(); ++index) {
+				const auto& animationGraph = a_graphManager->graphs[index];
+				const auto eventSource = animationGraph->GetEventSource<RE::BSAnimationGraphEvent>();
+				if (a_eventSource == eventSource) {
+					return index;
+				}
+			}
+		}
+
+		return 0;
+	}
+
+    RE::NiPointer<RE::TESObjectREFR> GetConsoleRefr()
+	{
+		static REL::Relocation<RE::ObjectRefHandle*> selectedRef{ RELOCATION_ID(519394, AE_CHECK(SKSE::RUNTIME_SSE_1_6_1130, 405935, 504099)) };
+		return selectedRef->get();
+	}
+
+    bool DoesUserConfigExist(std::string_view a_path)
+	{
+		std::filesystem::path jsonPath(a_path);
+		jsonPath = jsonPath / "user.json"sv;
+
+		return is_regular_file(jsonPath);
+	}
+
+    void DeleteUserConfig(std::string_view a_path)
+	{
+		std::filesystem::path jsonPath(a_path);
+		jsonPath = jsonPath / "user.json"sv;
+
+		if (is_regular_file(jsonPath)) {
+			std::filesystem::remove(jsonPath);
+		}
+	}
+
+    RE::hkVector4 NormalizeHkVector4(const RE::hkVector4& a_vector)
+	{
+		const auto dot = _mm_dp_ps(a_vector.quad, a_vector.quad, 0xFF);
+		const auto length = _mm_sqrt_ps(dot);
+		return _mm_div_ps(a_vector.quad, length);
+	}
 }

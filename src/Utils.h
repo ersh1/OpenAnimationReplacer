@@ -149,4 +149,13 @@ namespace Utils
 
 	RE::BGSSynchronizedAnimationInstance::ActorSyncInfo* GetLeadActorSyncInfo(RE::BGSSynchronizedAnimationInstance* a_synchronizedAnimationInstance, bool a_bFirstPerson);
 	RE::BGSSynchronizedAnimationInstance::ActorSyncInfo* GetSupportActorSyncInfo(RE::BGSSynchronizedAnimationInstance* a_synchronizedAnimationInstance);
+
+	uint32_t GetAnimationGraphIndex(const RE::BSAnimationGraphManager* a_graphManager, const RE::BSTEventSource<RE::BSAnimationGraphEvent>* a_eventSource);
+
+    RE::NiPointer<RE::TESObjectREFR> GetConsoleRefr();
+
+	bool DoesUserConfigExist(std::string_view a_path);
+	void DeleteUserConfig(std::string_view a_path);
+
+	RE::hkVector4 NormalizeHkVector4(const RE::hkVector4& a_vector);
 }

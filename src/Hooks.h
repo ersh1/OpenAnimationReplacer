@@ -71,6 +71,14 @@ namespace Hooks
 			_hkbBehaviorGraph_Update = hkbBehaviorGraphVtbl.write_vfunc(0x5, hkbBehaviorGraph_Update);
 			_hkbBehaviorGraph_Generate = hkbBehaviorGraphVtbl.write_vfunc(0x17, hkbBehaviorGraph_Generate);
 
+			// Hook animation events
+			REL::Relocation<uintptr_t> TESObjectREFR_IAnimationGraphManagerHolderVtbl{ RE::VTABLE_TESObjectREFR[3] };
+			_TESObjectREFR_IAnimationGraphManagerHolder_NotifyAnimationGraph = TESObjectREFR_IAnimationGraphManagerHolderVtbl.write_vfunc(0x1, TESObjectREFR_IAnimationGraphManagerHolder_NotifyAnimationGraph);
+			REL::Relocation<uintptr_t> Character_IAnimationGraphManagerHolderVtbl{ RE::VTABLE_Character[3] };
+			_Character_IAnimationGraphManagerHolder_NotifyAnimationGraph = Character_IAnimationGraphManagerHolderVtbl.write_vfunc(0x1, Character_IAnimationGraphManagerHolder_NotifyAnimationGraph);
+			REL::Relocation<uintptr_t> PlayerCharacter_IAnimationGraphManagerHolderVtbl{ RE::VTABLE_PlayerCharacter[3] };
+			_PlayerCharacter_IAnimationGraphManagerHolder_NotifyAnimationGraph = PlayerCharacter_IAnimationGraphManagerHolderVtbl.write_vfunc(0x1, PlayerCharacter_IAnimationGraphManagerHolder_NotifyAnimationGraph);
+
 			PatchSynchronizedClips();
 			PatchUnsignedAnimationBindingIndex();
 		}
@@ -92,6 +100,9 @@ namespace Hooks
 		static void BGSSynchronizedAnimationInstance_Init(RE::BGSSynchronizedAnimationInstance* a_this);
 		static void hkbBehaviorGraph_Update(RE::hkbBehaviorGraph* a_this, const RE::hkbContext& a_context, float a_timestep);
 		static void hkbBehaviorGraph_Generate(RE::hkbBehaviorGraph* a_this, const RE::hkbContext& a_context, const RE::hkbGeneratorOutput** a_activeChildrenOutput, RE::hkbGeneratorOutput& a_output, float a_timeOffset);
+		static bool TESObjectREFR_IAnimationGraphManagerHolder_NotifyAnimationGraph(RE::IAnimationGraphManagerHolder* a_this, const RE::BSFixedString& a_eventName);
+		static bool Character_IAnimationGraphManagerHolder_NotifyAnimationGraph(RE::IAnimationGraphManagerHolder* a_this, const RE::BSFixedString& a_eventName);
+		static bool PlayerCharacter_IAnimationGraphManagerHolder_NotifyAnimationGraph(RE::IAnimationGraphManagerHolder* a_this, const RE::BSFixedString& a_eventName);
 
 		static void LoadClips(RE::hkbCharacterStringData* a_stringData, RE::hkbAnimationBindingSet* a_bindingSet, void* a_assetLoader, RE::hkbBehaviorGraph* a_rootBehavior, const char* a_animationPath, RE::BSTHashMap<RE::BSFixedString, uint32_t>* a_annotationToEventIdMap);
 		static bool CreateSynchronizedClips(RE::hkbBehaviorGraph* a_behaviorGraph, RE::hkbCharacter* a_character, RE::BSTHashMap<RE::BSFixedString, uint32_t>* a_annotationToEventIdMap);
@@ -115,6 +126,9 @@ namespace Hooks
 		static inline REL::Relocation<decltype(BGSSynchronizedAnimationInstance_Init)> _BGSSynchronizedAnimationInstance_Init;
 		static inline REL::Relocation<decltype(hkbBehaviorGraph_Update)> _hkbBehaviorGraph_Update;
 		static inline REL::Relocation<decltype(hkbBehaviorGraph_Generate)> _hkbBehaviorGraph_Generate;
+		static inline REL::Relocation<decltype(TESObjectREFR_IAnimationGraphManagerHolder_NotifyAnimationGraph)> _TESObjectREFR_IAnimationGraphManagerHolder_NotifyAnimationGraph;
+		static inline REL::Relocation<decltype(Character_IAnimationGraphManagerHolder_NotifyAnimationGraph)> _Character_IAnimationGraphManagerHolder_NotifyAnimationGraph;
+		static inline REL::Relocation<decltype(PlayerCharacter_IAnimationGraphManagerHolder_NotifyAnimationGraph)> _PlayerCharacter_IAnimationGraphManagerHolder_NotifyAnimationGraph;
 
 		static inline REL::Relocation<decltype(LoadClips)> _LoadClips;
 		static inline REL::Relocation<decltype(CreateSynchronizedClips)> _CreateSynchronizedClips;

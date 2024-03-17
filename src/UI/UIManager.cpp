@@ -328,24 +328,11 @@ namespace UI
 		}
 	}
 
-	RE::TESObjectREFR* UIManager::GetConsoleRefr()
-	{
-		if (const auto ui = RE::UI::GetSingleton()) {
-			if (const auto console = ui->GetMenu<RE::Console>(RE::Console::MENU_NAME)) {
-				if (const auto ref = console->GetSelectedRef()) {
-					return ref.get();
-				}
-			}
-		}
-
-		return nullptr;
-	}
-
 	RE::TESObjectREFR* UIManager::GetRefrToEvaluate()
 	{
-		const auto newConsoleRefr = GetConsoleRefr();
-		if (newConsoleRefr != _consoleRefr) {
-			_consoleRefr = newConsoleRefr;
+		const auto newConsoleRefr = Utils::GetConsoleRefr();
+		if (newConsoleRefr.get() != _consoleRefr) {
+			_consoleRefr = newConsoleRefr.get();
 			AnimationLog::GetSingleton().ClearAnimationLog();
 		}
 

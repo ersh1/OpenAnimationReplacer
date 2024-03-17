@@ -9,6 +9,7 @@
 
 #include "API/OpenAnimationReplacer-ConditionTypes.h"
 
+class ReplacerMod;
 template <class T, class U>
 concept Derived = std::is_base_of_v<U, T>;
 
@@ -626,13 +627,13 @@ namespace Conditions
 	class ConditionBase : public ICondition
 	{
 	public:
-		bool Evaluate(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override
+		bool Evaluate(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override
 		{
 			if (_bDisabled) {
 				return true;
 			}
 
-			return _bNegated ? !EvaluateImpl(a_refr, a_clipGenerator) : EvaluateImpl(a_refr, a_clipGenerator);
+			return _bNegated ? !EvaluateImpl(a_refr, a_clipGenerator, a_parentSubMod) : EvaluateImpl(a_refr, a_clipGenerator, a_parentSubMod);
 		}
 
 		void Initialize(void* a_value) override;
@@ -655,7 +656,7 @@ namespace Conditions
 		[[nodiscard]] IConditionComponent* GetComponent(uint32_t a_index) const override;
 		IConditionComponent* AddComponent(ConditionComponentFactory a_factory, const char* a_name, const char* a_description = "") override;
 
-		[[nodiscard]] bool IsCustomCondition() const override { return false; }
+		[[nodiscard]] ConditionType GetConditionType() const override { return ConditionType::kNormal; }
 		[[nodiscard]] ICondition* GetWrappedCondition() const override { return nullptr; }
 
 		template <typename T>
@@ -680,7 +681,7 @@ namespace Conditions
 	protected:
 		ConditionBase() = default;
 
-		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override = 0;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override = 0;
 
 		bool _bDisabled = false;
 		bool _bNegated = false;
@@ -700,8 +701,8 @@ namespace Conditions
 		ConditionSet(IMultiConditionComponent* a_parentMultiConditionComponent) :
 			_parentMultiConditionComponent(a_parentMultiConditionComponent) {}
 
-		bool EvaluateAll(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const;
-		bool EvaluateAny(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const;
+		bool EvaluateAll(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, SubMod* a_parentSubMod) const;
+		bool EvaluateAny(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, SubMod* a_parentSubMod) const;
 
 		bool IsEmpty() const { return _conditions.empty(); }
 		bool IsDirty() const { return _bDirty; }
@@ -718,12 +719,15 @@ namespace Conditions
 		void AppendConditions(ConditionSet* a_otherSet);
 		void ClearConditions();
 
+		void SetAsParent(std::unique_ptr<ICondition>& a_condition);
+
 		rapidjson::Value Serialize(rapidjson::Document::AllocatorType& a_allocator);
 
 		bool IsDirtyRecursive() const;
 		void SetDirtyRecursive(bool a_bDirty);
 		bool IsChildOf(ICondition* a_condition);
 		size_t GetNumConditions() const { return _conditions.size(); }
+		std::string GetNumConditionsText() const;
 
 		[[nodiscard]] SubMod* GetParentSubMod() const;
 		[[nodiscard]] const ICondition* GetParentCondition() const;
@@ -735,6 +739,23 @@ namespace Conditions
 
 		SubMod* _parentSubMod = nullptr;
 		IMultiConditionComponent* _parentMultiConditionComponent = nullptr;
+	};
+
+	class ConditionPreset : public ConditionSet
+	{
+	public:
+		ConditionPreset(std::string_view a_name, std::string_view a_description) :
+			_name(a_name), _description(a_description) {}
+
+		std::string_view GetName() const { return _name; }
+		void SetName(std::string_view a_name) { _name = a_name; }
+
+		std::string_view GetDescription() const { return _description; }
+		void SetDescription(std::string_view a_description) { _description = a_description; }
+
+	private:
+		std::string _name;
+		std::string _description;
 	};
 
 	class MultiConditionComponent : public IMultiConditionComponent
@@ -756,8 +777,8 @@ namespace Conditions
 		[[nodiscard]] bool IsValid() const override { return !conditionSet->IsEmpty() && !conditionSet->HasInvalidConditions(); }
 
 		[[nodiscard]] ConditionSet* GetConditions() const override { return conditionSet.get(); }
-		[[nodiscard]] bool EvaluateAll(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
-		[[nodiscard]] bool EvaluateAny(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const override;
+		[[nodiscard]] bool EvaluateAll(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+		[[nodiscard]] bool EvaluateAny(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		RE::BSVisit::BSVisitControl ForEachCondition(const std::function<RE::BSVisit::BSVisitControl(std::unique_ptr<ICondition>&)>& a_func) const override;
 
 		[[nodiscard]] bool GetShouldDrawEvaluateResultForChildConditions() const override { return bShouldDrawEvaluateResultForChildConditions; }
@@ -1000,7 +1021,7 @@ namespace Conditions
 
 		[[nodiscard]] bool IsValid() const override { return true; }
 
-		bool GetRandomFloat(RE::hkbClipGenerator* a_clipGenerator, float& a_outFloat) const override;
+		bool GetRandomFloat(RE::hkbClipGenerator* a_clipGenerator, float& a_outFloat, void* a_parentSubMod) const override;
 		[[nodiscard]] float GetMinValue() const override { return minValue; }
 		[[nodiscard]] float GetMaxValue() const override { return maxValue; }
 		void SetMinValue(float a_min) override { minValue = a_min; }
@@ -1008,5 +1029,40 @@ namespace Conditions
 
 		float minValue = 0.f;
 		float maxValue = 1.f;
+	};
+
+	class ConditionPresetComponent : public IMultiConditionComponent
+	{
+	public:
+		ConditionPresetComponent(const ICondition* a_parentCondition, const char* a_name, const char* a_description = "") :
+			IMultiConditionComponent(a_parentCondition, a_name, a_description) {}
+
+		void InitializeComponent(void* a_value) override;
+		void SerializeComponent(void* a_value, void* a_allocator) override;
+
+		bool DisplayInUI([[maybe_unused]] bool a_bEditable, [[maybe_unused]] float a_firstColumnWidthPercent) override;
+
+		[[nodiscard]] ConditionComponentType GetType() const override { return ConditionComponentType::kPreset; }
+		[[nodiscard]] RE::BSString GetArgument() const override;
+
+		[[nodiscard]] bool IsValid() const override { return conditionPreset && !conditionPreset->IsEmpty() && !conditionPreset->HasInvalidConditions(); }
+
+		[[nodiscard]] ConditionSet* GetConditions() const override { return conditionPreset; }
+		[[nodiscard]] bool EvaluateAll(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+		[[nodiscard]] bool EvaluateAny(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+		RE::BSVisit::BSVisitControl ForEachCondition(const std::function<RE::BSVisit::BSVisitControl(std::unique_ptr<ICondition>&)>& a_func) const override;
+
+		[[nodiscard]] bool GetShouldDrawEvaluateResultForChildConditions() const override { return bShouldDrawEvaluateResultForChildConditions; }
+		void SetShouldDrawEvaluateResultForChildConditions(bool a_bShouldDraw) override { bShouldDrawEvaluateResultForChildConditions = a_bShouldDraw; }
+
+		void TryFindPreset();
+
+		ConditionPreset* conditionPreset = nullptr;
+		bool bShouldDrawEvaluateResultForChildConditions = true;
+
+	protected:
+		ReplacerMod* GetParentMod() const;
+
+		std::string _presetName{};
 	};
 }

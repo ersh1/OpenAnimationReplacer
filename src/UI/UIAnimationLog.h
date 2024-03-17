@@ -13,6 +13,8 @@ namespace UI
 		void OnClose() override;
 
 	private:
+	    [[nodiscard]] bool IsInteractable() const;
+		void DrawFilterPanel() const;
 		void DrawLogEntry(AnimationLogEntry& a_logEntry) const;
 	};
 }

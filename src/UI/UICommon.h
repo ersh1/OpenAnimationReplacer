@@ -42,9 +42,12 @@ namespace UI
 		constexpr ImVec4 EVENT_LOG_TIME_COLOR_SHORT(0.4f, 0.8f, 0.4f, 1.f);
 		constexpr ImVec4 EVENT_LOG_TIME_COLOR_MEDIUM(0.8f, 0.8f, 0.4f, 1.f);
 		constexpr ImVec4 EVENT_LOG_TIME_COLOR_LONG(0.8f, 0.4f, 0.4f, 1.f);
+		constexpr ImVec4 EVENT_LOG_TRIGGERED_TRANSITION_COLOR(0.5f, 0.7f, 1.f, 1.f);
 		constexpr ImVec4 DEFAULT_CONDITION_COLOR(1.f, 1.f, 1.f, 1.f);
 		constexpr ImVec4 CUSTOM_CONDITION_COLOR(0.5f, 0.7f, 1.f, 1.f);
 		constexpr ImVec4 INVALID_CONDITION_COLOR(1.f, 0.3f, 0.3f, 1.f);
+		constexpr ImVec4 CONDITION_PRESET_COLOR(0.f, 0.9f, 0.76f, 1.f);
+		constexpr ImVec4 CONDITION_PRESET_BORDER_COLOR(0.f, 0.53f, 0.5f, 1.f);
 		constexpr ImVec4 YELLOW_COLOR(1.f, 1.f, 0.f, 1.f);
 		constexpr ImVec4 BLACK_COLOR(0.f, 0.f, 0.f, 1.f);
 

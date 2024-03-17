@@ -35,6 +35,9 @@ namespace UI
 				ImGui::TextWrapped("No reference selected. Type in a FormID in the main window, or select a reference in the console.");
 				ImGui::PopStyleColor();
 			}
+			if (IsInteractable()) {
+				DrawFilterPanel();
+			}
 		}
 		ImGui::End();
 	}
@@ -49,7 +52,28 @@ namespace UI
 		AnimationLog::GetSingleton().SetLogAnimations(false);
 	}
 
-	void UIAnimationLog::DrawLogEntry(AnimationLogEntry& a_logEntry) const
+    bool UIAnimationLog::IsInteractable() const
+	{
+		// draw filter panel only when the main UI is open
+		return UIManager::GetSingleton().bShowMain;
+	}
+
+    void UIAnimationLog::DrawFilterPanel() const
+	{
+		auto& animationLog = AnimationLog::GetSingleton();
+
+		// filtering
+		const auto& style = ImGui::GetStyle();
+		const float helpMarkerWidth = ImGui::CalcTextSize("(?)").x + style.ItemSpacing.x * 2;
+		const float filterWidth = (ImGui::GetContentRegionAvail().x - style.FramePadding.x * 2 - helpMarkerWidth * 2);
+
+		ImGui::SetNextItemWidth(filterWidth);
+		ImGui::InputTextWithHint("##filter", "Filter... (Affects new entries)", &animationLog.filter);
+		ImGui::SameLine();
+		UICommon::HelpMarker("Type a part of the log event type / animation name / path / mod name / submod name to filter the log results. You can use regex.");
+	}
+
+    void UIAnimationLog::DrawLogEntry(AnimationLogEntry& a_logEntry) const
 	{
 		using Event = AnimationLogEntry::Event;
 		ImGui::TableNextRow();
@@ -120,6 +144,12 @@ namespace UI
 		if (a_logEntry.event < Event::kInterrupt && a_logEntry.bInterruptible) {
 			ImGui::SameLine();
 			UICommon::TextUnformattedColored(UICommon::LOG_INTERRUPTED_COLOR, "(Interruptible)");
+		}
+
+		if (a_logEntry.count > 1) {
+			ImGui::SameLine();
+			const auto text = std::format("x{} ", a_logEntry.count);
+			ImGui::TextUnformatted(text.data());
 		}
 
 		const std::string projectText = std::format("Project: {} ", a_logEntry.projectName);

@@ -55,7 +55,6 @@ namespace UI
 
 		bool bInitialized = false;
 
-		static RE::TESObjectREFR* GetConsoleRefr();
 		RE::TESObjectREFR* GetRefrToEvaluate();
 		void SetRefrToEvaluate(RE::TESObjectREFR* a_refr);
 

@@ -1,5 +1,7 @@
 #include "Hooks.h"
 
+#include "AnimationEventLog.h"
+
 #include <xbyak/xbyak.h>
 
 #include "Jobs.h"
@@ -86,19 +88,19 @@ namespace Hooks
 
 			// if the animation is not fully loaded yet, call generate with our fake clip generator containing the previous animation instead - this avoids seeing the reference pose for a frame
 			if (a_this->userData != 0xC) {
-				_hkbClipGenerator_Generate(activeClip->GetBlendFromClipGenerator(), a_context, a_activeChildrenOutput, a_output, a_timeOffset);
+				_hkbClipGenerator_Generate(activeClip->GetLastBlendingClipGenerator(), a_context, a_activeChildrenOutput, a_output, a_timeOffset);
 				return;
 			}
 		}
 
 		_hkbClipGenerator_Generate(a_this, a_context, a_activeChildrenOutput, a_output, a_timeOffset);
 
-		if (activeClip && activeClip->IsBlending()) {
+		if (activeClip) {
 			activeClip->OnGenerate(a_this, a_context, a_output);
 		}
 	}
 
-	void HavokHooks::hkbClipGenerator_StartEcho(RE::hkbClipGenerator* a_this, float a_echoDuration)
+    void HavokHooks::hkbClipGenerator_StartEcho(RE::hkbClipGenerator* a_this, float a_echoDuration)
 	{
 		bool bReplaced = false;
 
@@ -203,7 +205,37 @@ namespace Hooks
 		}
 	}
 
-	void HavokHooks::LoadClips(RE::hkbCharacterStringData* a_stringData, RE::hkbAnimationBindingSet* a_bindingSet, void* a_assetLoader, RE::hkbBehaviorGraph* a_rootBehavior, const char* a_animationPath, RE::BSTHashMap<RE::BSFixedString, uint32_t>* a_annotationToEventIdMap)
+    bool HavokHooks::TESObjectREFR_IAnimationGraphManagerHolder_NotifyAnimationGraph(RE::IAnimationGraphManagerHolder* a_this, const RE::BSFixedString& a_eventName)
+	{
+		const bool result = _TESObjectREFR_IAnimationGraphManagerHolder_NotifyAnimationGraph(a_this, a_eventName);
+
+		auto& animationEventLog = AnimationEventLog::GetSingleton();
+		animationEventLog.TryAddEvent(a_this, a_eventName, result);
+
+		return result;
+	}
+
+	bool HavokHooks::Character_IAnimationGraphManagerHolder_NotifyAnimationGraph(RE::IAnimationGraphManagerHolder* a_this, const RE::BSFixedString& a_eventName)
+	{
+		const bool result = _Character_IAnimationGraphManagerHolder_NotifyAnimationGraph(a_this, a_eventName);
+
+		auto& animationEventLog = AnimationEventLog::GetSingleton();
+		animationEventLog.TryAddEvent(a_this, a_eventName, result);
+
+		return result;
+	}
+
+	bool HavokHooks::PlayerCharacter_IAnimationGraphManagerHolder_NotifyAnimationGraph(RE::IAnimationGraphManagerHolder* a_this, const RE::BSFixedString& a_eventName)
+	{
+		const bool result = _PlayerCharacter_IAnimationGraphManagerHolder_NotifyAnimationGraph(a_this, a_eventName);
+
+		auto& animationEventLog = AnimationEventLog::GetSingleton();
+		animationEventLog.TryAddEvent(a_this, a_eventName, result);
+
+		return result;
+	}
+
+    void HavokHooks::LoadClips(RE::hkbCharacterStringData* a_stringData, RE::hkbAnimationBindingSet* a_bindingSet, void* a_assetLoader, RE::hkbBehaviorGraph* a_rootBehavior, const char* a_animationPath, RE::BSTHashMap<RE::BSFixedString, uint32_t>* a_annotationToEventIdMap)
 	{
 		// create replacement animations and insert their paths into the string data
 		// do this before LoadClips actually runs because it reads the animation name array to create all the animation bindings and we need to add our new animations to it before that happens
@@ -325,7 +357,7 @@ namespace Hooks
 
 	void HavokHooks::OnCreateSynchronizedClipBinding(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, RE::hkbCharacter* a_character)
 	{
-		a_synchronizedClipGenerator->synchronizedAnimationBindingIndex -= OpenAnimationReplacer::GetSingleton().GetSynchronizedClipsIDOffset(a_character);
+		a_synchronizedClipGenerator->animationBindingIndex -= OpenAnimationReplacer::GetSingleton().GetSynchronizedClipsIDOffset(a_character);
 	}
 
 	void HavokHooks::PatchUnsignedAnimationBindingIndex()

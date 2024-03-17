@@ -153,3 +153,6 @@ static REL::Relocation<tActor_GetLightLevel> Actor_GetLightLevel{ REL::VariantID
 
 using tActor_GetTarget = RE::Actor* (*)(RE::Actor* a_this);
 static REL::Relocation<tActor_GetTarget> Actor_GetTarget{ REL::VariantID(37655, 38608, 0x630CE0) };  // 627E10, 64D900, 630CE0
+
+using tTESForm_GetEnchantment = RE::EnchantmentItem* (*)(RE::TESForm* a_this, RE::ExtraDataList* a_extraDataList);
+static REL::Relocation<tTESForm_GetEnchantment> TESForm_GetEnchantment{ REL::VariantID(14411, 14563, 0x1A0A80) };  // 190D50, 19B880, 1A0A80

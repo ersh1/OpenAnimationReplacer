@@ -20,6 +20,12 @@ struct AnimationLogEntry
 
 	AnimationLogEntry(Event a_event, class ActiveClip* a_activeClip, RE::hkbCharacter* a_character);
 
+	[[nodiscard]] bool operator==(const AnimationLogEntry& a_rhs) const;
+	[[nodiscard]] bool operator!=(const AnimationLogEntry& a_rhs) const;
+
+	bool MatchesRegex(const std::regex& a_regex) const;
+	void IncreaseCount();
+
 	Event event;
 	bool bOriginal = false;
 	bool bVariant = false;
@@ -33,6 +39,10 @@ struct AnimationLogEntry
 	std::string variantFilename{};
 
 	float timeDrawn = 0.f;
+	uint32_t count = 1;
+
+protected:
+	bool MatchesEvent(const std::regex& a_regex) const;
 };
 
 class AnimationLog
@@ -52,6 +62,8 @@ public:
 	[[nodiscard]] bool ShouldLogAnimations() const { return _bLogAnimations; }
 	[[nodiscard]] bool ShouldLogAnimationsForActiveClip(ActiveClip* a_activeClip, AnimationLogEntry::Event a_logEvent) const;
 	void SetLogAnimations(bool a_enable);
+
+	std::string filter = {};
 
 private:
 	AnimationLog() = default;

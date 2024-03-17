@@ -13,7 +13,7 @@ ActiveSynchronizedAnimation::~ActiveSynchronizedAnimation()
 	ReadLocker locker(_clipDataLock);
 
 	for (auto& [synchronizedClipGenerator, replacementInfo] : _clipData) {
-		synchronizedClipGenerator->synchronizedAnimationBindingIndex = replacementInfo->originalSynchronizedIndex;
+		synchronizedClipGenerator->animationBindingIndex = replacementInfo->originalSynchronizedIndex;
 		synchronizedClipGenerator->clipGenerator->animationBindingIndex = replacementInfo->originalInternalClipIndex;
 	}
 }
@@ -97,17 +97,17 @@ void ActiveSynchronizedAnimation::OnSynchronizedClipPostUpdate(RE::BSSynchronize
 void ActiveSynchronizedAnimation::OnSynchronizedClipDeactivate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, [[maybe_unused]] const RE::hkbContext& a_context)
 {
 	if (_bTransitioning) {
-		if (a_synchronizedClipGenerator->synchronizedAnimationBindingIndex == static_cast<uint16_t>(-1) && a_synchronizedClipGenerator->binding) {
-			a_synchronizedClipGenerator->binding->RemoveReference();
-			a_synchronizedClipGenerator->binding = nullptr;
+		if (a_synchronizedClipGenerator->animationBindingIndex == static_cast<uint16_t>(-1) && a_synchronizedClipGenerator->localSyncBinding) {
+			a_synchronizedClipGenerator->localSyncBinding->RemoveReference();
+			a_synchronizedClipGenerator->localSyncBinding = nullptr;
 		}
 
 		a_synchronizedClipGenerator->synchronizedScene->numActivated--;
 
-		a_synchronizedClipGenerator->getToMarkProgress = 0.f;
-		a_synchronizedClipGenerator->doneReorientingSupportChar = false;
-		a_synchronizedClipGenerator->allClipsActivated = false;
-		a_synchronizedClipGenerator->allClipsInSceneAreDoneReorientingSupportChar = false;
+		a_synchronizedClipGenerator->currentLerp = 0.f;
+		a_synchronizedClipGenerator->atMark = false;
+		a_synchronizedClipGenerator->allCharactersInScene = false;
+		a_synchronizedClipGenerator->allCharactersAtMarks = false;
 
 		return;
 	}
@@ -117,7 +117,7 @@ void ActiveSynchronizedAnimation::OnSynchronizedClipDeactivate(RE::BSSynchronize
 
 		auto it = _clipData.find(a_synchronizedClipGenerator);
 		if (it != _clipData.end()) {
-			a_synchronizedClipGenerator->synchronizedAnimationBindingIndex = it->second->originalSynchronizedIndex;
+			a_synchronizedClipGenerator->animationBindingIndex = it->second->originalSynchronizedIndex;
 			a_synchronizedClipGenerator->clipGenerator->animationBindingIndex = it->second->originalInternalClipIndex;
 
 			_clipData.erase(it);
@@ -197,12 +197,12 @@ void ActiveSynchronizedAnimation::Initialize()
 	{
 		WriteLocker locker(_clipDataLock);
 		for (const auto& actorSyncInfo : _synchronizedAnimationInstance->actorSyncInfos) {
-			const uint16_t originalSynchronizedIndex = actorSyncInfo.synchronizedClipGenerator->synchronizedAnimationBindingIndex;
+			const uint16_t originalSynchronizedIndex = actorSyncInfo.synchronizedClipGenerator->animationBindingIndex;
 			const uint16_t originalInternalClipIndex = actorSyncInfo.synchronizedClipGenerator->clipGenerator->animationBindingIndex;
 
 			// fix ID if we aren't running Paired Animation Improvements
-			if (actorSyncInfo.synchronizedClipGenerator->synchronizedAnimationBindingIndex != static_cast<uint16_t>(-1)) {
-				actorSyncInfo.synchronizedClipGenerator->synchronizedAnimationBindingIndex += OpenAnimationReplacer::GetSingleton().GetSynchronizedClipsIDOffset(actorSyncInfo.character);
+			if (actorSyncInfo.synchronizedClipGenerator->animationBindingIndex != static_cast<uint16_t>(-1)) {
+				actorSyncInfo.synchronizedClipGenerator->animationBindingIndex += OpenAnimationReplacer::GetSingleton().GetSynchronizedClipsIDOffset(actorSyncInfo.character);
 			}
 
 			ReplacementAnimation* replacementAnimation = nullptr;
@@ -240,7 +240,7 @@ void ActiveSynchronizedAnimation::ToggleReplacement(bool a_bEnable)
 		for (const auto& clipData : _clipData | std::views::values) {
 			if (const auto activeClip = OpenAnimationReplacer::GetSingleton().GetActiveClip(clipData->syncInfo->synchronizedClipGenerator->clipGenerator)) {
 				ReplacementAnimation* replacementAnimation = a_bEnable ? clipData->replacementAnimation : nullptr;
-				activeClip->QueueReplacementAnimation(replacementAnimation, 0.f, false, AnimationLogEntry::Event::kPairedMismatch);
+				activeClip->QueueReplacementAnimation(replacementAnimation, 0.f, ActiveClip::QueuedReplacement::Type::kContinue, AnimationLogEntry::Event::kPairedMismatch);
 			}
 		}
 

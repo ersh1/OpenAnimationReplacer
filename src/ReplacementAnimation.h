@@ -34,30 +34,52 @@ enum class CustomBlendType : int
 class ReplacementAnimation
 {
 public:
+	enum class VariantMode : uint8_t
+	{
+	    kRandom = 0,
+		kSequential = 1
+	};
+
 	class Variant
 	{
 	public:
-		Variant(uint16_t a_index, std::string_view a_filename) :
+		Variant(uint16_t a_index, std::string_view a_filename, int32_t a_order) :
 			_index(a_index),
-			_filename(a_filename)
+			_filename(a_filename),
+			_order(a_order)
 		{}
 
 		uint16_t GetIndex() const { return _index; }
-		float GetWeight() const { return _weight; }
-		bool IsDisabled() const { return _bDisabled; }
 		std::string_view GetFilename() const { return _filename; }
-		void SetWeight(float a_weight) { _weight = a_weight; }
+		bool IsDisabled() const { return _bDisabled; }
 		void SetDisabled(bool a_bDisable) { _bDisabled = a_bDisable; }
 
-		bool ShouldSaveToJson() const;
+		// random mode
+		float GetWeight() const { return _weight; }
+		void SetWeight(float a_weight) { _weight = a_weight; }
+
+		// sequential mode
+		int32_t GetOrder() const { return _order;}
+		void SetOrder(int32_t a_order) { _order = a_order; }
+
+		bool ShouldPlayOnce() const { return _bPlayOnce; }
+		void SetPlayOnce(bool a_bPlayOnce) { _bPlayOnce = a_bPlayOnce; }
+
+		bool ShouldSaveToJson(VariantMode a_variantMode) const;
 
 		void ResetSettings();
 
 	protected:
 		uint16_t _index = static_cast<uint16_t>(-1);
-		float _weight = 1.f;
-		bool _bDisabled = false;
 		std::string _filename;
+		bool _bDisabled = false;
+
+		// random mode
+		float _weight = 1.f;
+
+		// sequential mode
+		int32_t _order;
+		bool _bPlayOnce = false;
 	};
 
 	class Variants
@@ -73,8 +95,20 @@ public:
 		uint16_t GetVariantIndex(class ActiveClip* a_activeClip) const;
 		void UpdateVariantCache();
 
+		[[nodiscard]] VariantMode GetVariantMode() const { return _variantMode; }
+		void SetVariantMode(VariantMode a_variantMode) { _variantMode = a_variantMode; }
+
+		bool CanReplaceOnLoopBeforeSequenceFinishes() const { return _bLetReplaceOnLoopBeforeSequenceEnds; }
+		void LetReplaceOnLoopBeforeSequenceFinishes(bool a_bEnable) { _bLetReplaceOnLoopBeforeSequenceEnds = a_bEnable; }
+
 		RE::BSVisit::BSVisitControl ForEachVariant(const std::function<RE::BSVisit::BSVisitControl(Variant&)>& a_func);
 		RE::BSVisit::BSVisitControl ForEachVariant(const std::function<RE::BSVisit::BSVisitControl(const Variant&)>& a_func) const;
+
+		void SwapVariants(int32_t a_variantIndexA, int32_t a_variantIndexB);
+
+		size_t GetVariantCount() const { return _variants.size(); }
+		size_t GetActiveVariantCount() const;
+		Variant* GetActiveVariant(size_t a_variantIndex) const;
 
 	protected:
 		friend class ReplacementAnimation;
@@ -83,14 +117,24 @@ public:
 
 		mutable SharedLock _lock;
 		std::vector<Variant*> _activeVariants;
+
+		// modes
+		VariantMode _variantMode = VariantMode::kRandom;
+
+		// random mode
 		float _totalWeight = 0.f;
 		std::vector<float> _cumulativeWeights;
+
+		// sequential mode
+		bool _bLetReplaceOnLoopBeforeSequenceEnds = false;
 	};
 
 	ReplacementAnimation(uint16_t a_index, uint16_t a_originalIndex, int32_t a_priority, std::string_view a_path, std::string_view a_projectName, Conditions::ConditionSet* a_conditionSet);
 	ReplacementAnimation(std::vector<Variant>& a_variants, uint16_t a_originalIndex, int32_t a_priority, std::string_view a_path, std::string_view a_projectName, Conditions::ConditionSet* a_conditionSet);
 
 	bool HasVariants() const { return std::holds_alternative<Variants>(_index); }
+	Variants& GetVariants() { return std::get<Variants>(_index); }
+	const Variants& GetVariants() const { return std::get<Variants>(_index); }
 
 	bool ShouldSaveToJson() const;
 

@@ -5,6 +5,7 @@
 #include "UIManager.h"
 
 #include "imgui_stdlib.h"
+#include "Utils.h"
 
 namespace UI
 {
@@ -34,27 +35,19 @@ namespace UI
 					ImGui::TableSetupScrollFreeze(0, 1);
 					ImGui::TableHeadersRow();
 
-					bool bDoFilter = !_filter.empty();
-					// construct regex to filter them out
-					std::regex filterRegex;
-					try {
-						filterRegex = std::regex(_filter, std::regex::icase);
-					} catch (const std::regex_error&) {
-						bDoFilter = false;
-					}
-
 					// draw log entries
 					uint32_t lastTimestamp = 0;
-					animationEventLog.ForEachLogEntry([&](AnimationEventLogEntry& a_logEntry) {
-						if (bDoFilter) {
-							if (!a_logEntry.MatchesRegex(filterRegex)) {
-								return;
-							}
-						}
-						DrawLogEntry(a_logEntry, lastTimestamp);
-						lastTimestamp = a_logEntry.timestamp;
-					},
-						Settings::bAnimationLogOrderDescending);
+
+					ImGuiListClipper clipper;
+					clipper.Begin(animationEventLog.GetLogEntryCount());
+					while (clipper.Step()) {
+						animationEventLog.ForEachLogEntry([&](AnimationEventLogEntry* a_logEntry) {
+							DrawLogEntry(a_logEntry, lastTimestamp);
+							lastTimestamp = a_logEntry->timestamp;
+						},
+							Settings::bAnimationLogOrderDescending, clipper.DisplayStart, clipper.DisplayEnd);
+					}
+					clipper.End();
 
 					// scroll to the new event if there is one
 					if (animationEventLog.HasNewEvent()) {
@@ -97,7 +90,6 @@ namespace UI
 		auto& animationEventLog = AnimationEventLog::GetSingleton();
 
 		// filtering
-
 		const auto& style = ImGui::GetStyle();
 		const float orderButtonWidth = (ImGui::CalcTextSize("Order:").x + ImGui::GetFontSize() + style.FramePadding.x * 2);
 		const std::string clearButtonName = "Clear Log";
@@ -106,7 +98,9 @@ namespace UI
 		const float filterWidth = (ImGui::GetContentRegionAvail().x - style.FramePadding.x * 2 - helpMarkerWidth * 2 - orderButtonWidth - clearButtonWidth);
 
 		ImGui::SetNextItemWidth(filterWidth);
-		ImGui::InputTextWithHint("##filter", "Filter...", &_filter);
+		if (ImGui::InputTextWithHint("##filter", "Filter...", &animationEventLog.filter)) {
+		    animationEventLog.RefreshFilter();
+		}
 		ImGui::SameLine();
 		UICommon::HelpMarker("Type a part of the event name / source name / payload to filter the log results. You can use regex.");
 
@@ -155,8 +149,8 @@ namespace UI
 		ImGui::SetNextItemWidth(ImGui::GetFontSize() * 5);
 
 		RE::ObjectRefHandle selectedRefr{};
-		if (const auto consoleRefr = UIManager::GetConsoleRefr()) {
-			selectedRefr = consoleRefr;
+		if (const auto consoleRefr = Utils::GetConsoleRefr()) {
+			selectedRefr = consoleRefr.get();
 			ImGui::BeginDisabled();
 			std::string formID = std::format("{:08X}", consoleRefr->GetFormID());
 			ImGui::InputText("Event Source", formID.data(), ImGuiInputTextFlags_CharsHexadecimal | ImGuiInputTextFlags_CharsUppercase);
@@ -198,11 +192,19 @@ namespace UI
 			UICommon::TextUnformattedDisabled(name.data());
 
 			ImGui::SameLine();
-			ImGui::PushID(a_handle.native_handle());
-			if (ImGui::Button("Remove")) {
+			const std::string checkboxLabel = std::format("Log Notify Graph##{}", a_handle.native_handle());
+			auto& animationEventLog = AnimationEventLog::GetSingleton();
+			bool tempBool = animationEventLog.GetLogNotifies(a_handle);
+			if (ImGui::Checkbox(checkboxLabel.data(), &tempBool)) {
+				animationEventLog.SetLogNotifies(a_handle, tempBool);
+			}
+			UICommon::AddTooltip("Also log events sent from code or Papyrus by NotifyAnimationGraph / SendAnimationEvent etc.");
+
+			ImGui::SameLine();
+			const std::string buttonLabel = std::format("Remove##{}", a_handle.native_handle());
+			if (ImGui::Button(buttonLabel.data())) {
 				return false;
 			}
-			ImGui::PopID();
 		} else {
 			return false;
 		}
@@ -210,42 +212,56 @@ namespace UI
 		return true;
 	}
 
-	void UIAnimationEventLog::DrawLogEntry(AnimationEventLogEntry& a_logEntry, uint32_t a_lastTimestamp) const
+	void UIAnimationEventLog::DrawLogEntry(AnimationEventLogEntry* a_logEntry, uint32_t a_lastTimestamp) const
 	{
 		ImGui::TableNextRow();
 		ImGui::AlignTextToFramePadding();
 
-		if (a_logEntry.timeDrawn < Settings::fAnimationLogEntryFadeTime) {
-			const float alpha = std::lerp(0.f, 0.25f, std::fmax(Settings::fAnimationLogEntryFadeTime - a_logEntry.timeDrawn, 0.f) / Settings::fAnimationLogEntryFadeTime);
+		if (a_logEntry->timeDrawn < Settings::fAnimationLogEntryFadeTime) {
+			const float alpha = std::lerp(0.f, 0.25f, std::fmax(Settings::fAnimationLogEntryFadeTime - a_logEntry->timeDrawn, 0.f) / Settings::fAnimationLogEntryFadeTime);
 			const ImVec4 color(1.f, 1.f, 1.f, alpha);
 			ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0, ImGui::GetColorU32(color));
 		}
 
 		const ImGuiIO& io = ImGui::GetIO();
-		a_logEntry.timeDrawn += io.DeltaTime;
+		a_logEntry->timeDrawn += io.DeltaTime;
 
+		// name
 		ImGui::TableSetColumnIndex(0);
-		UICommon::TextUnformattedEllipsis(a_logEntry.holderName.data());
+		UICommon::TextUnformattedEllipsis(a_logEntry->holderName.data());
 
+		// event
 		ImGui::TableSetColumnIndex(1);
-		ImGui::TextUnformatted(a_logEntry.tag.data());
-		if (a_logEntry.payload.length() > 0) {
+
+		if (a_logEntry->bFromNotify) {
+			if (a_logEntry->bTriggeredTransition) {
+		        UICommon::TextUnformattedColored(UICommon::EVENT_LOG_TRIGGERED_TRANSITION_COLOR, "[Notify]");
+		    } else {
+				UICommon::TextUnformattedDisabled("[Notify]");
+		    }
+
+			ImGui::SameLine();
+		}
+
+		ImGui::TextUnformatted(a_logEntry->tag.data());
+		if (a_logEntry->payload.length() > 0) {
 			ImGui::SameLine(0.f, 0.f);
 			ImGui::PushStyleColor(ImGuiCol_Text, UICommon::EVENT_LOG_PAYLOAD_COLOR);
 			ImGui::TextUnformatted(".");
 			ImGui::SameLine(0.f, 0.f);
-			UICommon::TextUnformattedEllipsis(a_logEntry.payload.data());
+			UICommon::TextUnformattedEllipsis(a_logEntry->payload.data());
 			ImGui::PopStyleColor();
 		}
 
+		// time
 		ImGui::TableSetColumnIndex(2);
 
 		float secondsSinceLastEvent = 0.f;
 		if (a_lastTimestamp != 0) {
 			if (Settings::bAnimationLogOrderDescending) {
-				secondsSinceLastEvent = static_cast<float>(a_logEntry.timestamp - a_lastTimestamp) / 1000.f;
+				secondsSinceLastEvent = static_cast<float>(a_logEntry->timestamp - a_lastTimestamp) / 1000.f;
 			} else {
-				secondsSinceLastEvent = static_cast<float>(a_lastTimestamp - a_logEntry.timestamp) / 1000.f;
+				secondsSinceLastEvent = static_cast<float>(a_lastTimestamp - a_logEntry->timestamp) / 1000.f;
 			}
 		}
 

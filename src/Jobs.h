@@ -143,6 +143,19 @@ namespace Jobs
 		}
 	};
 
+	struct ReloadReplacerModConfigJob : GenericJob
+	{
+		ReloadReplacerModConfigJob(ReplacerMod* a_replacerMod) :
+			replacerMod(a_replacerMod) {}
+
+		ReplacerMod* replacerMod;
+
+		void Run() override
+		{
+			replacerMod->ReloadConfig();
+		}
+	};
+
 	struct BeginPreviewAnimationJob : GenericJob
 	{
 		BeginPreviewAnimationJob(RE::TESObjectREFR* a_refr, const ReplacementAnimation* a_replacementAnimation, std::optional<uint16_t> a_variantIndex = std::nullopt) :
@@ -194,6 +207,21 @@ namespace Jobs
 
 			subMod->ClearSharedRandom(behaviorGraph);
 			return true;
+		}
+	};
+
+	struct RemoveConditionPresetJob : GenericJob
+	{
+		RemoveConditionPresetJob(ReplacerMod* a_replacerMod, std::string_view a_conditionPresetName) :
+			replacerMod(a_replacerMod),
+			conditionPresetName(a_conditionPresetName) {}
+
+		ReplacerMod* replacerMod;
+		std::string conditionPresetName;
+
+		void Run() override
+		{
+			replacerMod->RemoveConditionPreset(conditionPresetName);
 		}
 	};
 }

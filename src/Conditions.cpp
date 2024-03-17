@@ -304,17 +304,17 @@ namespace Conditions
 		return std::move(a_deprecatedCondition);
 	}
 
-	bool ORCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool ORCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
-		return conditionsComponent->conditionSet->EvaluateAny(a_refr, a_clipGenerator);
+		return conditionsComponent->conditionSet->EvaluateAny(a_refr, a_clipGenerator, static_cast<SubMod*>(a_parentSubMod));
 	}
 
-	bool ANDCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool ANDCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
-		return conditionsComponent->conditionSet->EvaluateAll(a_refr, a_clipGenerator);
+		return conditionsComponent->conditionSet->EvaluateAll(a_refr, a_clipGenerator, static_cast<SubMod*>(a_parentSubMod));
 	}
 
-	bool IsFormCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsFormCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		return a_refr == formComponent->GetTESFormValue();
 	}
@@ -335,7 +335,7 @@ namespace Conditions
 		return Utils::GetFormNameString(GetEquippedForm(a_refr)).data();
 	}
 
-	bool IsEquippedCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsEquippedCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (formComponent->IsValid()) {
 			const auto equippedForm = GetEquippedForm(a_refr);
@@ -383,7 +383,7 @@ namespace Conditions
 		return std::format("Unknown ({})", Utils::GetFormNameString(GetEquippedForm(a_refr))).data();
 	}
 
-	bool IsEquippedTypeCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsEquippedTypeCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		const auto type = static_cast<int8_t>(numericComponent->GetNumericValue(a_refr));
 		return GetEquippedType(a_refr) == type;
@@ -541,7 +541,7 @@ namespace Conditions
 		return Utils::GetFormKeywords(GetEquippedKeywordForm(a_refr)).data();
 	}
 
-	bool IsEquippedHasKeywordCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsEquippedHasKeywordCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (const auto bgsKeywordForm = GetEquippedKeywordForm(a_refr)) {
 			return keywordComponent->HasKeyword(bgsKeywordForm);
@@ -568,7 +568,7 @@ namespace Conditions
 		return Utils::GetFormNameString(GetEquippedPower(a_refr)).data();
 	}
 
-	bool IsEquippedPowerCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsEquippedPowerCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (formComponent->IsValid()) {
 			const auto equippedPower = GetEquippedPower(a_refr);
@@ -589,7 +589,7 @@ namespace Conditions
 		return nullptr;
 	}
 
-	bool IsWornCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsWornCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (formComponent->IsValid() && a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -609,7 +609,7 @@ namespace Conditions
 		return false;
 	}
 
-	bool IsWornHasKeywordCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsWornHasKeywordCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (keywordComponent->IsValid()) {
 			if (auto inventoryChanges = TESObjectREFR_GetInventoryChanges(a_refr)) {
@@ -628,7 +628,7 @@ namespace Conditions
 		return false;
 	}
 
-	bool IsFemaleCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsFemaleCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -641,7 +641,7 @@ namespace Conditions
 		return false;
 	}
 
-	bool IsChildCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsChildCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -652,7 +652,7 @@ namespace Conditions
 		return false;
 	}
 
-	bool IsPlayerTeammateCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsPlayerTeammateCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -663,7 +663,7 @@ namespace Conditions
 		return false;
 	}
 
-	bool IsInInteriorCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsInInteriorCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -676,7 +676,7 @@ namespace Conditions
 		return false;
 	}
 
-	bool IsInFactionCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsInFactionCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr && formComponent->IsValid()) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -689,7 +689,7 @@ namespace Conditions
 		return false;
 	}
 
-	bool HasKeywordCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool HasKeywordCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			bool bFound = false;
@@ -721,7 +721,7 @@ namespace Conditions
 		return ret.data();
 	}
 
-	bool HasMagicEffectCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool HasMagicEffectCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (formComponent->IsValid() && a_refr) {
 			if (const auto magicEffect = formComponent->GetTESFormValue()->As<RE::EffectSetting>()) {
@@ -764,7 +764,7 @@ namespace Conditions
 		return ret.data();
 	}
 
-	bool HasMagicEffectWithKeywordCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool HasMagicEffectWithKeywordCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (keywordComponent->IsValid() && a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -798,7 +798,7 @@ namespace Conditions
 		return false;
 	}
 
-	bool HasPerkCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool HasPerkCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (formComponent->IsValid() && a_refr) {
 			if (const auto perk = formComponent->GetTESFormValue()->As<RE::BGSPerk>()) {
@@ -811,7 +811,7 @@ namespace Conditions
 		return false;
 	}
 
-	bool HasSpellCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool HasSpellCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (formComponent->IsValid() && a_refr) {
 			if (const auto spell = formComponent->GetTESFormValue()->As<RE::SpellItem>()) {
@@ -851,7 +851,7 @@ namespace Conditions
 		return std::format("{}, {}", numericComponentA->GetNumericValue(a_refr), numericComponentB->GetNumericValue(a_refr)).data();
 	}
 
-	bool CompareValues::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool CompareValues::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		return comparisonComponent->GetComparisonResult(numericComponentA->GetNumericValue(a_refr), numericComponentB->GetNumericValue(a_refr));
 	}
@@ -879,7 +879,7 @@ namespace Conditions
 		return ""sv.data();
 	}
 
-	bool LevelCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool LevelCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -899,7 +899,7 @@ namespace Conditions
 		return ""sv.data();
 	}
 
-	bool IsActorBaseCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsActorBaseCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (const auto tesNPC = GetActorBase(a_refr)) {
 			return tesNPC == formComponent->GetTESFormValue();
@@ -928,7 +928,7 @@ namespace Conditions
 		return ""sv.data();
 	}
 
-	bool IsRaceCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsRaceCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (const auto race = GetRace(a_refr)) {
 			return race == formComponent->GetTESFormValue();
@@ -957,7 +957,7 @@ namespace Conditions
 		return ""sv.data();
 	}
 
-	bool CurrentWeatherCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool CurrentWeatherCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (formComponent->IsValid()) {
 			const auto currentWeather = RE::Sky::GetSingleton()->currentWeather;
@@ -988,7 +988,7 @@ namespace Conditions
 		return std::format("{:.3f} ({:02d}:{:02d})", hours, hoursInt, minutesInt).data();
 	}
 
-	bool CurrentGameTimeCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool CurrentGameTimeCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		const float v = numericComponent->GetNumericValue(a_refr);
 		const float hours = GetHours();
@@ -1021,19 +1021,19 @@ namespace Conditions
 		return std::format("{} {} {}", randomArgument, separator, numericComponent->value.GetArgument()).data();
 	}
 
-	bool RandomCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const
+	bool RandomCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const
 	{
 		const float v = numericComponent->GetNumericValue(a_refr);
 
 		float randomFloat;
-		if (!randomComponent->GetRandomFloat(a_clipGenerator, randomFloat)) {
+		if (!randomComponent->GetRandomFloat(a_clipGenerator, randomFloat, a_parentSubMod)) {
 			return true;
 		}
 
 		return comparisonComponent->GetComparisonResult(randomFloat, v);
 	}
 
-	bool IsUniqueCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsUniqueCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -1051,7 +1051,7 @@ namespace Conditions
 		return Utils::GetFormNameString(GetTESClass(a_refr)).data();
 	}
 
-	bool IsClassCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsClassCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (formComponent->IsValid()) {
 			if (const auto tesClass = GetTESClass(a_refr)) {
@@ -1080,7 +1080,7 @@ namespace Conditions
 		return Utils::GetFormNameString(GetCombatStyle(a_refr)).data();
 	}
 
-	bool IsCombatStyleCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsCombatStyleCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (formComponent->IsValid()) {
 			if (const auto combatStyle = GetCombatStyle(a_refr)) {
@@ -1109,7 +1109,7 @@ namespace Conditions
 		return Utils::GetFormNameString(GetVoiceType(a_refr)).data();
 	}
 
-	bool IsVoiceTypeCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsVoiceTypeCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (formComponent->IsValid()) {
 			if (const auto voiceType = GetVoiceType(a_refr)) {
@@ -1133,7 +1133,7 @@ namespace Conditions
 		return nullptr;
 	}
 
-	bool IsAttackingCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsAttackingCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -1144,7 +1144,7 @@ namespace Conditions
 		return false;
 	}
 
-	bool IsRunningCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsRunningCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -1155,7 +1155,7 @@ namespace Conditions
 		return false;
 	}
 
-	bool IsSneakingCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsSneakingCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -1166,7 +1166,7 @@ namespace Conditions
 		return false;
 	}
 
-	bool IsSprintingCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsSprintingCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -1177,7 +1177,7 @@ namespace Conditions
 		return false;
 	}
 
-	bool IsInAirCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsInAirCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -1188,7 +1188,7 @@ namespace Conditions
 		return false;
 	}
 
-	bool IsInCombatCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsInCombatCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -1199,7 +1199,7 @@ namespace Conditions
 		return false;
 	}
 
-	bool IsWeaponDrawnCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsWeaponDrawnCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -1219,7 +1219,7 @@ namespace Conditions
 		return ""sv.data();
 	}
 
-	bool IsInLocationCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsInLocationCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (formComponent->IsValid() && a_refr) {
 			if (const auto locationToCheck = formComponent->GetTESFormValue()->As<RE::BGSLocation>()) {
@@ -1266,7 +1266,7 @@ namespace Conditions
 		return ""sv.data();
 	}
 
-	bool HasRefTypeCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool HasRefTypeCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (auto currentLocRefType = TESObjectREFR_GetLocationRefType(a_refr)) {
@@ -1294,7 +1294,7 @@ namespace Conditions
 		return ""sv.data();
 	}
 
-	bool IsParentCellCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsParentCellCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto parentCell = a_refr->GetParentCell()) {
@@ -1314,7 +1314,7 @@ namespace Conditions
 		return ""sv.data();
 	}
 
-	bool IsWorldSpaceCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsWorldSpaceCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto worldspace = a_refr->GetWorldspace()) {
@@ -1351,7 +1351,7 @@ namespace Conditions
 		return std::to_string(GetFactionRank(a_refr)).data();
 	}
 
-	bool FactionRankCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool FactionRankCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (factionComponent->IsValid() && a_refr) {
 			const int32_t rank = GetFactionRank(a_refr);
@@ -1397,7 +1397,7 @@ namespace Conditions
 		return numericComponent->GetArgument();
 	}
 
-	bool IsMovementDirectionCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsMovementDirectionCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		const float v = numericComponent->GetNumericValue(a_refr);
 		if (v < 0 || v > 4) {
@@ -1444,7 +1444,7 @@ namespace Conditions
 		return Utils::GetFormNameString(GetEquippedShout(a_refr)).data();
 	}
 
-	bool IsEquippedShoutCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsEquippedShoutCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (formComponent->IsValid()) {
 			const auto equippedShout = GetEquippedShout(a_refr);
@@ -1470,7 +1470,7 @@ namespace Conditions
 		return textComponent->GetTextValue();
 	}
 
-	bool HasGraphVariableCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool HasGraphVariableCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			//int32_t graphVariableType = static_cast<int32_t>(numericComponent->GetNumericValue(a_refr));
@@ -1514,7 +1514,7 @@ namespace Conditions
 		return std::to_string(submergeLevel).data();
 	}
 
-	bool SubmergeLevelCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool SubmergeLevelCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			const float submergeLevel = TESObjectREFR_GetSubmergeLevel(a_refr, a_refr->GetPositionZ(), a_refr->GetParentCell());
@@ -1534,7 +1534,7 @@ namespace Conditions
 		return std::format("{} - {}", textComponentMod->text.GetValue(), submodArgument).data();
 	}
 
-	bool IsReplacerEnabledCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsReplacerEnabledCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (const auto replacerMod = OpenAnimationReplacer::GetSingleton().GetReplacerModByName(textComponentMod->text.GetValue())) {
 			const auto submodName = textComponentSubmod->text.GetValue();
@@ -1561,7 +1561,7 @@ namespace Conditions
 		return Utils::GetFormNameString(GetCurrentPackage(a_refr)).data();
 	}
 
-	bool IsCurrentPackageCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsCurrentPackageCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (formComponent->IsValid()) {
 			if (const auto currentPackage = GetCurrentPackage(a_refr)) {
@@ -1602,7 +1602,7 @@ namespace Conditions
 		return std::format("{}, {}", slotName, keywordComponent->keyword.GetArgument()).data();
 	}
 
-	bool IsWornInSlotHasKeywordCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsWornInSlotHasKeywordCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -1682,7 +1682,7 @@ namespace Conditions
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool ScaleCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool ScaleCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			const float scale = a_refr->GetScale();
@@ -1711,7 +1711,7 @@ namespace Conditions
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool HeightCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool HeightCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -1743,7 +1743,7 @@ namespace Conditions
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool WeightCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool WeightCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -1788,7 +1788,7 @@ namespace Conditions
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool MovementSpeedCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool MovementSpeedCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -1837,7 +1837,7 @@ namespace Conditions
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool CurrentMovementSpeedCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool CurrentMovementSpeedCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -1861,7 +1861,7 @@ namespace Conditions
 		return std::to_string(GetWindSpeed()).data();
 	}
 
-	bool WindSpeedCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool WindSpeedCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		return comparisonComponent->GetComparisonResult(GetWindSpeed(), numericComponent->GetNumericValue(a_refr));
 	}
@@ -1893,7 +1893,7 @@ namespace Conditions
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool WindAngleDifferenceCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool WindAngleDifferenceCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		return comparisonComponent->GetComparisonResult(GetWindAngleDifference(a_refr), numericComponent->GetNumericValue(a_refr));
 	}
@@ -1942,7 +1942,7 @@ namespace Conditions
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool CrimeGoldCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool CrimeGoldCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr && factionComponent->IsValid()) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -1956,7 +1956,7 @@ namespace Conditions
 		return false;
 	}
 
-	bool IsBlockingCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsBlockingCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -1991,7 +1991,7 @@ namespace Conditions
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool IsCombatStateCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsCombatStateCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (auto actor = a_refr->As<RE::Actor>()) {
@@ -2047,7 +2047,7 @@ namespace Conditions
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool InventoryCountCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool InventoryCountCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (formComponent->IsValid() && a_refr) {
 			const int count = GetItemCount(a_refr);
@@ -2089,7 +2089,7 @@ namespace Conditions
 		return std::to_string(GetFallDistance(a_refr)).data();
 	}
 
-	bool FallDistanceCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool FallDistanceCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		return comparisonComponent->GetComparisonResult(GetFallDistance(a_refr), numericComponent->GetNumericValue(a_refr));
 	}
@@ -2121,7 +2121,7 @@ namespace Conditions
 		return std::to_string(GetFallDamage(a_refr)).data();
 	}
 
-	bool FallDamageCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool FallDamageCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		return comparisonComponent->GetComparisonResult(GetFallDamage(a_refr), numericComponent->GetNumericValue(a_refr));
 	}
@@ -2166,7 +2166,7 @@ namespace Conditions
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool CurrentPackageProcedureTypeCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool CurrentPackageProcedureTypeCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (auto actor = a_refr->As<RE::Actor>()) {
@@ -2244,7 +2244,7 @@ namespace Conditions
 		return enumMap;
 	}
 
-	bool IsOnMountCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsOnMountCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -2274,7 +2274,7 @@ namespace Conditions
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool IsRidingCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsRidingCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (formComponent->IsValid() && a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -2306,7 +2306,7 @@ namespace Conditions
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool IsRidingHasKeywordCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsRidingHasKeywordCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -2321,7 +2321,7 @@ namespace Conditions
 		return false;
 	}
 
-	bool IsBeingRiddenCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsBeingRiddenCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -2352,7 +2352,7 @@ namespace Conditions
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool IsBeingRiddenByCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsBeingRiddenByCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (formComponent->IsValid() && a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -2388,7 +2388,7 @@ namespace Conditions
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool CurrentFurnitureCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool CurrentFurnitureCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (formComponent->IsValid() && a_refr) {
 			if (const auto furniture = Utils::GetCurrentFurnitureForm(a_refr, boolComponent->GetBoolValue())) {
@@ -2410,7 +2410,7 @@ namespace Conditions
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool CurrentFurnitureHasKeywordCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool CurrentFurnitureHasKeywordCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto furniture = Utils::GetCurrentFurnitureForm(a_refr, boolComponent->GetBoolValue())) {
@@ -2459,7 +2459,7 @@ namespace Conditions
 		return GetTargetTypeName(targetType);
 	}
 
-	bool HasTargetCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool HasTargetCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -2493,7 +2493,7 @@ namespace Conditions
 		return TargetConditionBase::GetCurrent(a_refr);
 	}
 
-	bool CurrentTargetDistanceCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool CurrentTargetDistanceCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto target = GetTarget(a_refr)) {
@@ -2554,7 +2554,7 @@ namespace Conditions
 		return TargetConditionBase::GetCurrent(a_refr);
 	}
 
-	bool CurrentTargetRelationshipCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool CurrentTargetRelationshipCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto target = GetTarget(a_refr)) {
@@ -2636,7 +2636,7 @@ namespace Conditions
 		return std::to_string(weight).data();
 	}
 
-	bool EquippedObjectWeightCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool EquippedObjectWeightCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			float weight = 0.f;
@@ -2716,7 +2716,7 @@ namespace Conditions
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool CurrentCastingTypeCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool CurrentCastingTypeCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -2805,7 +2805,7 @@ namespace Conditions
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool CurrentDeliveryTypeCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool CurrentDeliveryTypeCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -2871,7 +2871,7 @@ namespace Conditions
 		return std::format("{} stage {}", questComponent->form.GetArgument(), stageIndexComponent->value.GetArgument()).data();
 	}
 
-	bool IsQuestStageDoneCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsQuestStageDoneCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (questComponent->IsValid()) {
 			if (auto quest = questComponent->GetTESFormValue()->As<RE::TESQuest>()) {
@@ -2907,7 +2907,7 @@ namespace Conditions
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool CurrentWeatherHasFlagCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool CurrentWeatherHasFlagCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (const auto currentWeather = RE::Sky::GetSingleton()->currentWeather) {
 			const auto index = static_cast<int32_t>(weatherFlagComponent->GetNumericValue(nullptr));
@@ -2955,7 +2955,7 @@ namespace Conditions
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool InventoryCountHasKeywordCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool InventoryCountHasKeywordCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			const int count = GetItemCount(a_refr);
@@ -3007,7 +3007,7 @@ namespace Conditions
 		return TargetConditionBase::GetCurrent(a_refr);
 	}
 
-	bool CurrentTargetRelativeAngleCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool CurrentTargetRelativeAngleCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto target = GetTarget(a_refr)) {
@@ -3071,7 +3071,7 @@ namespace Conditions
 		return std::format("{} is in line of sight", GetTargetTypeName(targetType)).data();
 	}
 
-	bool CurrentTargetLineOfSightCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool CurrentTargetLineOfSightCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -3125,7 +3125,7 @@ namespace Conditions
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool CurrentRotationSpeedCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool CurrentRotationSpeedCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -3137,7 +3137,7 @@ namespace Conditions
 		return false;
 	}
 
-	bool IsTalkingCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsTalkingCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -3148,7 +3148,7 @@ namespace Conditions
 		return false;
 	}
 
-	bool IsGreetingPlayerCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsGreetingPlayerCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -3168,7 +3168,7 @@ namespace Conditions
 		return false;
 	}
 
-	bool IsInSceneCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsInSceneCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			return a_refr->GetCurrentScene() != nullptr;
@@ -3188,7 +3188,7 @@ namespace Conditions
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool IsInSpecifiedSceneCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsInSpecifiedSceneCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			return a_refr->GetCurrentScene() == formComponent->GetTESFormValue();
@@ -3197,7 +3197,7 @@ namespace Conditions
 		return false;
 	}
 
-	bool IsScenePlayingCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsScenePlayingCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (formComponent->IsValid()) {
 			if (const auto scene = formComponent->GetTESFormValue()->As<RE::BGSScene>()) {
@@ -3208,7 +3208,7 @@ namespace Conditions
 		return false;
 	}
 
-	bool IsDoingFavorCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsDoingFavorCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -3256,7 +3256,7 @@ namespace Conditions
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool AttackStateCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool AttackStateCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			return comparisonComponent->GetComparisonResult(static_cast<float>(GetAttackState(a_refr)), attackStateComponent->GetNumericValue(a_refr));
@@ -3328,7 +3328,7 @@ namespace Conditions
 		return openMenus.data();
 	}
 
-	bool IsMenuOpenCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool IsMenuOpenCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		return RE::UI::GetSingleton()->IsMenuOpen(textComponent->GetTextValue());
 	}
@@ -3349,11 +3349,11 @@ namespace Conditions
 		return GetTarget(a_refr).get();
 	}
 
-	bool TARGETCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const
+	bool TARGETCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const
 	{
 		a_refr = GetRefrToEvaluate(a_refr);
 
-		return conditionsComponent->conditionSet->EvaluateAll(a_refr, a_clipGenerator);
+		return conditionsComponent->conditionSet->EvaluateAll(a_refr, a_clipGenerator, static_cast<SubMod*>(a_parentSubMod));
 	}
 
 	RE::TESObjectREFRPtr TARGETCondition::GetTarget(RE::TESObjectREFR* a_refr) const
@@ -3376,11 +3376,11 @@ namespace Conditions
 		return RE::PlayerCharacter::GetSingleton();
 	}
 
-	bool PLAYERCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const
+	bool PLAYERCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const
 	{
 		a_refr = GetRefrToEvaluate(a_refr);
 
-		return conditionsComponent->conditionSet->EvaluateAll(a_refr, a_clipGenerator);
+		return conditionsComponent->conditionSet->EvaluateAll(a_refr, a_clipGenerator, static_cast<SubMod*>(a_parentSubMod));
 	}
 
 	RE::BSString LightLevelCondition::GetArgument() const
@@ -3401,7 +3401,7 @@ namespace Conditions
 		return ""sv.data();
 	}
 
-	bool LightLevelCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool LightLevelCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
@@ -3425,7 +3425,7 @@ namespace Conditions
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool LocationHasKeywordCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool LocationHasKeywordCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto currentLocation = a_refr->GetCurrentLocation()) {
@@ -3470,7 +3470,7 @@ namespace Conditions
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool LifeStateCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool LifeStateCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			return comparisonComponent->GetComparisonResult(static_cast<float>(GetLifeState(a_refr)), lifeStateComponent->GetNumericValue(a_refr));
@@ -3548,7 +3548,7 @@ namespace Conditions
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool SitSleepStateCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const
+	bool SitSleepStateCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			return comparisonComponent->GetComparisonResult(static_cast<float>(GetSitSleepState(a_refr)), sitSleepStateComponent->GetNumericValue(a_refr));
@@ -3594,13 +3594,13 @@ namespace Conditions
 		return enumMap;
 	}
 
-	bool XORCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const
+	bool XORCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const
 	{
 		bool bXORConditionMet = false;
 		size_t trueCount = 0;
 
 		conditionsComponent->conditionSet->ForEachCondition([&](auto& a_childCondition) {
-			if (!a_childCondition->IsDisabled() && a_childCondition->Evaluate(a_refr, a_clipGenerator)) {
+			if (!a_childCondition->IsDisabled() && a_childCondition->Evaluate(a_refr, a_clipGenerator, a_parentSubMod)) {
 				if (++trueCount > 1) {
 					bXORConditionMet = false;
 					return RE::BSVisit::BSVisitControl::kStop;
@@ -3611,5 +3611,320 @@ namespace Conditions
 		});
 
 		return bXORConditionMet;
+	}
+
+    bool PRESETCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const
+	{
+		if (conditionsComponent->conditionPreset) {
+			conditionsComponent->conditionPreset->EvaluateAll(a_refr, a_clipGenerator, static_cast<SubMod*>(a_parentSubMod));
+		}
+
+		return false;
+	}
+
+    RE::TESObjectREFR* MOUNTCondition::GetRefrToEvaluate(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				if (RE::ActorPtr mountPtr = nullptr; actor->GetMount(mountPtr)) {
+					return mountPtr.get();
+				}
+			}
+		}
+
+        return nullptr;
+    }
+
+    bool MOUNTCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const
+	{
+		a_refr = GetRefrToEvaluate(a_refr);
+
+		return conditionsComponent->conditionSet->EvaluateAll(a_refr, a_clipGenerator, static_cast<SubMod*>(a_parentSubMod));
+	}
+
+    RE::BSString IsAttackTypeKeywordCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto attackType = GetAttackType(a_refr)) {
+				return attackType->GetFormEditorID();
+			}
+		}
+
+		return ConditionBase::GetCurrent(a_refr);
+    }
+
+    bool IsAttackTypeKeywordCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
+	{
+		if (keywordComponent->IsValid()) {
+			if (const auto attackType = GetAttackType(a_refr)) {
+				return attackType == keywordComponent->keyword.GetFormValue();
+			}
+		}
+
+		return false;
+	}
+
+    RE::BGSKeyword* IsAttackTypeKeywordCondition::GetAttackType(RE::TESObjectREFR* a_refr) const
+	{
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				if (const auto highProcess = actor->GetHighProcess()) {
+					if (const auto attackData = highProcess->attackData) {
+						return attackData->data.attackType;
+					}
+				}
+			}
+		}
+
+		return nullptr;
+	}
+
+    void IsAttackTypeFlagCondition::PostInitialize()
+    {
+		ConditionBase::PostInitialize();
+		attackFlagComponent->value.getEnumMap = &IsAttackTypeFlagCondition::GetEnumMap;
+    }
+
+    RE::BSString IsAttackTypeFlagCondition::GetArgument() const
+    {
+		const auto flag = static_cast<int32_t>(attackFlagComponent->GetNumericValue(nullptr));
+
+		return GetFlagName(flag);
+    }
+
+    RE::BSString IsAttackTypeFlagCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+		if (const auto attackData = GetAttackData(a_refr)) {
+		    std::string_view ignoreWeaponStr = attackData->data.flags.any(RE::AttackData::AttackFlag::kIgnoreWeapon) ? "IgnoreWeapon "sv : ""sv;
+			std::string_view bashAttackStr = attackData->data.flags.any(RE::AttackData::AttackFlag::kBashAttack) ? "BashAttack "sv : ""sv;
+			std::string_view powerAttackStr = attackData->data.flags.any(RE::AttackData::AttackFlag::kPowerAttack) ? "PowerAttack "sv : ""sv;
+			std::string_view chargeAttackStr = attackData->data.flags.any(RE::AttackData::AttackFlag::kChargeAttack) ? "ChargeAttack "sv : ""sv;
+			std::string_view rotatingAttackStr = attackData->data.flags.any(RE::AttackData::AttackFlag::kRotatingAttack) ? "RotatingAttack "sv : ""sv;
+			std::string_view continuousAttackStr = attackData->data.flags.any(RE::AttackData::AttackFlag::kContinuousAttack) ? "ContinuousAttack "sv : ""sv;
+			std::string_view overrideDataStr = attackData->data.flags.any(RE::AttackData::AttackFlag::kOverrideData) ? "OverrideData "sv : ""sv;
+
+			return std::format("{}{}{}{}{}{}{}", ignoreWeaponStr, bashAttackStr, powerAttackStr, chargeAttackStr, rotatingAttackStr, continuousAttackStr, overrideDataStr).data();
+		}
+		return ConditionBase::GetCurrent(a_refr);
+    }
+
+    bool IsAttackTypeFlagCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
+	{
+		if (const auto attackData = GetAttackData(a_refr)) {
+			const auto index = static_cast<int32_t>(attackFlagComponent->GetNumericValue(nullptr));
+			const auto flag = static_cast<RE::AttackData::AttackFlag>(1 << index);
+
+			return attackData->data.flags.any(flag);
+		}
+
+		return false;
+	}
+
+    std::string_view IsAttackTypeFlagCondition::GetFlagName(int32_t a_index) const
+	{
+		static auto map = GetEnumMap();
+		if (const auto it = map.find(a_index); it != map.end()) {
+			return it->second;
+		}
+
+		return "(Invalid)"sv;
+	}
+
+    std::map<int32_t, std::string_view> IsAttackTypeFlagCondition::GetEnumMap()
+	{
+		std::map<int32_t, std::string_view> enumMap;
+		enumMap[0] = "IgnoreWeapon"sv;
+		enumMap[1] = "BashAttack"sv;
+		enumMap[2] = "PowerAttack"sv;
+		enumMap[3] = "ChargeAttack"sv;
+		enumMap[4] = "RotatingAttack"sv;
+		enumMap[5] = "ContinuousAttack"sv;
+		enumMap[6] = "OverrideData"sv;
+
+		return enumMap;
+	}
+
+    RE::NiPointer<RE::BGSAttackData> IsAttackTypeFlagCondition::GetAttackData(RE::TESObjectREFR* a_refr) const
+	{
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				if (const auto highProcess = actor->GetHighProcess()) {
+					if (const auto attackData = highProcess->attackData) {
+						return attackData;
+					}
+				}
+			}
+		}
+
+		return nullptr;
+	}
+
+    RE::BSString MovementSurfaceAngleCondition::GetArgument() const
+    {
+		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+
+		return std::format("Angle {} {}", separator, numericComponent->value.GetArgument()).data();
+    }
+
+    RE::BSString MovementSurfaceAngleCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			return std::to_string(GetSurfaceAngle(a_refr)).data();
+		}
+
+		return ConditionBase::GetCurrent(a_refr);
+    }
+
+    bool MovementSurfaceAngleCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
+	{
+		return comparisonComponent->GetComparisonResult(GetSurfaceAngle(a_refr), numericComponent->GetNumericValue(a_refr));
+	}
+
+    float MovementSurfaceAngleCondition::GetSurfaceAngle(RE::TESObjectREFR* a_refr) const
+	{
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				if (const auto charController = actor->GetCharController()) {
+				    const auto& surfaceVector = charController->supportNorm;
+					const auto& forwardVector = charController->forwardVec;
+					const auto dp = _mm_dp_ps(surfaceVector.quad, forwardVector.quad, 0x71);
+					const float dot = _mm_cvtss_f32(dp);
+
+					const float angleRadians = acos(dot);
+					float ret = RE::NI_HALF_PI - angleRadians;
+					if (degreesComponent->GetBoolValue()) {
+						ret = RE::rad_to_deg(ret);
+					}
+
+					return ret;
+				}
+			}
+		}
+
+		return 0.f;
+	}
+
+    bool LocationClearedCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
+	{
+		if (a_refr) {
+			if (const auto currentLocation = a_refr->GetCurrentLocation()) {
+				return currentLocation->IsCleared();
+			}
+		}
+
+		return false;
+	}
+
+    bool IsSummonedCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
+	{
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				return actor->IsSummoned();
+			}
+		}
+
+		return false;
+	}
+
+    RE::BSString IsEquippedHasEnchantmentCondition::GetArgument() const
+    {
+		const auto formArgument = formComponent->GetArgument();
+		std::string ret = std::format("{} on {} hand", formArgument.data(), leftHandComponent->GetBoolValue() ? "left"sv : "right"sv).data();
+
+		if (chargedComponent->GetBoolValue()) {
+			ret.append(" | Charged Only"sv);
+		}
+		return ret.data();
+    }
+
+    RE::BSString IsEquippedHasEnchantmentCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				if (const auto equippedItem = actor->GetEquippedEntryData(leftHandComponent->GetBoolValue())) {
+					if (const auto enchantment = equippedItem->GetEnchantment()) {
+						return Utils::GetFormNameString(enchantment).data();
+					}
+				}
+			}
+		}
+
+		return ""sv.data();
+    }
+
+    bool IsEquippedHasEnchantmentCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
+	{
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				if (const auto equippedItem = actor->GetEquippedEntryData(leftHandComponent->GetBoolValue())) {
+					if (const auto enchantment = equippedItem->GetEnchantment()) {
+						if (enchantment == formComponent->GetTESFormValue() || enchantment->data.baseEnchantment == formComponent->GetTESFormValue()) {
+							if (!chargedComponent->GetBoolValue()) {
+							    return true;
+							}
+
+							if (equippedItem->GetEnchantmentCharge().has_value()) {
+								return *equippedItem->GetEnchantmentCharge() > 0.0;
+							}
+						}
+					}
+				}
+			}
+		}
+
+	    return false;
+	}
+
+    RE::BSString IsEquippedHasEnchantmentWithKeywordCondition::GetArgument() const
+    {
+		const auto formArgument = keywordComponent->GetArgument();
+		std::string ret = std::format("{} on {} hand", formArgument.data(), leftHandComponent->GetBoolValue() ? "left"sv : "right"sv).data();
+
+		if (chargedComponent->GetBoolValue()) {
+			ret.append(" | Charged Only"sv);
+		}
+		return ret.data();
+    }
+
+    RE::BSString IsEquippedHasEnchantmentWithKeywordCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+    {
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				if (const auto equippedItem = actor->GetEquippedEntryData(leftHandComponent->GetBoolValue())) {
+					if (const auto enchantment = equippedItem->GetEnchantment()) {
+						if (const auto bgsKeywordForm = enchantment->As<RE::BGSKeywordForm>()) {
+							return Utils::GetFormKeywords(bgsKeywordForm).data();
+						}
+					}
+				}
+			}
+		}
+
+		return ""sv.data();
+    }
+
+    bool IsEquippedHasEnchantmentWithKeywordCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
+	{
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				if (const auto equippedItem = actor->GetEquippedEntryData(leftHandComponent->GetBoolValue())) {
+					if (const auto enchantment = equippedItem->GetEnchantment()) {
+						if (const auto bgsKeywordForm = enchantment->As<RE::BGSKeywordForm>()) {
+							if (keywordComponent->HasKeyword(bgsKeywordForm)) {
+								if (!chargedComponent->GetBoolValue()) {
+									return true;
+								}
+
+								if (equippedItem->GetEnchantmentCharge().has_value()) {
+									return *equippedItem->GetEnchantmentCharge() > 0.0;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return false;
 	}
 }

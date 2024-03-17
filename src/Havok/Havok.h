@@ -279,32 +279,31 @@ namespace RE
 		~BSSynchronizedClipGenerator() override;  // 00
 
 		// members
-		uint32_t unk48;                                                              // 48
-		uint32_t unk4C;                                                              // 4C
-		hkbClipGenerator* clipGenerator;                                             // 50
-		hkStringPtr syncAnimPrefix;                                                  // 58
-		bool syncClipIgnoreMarkPlacement;                                            // 60
-		float getToMarkTime;                                                         // 64
-		float markErrorThreshold;                                                    // 68
-		bool leadCharacter;                                                          // 6C
-		bool reorientSupportChar;                                                    // 6D
-		bool applyMotionFromRoot;                                                    // 6E
-		class BGSSynchronizedAnimationInstance* synchronizedScene;                   // 70
-		uint32_t unk78;                                                              // 78
-		uint32_t unk7C;                                                              // 7C
-		hkQsTransform startingWorldFromModel;                                        // 80
-		hkQsTransform worldFromModelWithRootMotion;                                  // B0
-		hkQsTransform posOffset;                                                     // E0
-		float getToMarkProgress;                                                     // 110
-		hkaAnimationBinding* binding;                                                // 118
-		hkPointerMap<int32_t, int32_t>* eventWithPrefixIdToEventWithoutPrefixIdMap;  // 120  hkPointerMap<int, int>*
-		uint16_t synchronizedAnimationBindingIndex;                                  // 128
-		bool doneReorientingSupportChar;                                             // 12A
-		bool allClipsActivated;                                                      // 12B
-		bool allClipsInSceneAreDoneReorientingSupportChar;                           // 12C
+		uint64_t pad48;                                             // 48
+		hkbClipGenerator* clipGenerator;                            // 50
+		hkStringPtr syncAnimPrefix;                                 // 58
+		bool syncClipIgnoreMarkPlacement;                           // 60
+		float getToMarkTime;                                        // 64
+		float markErrorThreshold;                                   // 68
+		bool leadCharacter;                                         // 6C
+		bool reorientSupportChar;                                   // 6D
+		bool applyMotionFromRoot;                                   // 6E
+		class BGSSynchronizedAnimationInstance* synchronizedScene;  // 70
+		uint32_t unk78;                                             // 78
+		uint32_t unk7C;                                             // 7C
+		hkQsTransform startMarkWS;                                  // 80
+		hkQsTransform endMarkWS;                                    // B0
+		hkQsTransform startMarkMS;                                  // E0
+		float currentLerp;                                          // 110
+		hkaAnimationBinding* localSyncBinding;                      // 118
+		hkPointerMap<int32_t, int32_t>* eventMap;                   // 120  hkPointerMap<int, int>*
+		uint16_t animationBindingIndex;                             // 128
+		bool atMark;                                                // 12A
+		bool allCharactersInScene;                                  // 12B
+		bool allCharactersAtMarks;                                  // 12C
 	};
 	static_assert(sizeof(BSSynchronizedClipGenerator) == 0x130);
-	static_assert(offsetof(BSSynchronizedClipGenerator, synchronizedAnimationBindingIndex) == 0x128);
+	static_assert(offsetof(BSSynchronizedClipGenerator, animationBindingIndex) == 0x128);
 
 	namespace BSSynchronizedClipGeneratorUtils
 	{
@@ -552,6 +551,75 @@ namespace RE
 		void* userData;             // 70
 	};
 	static_assert(offsetof(hkMemoryRouter, heap) == 0x58);
+
+	class AnimationClipDataSingleton :
+		public BSTSingletonSDM<AnimationClipDataSingleton>
+	{
+	public:
+		inline static auto RTTI = RTTI_AnimationClipDataSingleton;
+		inline static auto VTABLE = VTABLE_AnimationClipDataSingleton;
+
+		class AnimationClipData : public BSIntrusiveRefCounted
+		{
+		public:
+			uint32_t pad04;                        // 04
+			BSTHashMap<uint64_t, uint64_t> map08;  // 08
+			BSTArray<uint64_t> array38;            // 38
+			BSTArray<uint64_t> array50;            // 50
+		};
+		static_assert(sizeof(AnimationClipData) == 0x68);
+
+		virtual ~AnimationClipDataSingleton();  // 00
+
+		[[nodiscard]] static AnimationClipDataSingleton* GetSingleton()
+		{
+			REL::Relocation<AnimationClipDataSingleton**> singleton{ RELOCATION_ID(515414, 401553) };
+			return *singleton;
+		}
+
+		// members
+		//uint64_t unk08;                            // 08
+		BSTHashMap<BSFixedString, NiPointer<AnimationClipData>> hashMap; // 10
+		BSTArray<uint64_t> array;  // 40
+		uint64_t unk58;  // 58
+		uint64_t unk60;  // 60
+		uint64_t unk68;  // 68
+		uint64_t unk70;  // 70
+		uint64_t unk78;  // 78
+		uint64_t unk80;  // 80
+	};
+	static_assert(sizeof(AnimationClipDataSingleton) == 0x88);
+
+	class AnimationSetDataSingleton :
+		public BSTSingletonSDM<AnimationSetDataSingleton>
+	{
+	public:
+		struct AnimationSetData
+		{
+			BSTSmallArray<BSFixedString> triggerEvents;  // 00
+			BSTArray<void*> variableExpressions;         // 18
+			uint64_t counter30;                          // 30
+			void* unk38;                                 // array? it seems to be a pointer to array contents, a few CRCs
+			uint64_t counter40;                          // 40
+			uint64_t counter48;                          // 48
+			BSTArray<void*>* cacheInfos;                 // 50, pointer to array of CRCs? list of anim files?
+			uint64_t unk58;                              // always 0?
+			uint64_t unk60;                              // always 0?
+			uint64_t counter68;                          // all 4 counters have the same value. seem relative to the amount of data in unk38
+			BSTArray<void*> attackEntries;               // 70
+		};
+		static_assert(sizeof(AnimationSetData) == 0x88);
+
+		[[nodiscard]] static AnimationSetDataSingleton* GetSingleton()
+		{
+			REL::Relocation<AnimationSetDataSingleton**> singleton{ RELOCATION_ID(515415, 401554) };
+			return *singleton;
+		}
+
+		// members
+		BSTHashMap<BSFixedString, BSTArray<AnimationSetData>*> hashMap;  // 08
+	};
+	static_assert(sizeof(AnimationSetDataSingleton) == 0x38);
 }
 
 inline RE::hkMemoryRouter& hkGetMemoryRouter() { return *(RE::hkMemoryRouter*)(uintptr_t)SKSE::WinAPI::TlsGetValue(g_dwTlsIndex); }

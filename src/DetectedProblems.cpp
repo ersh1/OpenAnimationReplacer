@@ -7,7 +7,7 @@
 
 void DetectedProblems::UpdateShowErrorBanner() const
 {
-	if (_bIsOutdated || !_missingPlugins.empty() || !_invalidPlugins.empty() || !_subModsWithInvalidConditions.empty()) {
+	if (_bIsOutdated || !_missingPlugins.empty() || !_invalidPlugins.empty() || !_subModsWithInvalidConditions.empty() || !_replacerModsWithInvalidConditions.empty()) {
 		UI::UIManager::GetSingleton().bShowErrorBanner = true;
 	} else {
 		UI::UIManager::GetSingleton().bShowErrorBanner = false;
@@ -41,7 +41,7 @@ void DetectedProblems::AddInvalidPluginName(std::string_view a_pluginName, REL::
 	UpdateShowErrorBanner();
 }
 
-void DetectedProblems::CheckForSubModsSharingPriority()
+bool DetectedProblems::CheckForSubModsSharingPriority()
 {
 	// check for duplicated priorities
 	WriteLocker locker(_dataLock);
@@ -103,9 +103,13 @@ void DetectedProblems::CheckForSubModsSharingPriority()
 			++outerIt;
 		}
 	}
+
+	UpdateShowErrorBanner();
+
+	return HasSubModsSharingPriority();
 }
 
-void DetectedProblems::CheckForSubModsWithInvalidConditions()
+bool DetectedProblems::CheckForSubModsWithInvalidConditions()
 {
 	WriteLocker locker(_dataLock);
 	_subModsWithInvalidConditions.clear();
@@ -120,11 +124,46 @@ void DetectedProblems::CheckForSubModsWithInvalidConditions()
 	});
 
 	UpdateShowErrorBanner();
+
+	return HasSubModsWithInvalidConditions();
+}
+
+bool DetectedProblems::CheckForReplacerModsWithInvalidConditions()
+{
+	WriteLocker locker(_dataLock);
+	_replacerModsWithInvalidConditions.clear();
+
+	OpenAnimationReplacer::GetSingleton().ForEachReplacerMod([&](const auto& a_replacerMod) {
+		if (a_replacerMod->HasInvalidConditions()) {
+			_replacerModsWithInvalidConditions.insert(a_replacerMod);
+		}
+	});
+
+	UpdateShowErrorBanner();
+
+	return HasReplacerModsWithInvalidConditions();
+}
+
+bool DetectedProblems::CheckForProblems()
+{
+	bool bHasProblems = false;
+
+    if (CheckForSubModsSharingPriority()) {
+        bHasProblems = true;
+    }
+	if (CheckForSubModsWithInvalidConditions()) {
+	    bHasProblems = true;
+	}
+	if (CheckForReplacerModsWithInvalidConditions()) {
+	    bHasProblems = true;
+	}
+
+	return bHasProblems;
 }
 
 DetectedProblems::Severity DetectedProblems::GetProblemSeverity() const
 {
-	if (IsOutdated() || HasMissingPlugins() || HasInvalidPlugins() || HasSubModsWithInvalidConditions()) {
+	if (IsOutdated() || HasMissingPlugins() || HasInvalidPlugins() || HasSubModsWithInvalidConditions() || HasReplacerModsWithInvalidConditions()) {
 		return Severity::kError;
 	}
 
@@ -149,8 +188,8 @@ std::string_view DetectedProblems::GetProblemMessage() const
 		return "ERROR: At least one Open Animation Replacer plugin failed to initialize properly! Click for details..."sv;
 	}
 
-	if (HasSubModsWithInvalidConditions()) {
-		return "ERROR: Detected submods with invalid conditions! Click for details..."sv;
+	if (HasSubModsWithInvalidConditions() || HasReplacerModsWithInvalidConditions()) {
+		return "ERROR: Detected mods with invalid conditions! Click for details..."sv;
 	}
 
 	if (HasSubModsSharingPriority()) {
@@ -195,5 +234,14 @@ void DetectedProblems::ForEachSubModWithInvalidConditions(const std::function<vo
 
 	for (auto& subMod : _subModsWithInvalidConditions) {
 		a_func(subMod);
+	}
+}
+
+void DetectedProblems::ForEachReplacerModWithInvalidConditions(const std::function<void(const ReplacerMod*)>& a_func) const
+{
+	ReadLocker locker(_dataLock);
+
+	for (auto& replacerMod : _replacerModsWithInvalidConditions) {
+		a_func(replacerMod);
 	}
 }

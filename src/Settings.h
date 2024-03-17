@@ -62,6 +62,7 @@ struct Settings
 	static inline float fDefaultBlendTimeOnLoop = 0.3f;
 	static inline float fDefaultBlendTimeOnEcho = 0.1f;
 	static inline float fSharedRandomLifetime = 0.5f;
+	static inline float fSequentialVariantLifetime = 0.5f;
 	static inline float fQueueFadeTime = 1.f;
 	static inline uint32_t uQueueMinSize = 10;
 	static inline float fAnimationLogEntryFadeTime = 0.5f;

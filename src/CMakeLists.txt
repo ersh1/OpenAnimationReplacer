@@ -41,8 +41,13 @@ set(SOURCE_FILES
 	"${SOURCE_DIR}/ReplacerMods.h"
 	"${SOURCE_DIR}/Settings.cpp"
 	"${SOURCE_DIR}/Settings.h"
+	"${SOURCE_DIR}/StateDataContainer.cpp"
+	"${SOURCE_DIR}/StateDataContainer.h"
+	"${SOURCE_DIR}/TrueHUDAPI.h"
 	"${SOURCE_DIR}/Utils.cpp"
 	"${SOURCE_DIR}/Utils.h"
+	"${SOURCE_DIR}/Variants.cpp"
+	"${SOURCE_DIR}/Variants.h"
 	"${SOURCE_DIR}/API/OpenAnimationReplacer-ConditionTypes.cpp"
 	"${SOURCE_DIR}/API/OpenAnimationReplacer-ConditionTypes.h"
 	"${SOURCE_DIR}/API/OpenAnimationReplacerAPI-Animations.cpp"
@@ -70,6 +75,8 @@ set(SOURCE_FILES
 	"${SOURCE_DIR}/UI/UIWelcomeBanner.h"
 	"${SOURCE_DIR}/UI/UIWindow.cpp"
 	"${SOURCE_DIR}/UI/UIWindow.h"
+	"${SOURCE_DIR}/UI/ImGui/imgui_impl_win32.cpp"
+	"${SOURCE_DIR}/UI/ImGui/imgui_impl_win32.h"
 )
 
 source_group(TREE "${ROOT_DIR}" FILES ${SOURCE_FILES})

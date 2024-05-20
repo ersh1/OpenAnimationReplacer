@@ -217,11 +217,19 @@ namespace Parsing
 				for (auto& disabledAnimation : it->value.GetArray()) {
 					if (disabledAnimation.IsObject()) {
 						auto projectNameIt = disabledAnimation.FindMember("projectName");
-						if (auto pathIt = disabledAnimation.FindMember("path"); projectNameIt != doc.MemberEnd() && projectNameIt->value.IsString() && pathIt != doc.MemberEnd() && pathIt->value.IsString()) {
+						if (auto pathIt = disabledAnimation.FindMember("path"); projectNameIt != disabledAnimation.MemberEnd() && projectNameIt->value.IsString() && pathIt != disabledAnimation.MemberEnd() && pathIt->value.IsString()) {
 							a_outParseResult.replacementAnimDatas.emplace_back(projectNameIt->value.GetString(), pathIt->value.GetString(), true);
 						}
 					}
 				}
+			}
+
+			// read deprecated settings - for backwards compatibility
+			if (auto it = doc.FindMember("keepRandomResultsOnLoop"); it != doc.MemberEnd() && it->value.IsBool()) {
+				a_outParseResult.bKeepRandomResultsOnLoop_DEPRECATED = it->value.GetBool();
+			}
+			if (auto it = doc.FindMember("shareRandomResults"); it != doc.MemberEnd() && it->value.IsBool()) {
+				a_outParseResult.bShareRandomResults_DEPRECATED = it->value.GetBool();
 			}
 
 			// read replacement animation datas (optional)
@@ -229,33 +237,39 @@ namespace Parsing
 				for (auto& replacementAnimData : it->value.GetArray()) {
 					if (replacementAnimData.IsObject()) {
 						auto projectNameIt = replacementAnimData.FindMember("projectName");
-						if (auto pathIt = replacementAnimData.FindMember("path"); projectNameIt != doc.MemberEnd() && projectNameIt->value.IsString() && pathIt != doc.MemberEnd() && pathIt->value.IsString()) {
+						if (auto pathIt = replacementAnimData.FindMember("path"); projectNameIt != replacementAnimData.MemberEnd() && projectNameIt->value.IsString() && pathIt != replacementAnimData.MemberEnd() && pathIt->value.IsString()) {
 							bool bDisabled = false;
-							if (auto disabledIt = replacementAnimData.FindMember("disabled"); disabledIt != doc.MemberEnd() && disabledIt->value.IsBool()) {
+							if (auto disabledIt = replacementAnimData.FindMember("disabled"); disabledIt != replacementAnimData.MemberEnd() && disabledIt->value.IsBool()) {
 								bDisabled = disabledIt->value.GetBool();
 							}
 
 							// read replacement animation variants
 							std::optional<std::vector<ReplacementAnimData::Variant>> variants = std::nullopt;
-							std::optional<ReplacementAnimation::VariantMode> variantMode = std::nullopt;
-							bool bLetReplaceOnLoop = false;
+							std::optional<VariantMode> variantMode = std::nullopt;
+							std::optional<Conditions::StateDataScope> variantStateScope = std::nullopt;
+							if (a_outParseResult.bShareRandomResults_DEPRECATED) {
+								variantStateScope = Conditions::StateDataScope::kSubMod;
+							}
+							bool bBlendBetweenVariants = true;
+							bool bResetRandomOnLoopOrEcho = !a_outParseResult.bKeepRandomResultsOnLoop_DEPRECATED;
+							bool bSharePlayedHistory = false;
 
-							if (auto variantsIt = replacementAnimData.FindMember("variants"); variantsIt != doc.MemberEnd() && variantsIt->value.IsArray()) {
+							if (auto variantsIt = replacementAnimData.FindMember("variants"); variantsIt != replacementAnimData.MemberEnd() && variantsIt->value.IsArray()) {
 								int32_t variantIndex = 0;
 								for (auto& variantObj : variantsIt->value.GetArray()) {
 									if (variantObj.IsObject()) {
-										if (auto variantFilenameIt = variantObj.FindMember("filename"); variantFilenameIt != doc.MemberEnd() && variantFilenameIt->value.IsString()) {
+										if (auto variantFilenameIt = variantObj.FindMember("filename"); variantFilenameIt != variantObj.MemberEnd() && variantFilenameIt->value.IsString()) {
 											bool bVariantDisabled = false;
 											float variantWeight = 1.f;
 											bool bVariantPlayOnce = false;
 
-											if (auto variantDisabledIt = variantObj.FindMember("disabled"); variantDisabledIt != doc.MemberEnd() && variantDisabledIt->value.IsBool()) {
+											if (auto variantDisabledIt = variantObj.FindMember("disabled"); variantDisabledIt != variantObj.MemberEnd() && variantDisabledIt->value.IsBool()) {
 												bVariantDisabled = variantDisabledIt->value.GetBool();
 											}
-											if (auto weightIt = variantObj.FindMember("weight"); weightIt != doc.MemberEnd() && weightIt->value.IsNumber()) {
+											if (auto weightIt = variantObj.FindMember("weight"); weightIt != variantObj.MemberEnd() && weightIt->value.IsNumber()) {
 												variantWeight = weightIt->value.GetFloat();
 											}
-											if (auto variantPlayOnceIt = variantObj.FindMember("playOnce"); variantPlayOnceIt != doc.MemberEnd() && variantPlayOnceIt->value.IsBool()) {
+											if (auto variantPlayOnceIt = variantObj.FindMember("playOnce"); variantPlayOnceIt != variantObj.MemberEnd() && variantPlayOnceIt->value.IsBool()) {
 												bVariantPlayOnce = variantPlayOnceIt->value.GetBool();
 											}
 
@@ -271,15 +285,27 @@ namespace Parsing
 								}
 							}
 
-							if (auto variantModeIt = replacementAnimData.FindMember("variantMode"); variantModeIt != doc.MemberEnd() && variantModeIt->value.IsNumber()) {
-								variantMode.emplace(static_cast<ReplacementAnimation::VariantMode>(variantModeIt->value.GetInt()));
+							if (auto variantModeIt = replacementAnimData.FindMember("variantMode"); variantModeIt != replacementAnimData.MemberEnd() && variantModeIt->value.IsNumber()) {
+								variantMode = static_cast<VariantMode>(variantModeIt->value.GetInt());
 							}
 
-							if (auto letReplaceOnLoopIt = replacementAnimData.FindMember("letReplaceOnLoopBeforeSequenceFinishes"); letReplaceOnLoopIt != doc.MemberEnd() && letReplaceOnLoopIt->value.IsBool()) {
-								bLetReplaceOnLoop = letReplaceOnLoopIt->value.GetBool();
+							if (auto variantStateScopeIt = replacementAnimData.FindMember("variantStateScope"); variantStateScopeIt != replacementAnimData.MemberEnd() && variantStateScopeIt->value.IsNumber()) {
+								variantStateScope = static_cast<Conditions::StateDataScope>(variantStateScopeIt->value.GetInt());
 							}
 
-							a_outParseResult.replacementAnimDatas.emplace_back(projectNameIt->value.GetString(), pathIt->value.GetString(), bDisabled, variants, variantMode, bLetReplaceOnLoop);
+							if (auto blendIt = replacementAnimData.FindMember("blendBetweenVariants"); blendIt != replacementAnimData.MemberEnd() && blendIt->value.IsBool()) {
+								bBlendBetweenVariants = blendIt->value.GetBool();
+							}
+
+							if (auto resetRandomIt = replacementAnimData.FindMember("resetRandomOnLoopOrEcho"); resetRandomIt != replacementAnimData.MemberEnd() && resetRandomIt->value.IsBool()) {
+								bResetRandomOnLoopOrEcho = resetRandomIt->value.GetBool();
+							}
+
+							if (auto sharePlayedHistoryIt = replacementAnimData.FindMember("sharePlayedHistory"); sharePlayedHistoryIt != replacementAnimData.MemberEnd() && sharePlayedHistoryIt->value.IsBool()) {
+								bSharePlayedHistory = sharePlayedHistoryIt->value.GetBool();
+							}
+
+							a_outParseResult.replacementAnimDatas.emplace_back(projectNameIt->value.GetString(), pathIt->value.GetString(), bDisabled, variants, variantMode, variantStateScope, bBlendBetweenVariants, bResetRandomOnLoopOrEcho, bSharePlayedHistory);
 						}
 					}
 				}
@@ -358,21 +384,11 @@ namespace Parsing
 				}
 			}
 
-			// read keep random results on loop (optional)
-			if (auto it = doc.FindMember("keepRandomResultsOnLoop"); it != doc.MemberEnd() && it->value.IsBool()) {
-				a_outParseResult.bKeepRandomResultsOnLoop = it->value.GetBool();
-			}
-
-			// read share random results (optional)
-			if (auto it = doc.FindMember("shareRandomResults"); it != doc.MemberEnd() && it->value.IsBool()) {
-				a_outParseResult.bShareRandomResults = it->value.GetBool();
-			}
-
 			// read conditions
 			if (auto it = doc.FindMember("conditions"); it != doc.MemberEnd() && it->value.IsArray()) {
 				for (auto& conditionValue : it->value.GetArray()) {
-					auto condition = Conditions::CreateConditionFromJson(conditionValue);
-					if (condition->GetConditionType() != Conditions::ConditionType::kPreset && !condition->IsValid()) {
+					auto condition = Conditions::CreateConditionFromJson(conditionValue, a_outParseResult.conditionSet.get());
+					if (!Utils::ConditionHasPresetCondition(condition.get()) && !condition->IsValid()) {
 						logger::error("Failed to parse condition in file: {}", a_jsonPath.string());
 
 						rapidjson::StringBuffer buffer;
@@ -382,13 +398,24 @@ namespace Parsing
 						logger::error("Dumping entire json file from memory: {}", buffer.GetString());
 					}
 
+					// backwards compatibility with deprecated setting
+					if (condition->GetName() == "Random") {
+						auto randomCondition = static_cast<Conditions::RandomCondition*>(condition.get());
+						if (a_outParseResult.bKeepRandomResultsOnLoop_DEPRECATED) {
+							randomCondition->stateComponent->SetShouldResetOnLoopOrEcho(false);
+						}
+						if (a_outParseResult.bShareRandomResults_DEPRECATED) {
+							randomCondition->stateComponent->SetStateDataScope(Conditions::StateDataScope::kSubMod);
+						}
+					}
+
 					a_outParseResult.conditionSet->AddCondition(condition);
 				}
 			}
 
 			if (auto it = doc.FindMember("pairedConditions"); it != doc.MemberEnd() && it->value.IsArray()) {
 				for (auto& conditionValue : it->value.GetArray()) {
-					auto condition = Conditions::CreateConditionFromJson(conditionValue);
+					auto condition = Conditions::CreateConditionFromJson(conditionValue, a_outParseResult.synchronizedConditionSet.get());
 					if (!condition->IsValid()) {
 						logger::error("Failed to parse paired condition in file: {}", a_jsonPath.string());
 
@@ -533,7 +560,7 @@ namespace Parsing
 
 	void ParseDirectory(const std::filesystem::directory_entry& a_directory, ParseResults& a_outParseResults)
 	{
-		if (!a_directory.exists()) {
+		if (!Utils::Exists(a_directory)) {
 			return;
 		}
 
@@ -545,7 +572,7 @@ namespace Parsing
 
 		for (std::filesystem::recursive_directory_iterator i(a_directory), end; i != end; ++i) {
 			auto entry = *i;
-			if (!entry.is_directory()) {
+			if (!Utils::IsDirectory(entry)) {
 				continue;
 			}
 
@@ -555,7 +582,7 @@ namespace Parsing
 					// we're in an OAR folder
 					if (Settings::bAsyncParsing) {
 						for (const auto& subEntry : std::filesystem::directory_iterator(entry)) {
-							if (is_directory(subEntry)) {
+							if (Utils::IsDirectory(subEntry)) {
 								// we're in a mod folder. we have the subfolders here and a json.
 								//Locker locker(a_outParseResults.modParseResultsLock);
 								a_outParseResults.modParseResultFutures.emplace_back(std::async(std::launch::async, ParseModDirectory, subEntry));
@@ -563,7 +590,7 @@ namespace Parsing
 						}
 					} else {
 						for (const auto& subEntry : std::filesystem::directory_iterator(entry)) {
-							if (std::filesystem::is_directory(subEntry)) {
+							if (Utils::IsDirectory(subEntry)) {
 								// we're in a mod folder. we have the subfolders here and a json.
 								auto modParseResult = ParseModDirectory(subEntry);
 								a_outParseResults.modParseResultFutures.emplace_back(MakeFuture(modParseResult));
@@ -574,12 +601,12 @@ namespace Parsing
 				} else if (Utils::CompareStringsIgnoreCase(stemString, legacyFolderName)) {
 					// we're in the DAR folder
 					for (const auto& subEntry : std::filesystem::directory_iterator(entry)) {
-						if (is_directory(subEntry)) {
+						if (Utils::IsDirectory(subEntry)) {
 							if (IsPathValid(subEntry.path())) {
 								if (Utils::CompareStringsIgnoreCase(subEntry.path().stem().string(), "_CustomConditions"sv)) {
 									// we're in the _CustomConditions directory
 									for (const auto& subSubEntry : std::filesystem::directory_iterator(subEntry)) {
-										if (std::filesystem::is_directory(subSubEntry)) {
+										if (Utils::IsDirectory(subSubEntry)) {
 											//Locker locker(a_outParseResults.legacyParseResultsLock);
 											a_outParseResults.legacyParseResultFutures.emplace_back(std::async(std::launch::async, ParseLegacyCustomConditionsDirectory, subSubEntry));
 										}
@@ -618,12 +645,12 @@ namespace Parsing
 
 			// check whether the config json file exists first
 			const auto configJsonPath = a_directory.path() / "config.json"sv;
-			if (is_regular_file(configJsonPath)) {
+			if (Utils::IsRegularFile(configJsonPath)) {
 				result.configSource = ConfigSource::kAuthor;
 
 				// check whether user json exists
 				const auto userJsonPath = a_directory.path() / "user.json"sv;
-				if (is_regular_file(userJsonPath)) {
+				if (Utils::IsRegularFile(userJsonPath)) {
 					result.configSource = ConfigSource::kUser;
 
 					// read info from the author json
@@ -645,7 +672,7 @@ namespace Parsing
 				if (Settings::bAsyncParsing) {
 					std::vector<std::future<SubModParseResult>> futures;
 					for (const auto& entry : std::filesystem::directory_iterator(a_directory)) {
-						if (is_directory(entry)) {
+						if (Utils::IsDirectory(entry)) {
 							// we're in a mod subfolder. we have the animations here and a json.
 							futures.emplace_back(std::async(std::launch::async, ParseModSubdirectory, entry, false));
 						}
@@ -659,7 +686,7 @@ namespace Parsing
 					}
 				} else {
 					for (const auto& entry : std::filesystem::directory_iterator(a_directory)) {
-						if (is_directory(entry)) {
+						if (Utils::IsDirectory(entry)) {
 							// we're in a mod subfolder. we have the animations here and a json.
 							auto subModParseResult = ParseModSubdirectory(entry);
 							if (subModParseResult.bSuccess) {
@@ -683,7 +710,7 @@ namespace Parsing
 
 			if (a_bIsLegacy) {
 				const auto userJsonPath = a_subDirectory.path() / "user.json"sv;
-				if (is_regular_file(userJsonPath)) {
+				if (Utils::IsRegularFile(userJsonPath)) {
 					result.configSource = ConfigSource::kUser;
 
 					// parse json
@@ -694,12 +721,12 @@ namespace Parsing
 			} else {
 				// check whether the config json file exists first
 				const auto configJsonPath = a_subDirectory.path() / "config.json"sv;
-				if (is_regular_file(configJsonPath)) {
+				if (Utils::IsRegularFile(configJsonPath)) {
 					result.configSource = ConfigSource::kAuthor;
 
 					// check whether user json exists
 					const auto userJsonPath = a_subDirectory.path() / "user.json"sv;
-					if (is_regular_file(userJsonPath)) {
+					if (Utils::IsRegularFile(userJsonPath)) {
 						result.configSource = ConfigSource::kUser;
 
 						// read info from the author json
@@ -725,7 +752,7 @@ namespace Parsing
 				} else {
 					const auto overridePath = a_subDirectory.path().parent_path() / result.overrideAnimationsFolder;
 					const auto overrideDirectory = std::filesystem::directory_entry(overridePath);
-					if (is_directory(overrideDirectory)) {
+					if (Utils::IsDirectory(overrideDirectory)) {
 						result.animationFiles = ParseAnimationsInDirectory(overrideDirectory, a_bIsLegacy);
 					} else {
 						result.bSuccess = false;
@@ -744,10 +771,10 @@ namespace Parsing
 		if (IsPathValid(a_directory.path())) {
 			// check whether _conditions.txt file exists first
 			const std::filesystem::path txtPath = a_directory.path() / "_conditions.txt"sv;
-			if (exists(txtPath)) {
+			if (Utils::Exists(txtPath)) {
 				// check whether the user json file exists, if yes, treat it as a OAR submod
 				const auto jsonPath = a_directory.path() / "user.json"sv;
-				if (is_regular_file(jsonPath)) {
+				if (Utils::IsRegularFile(jsonPath)) {
 					result = ParseModSubdirectory(a_directory, true);
 					result.name = std::to_string(result.priority);
 					return result;
@@ -760,13 +787,12 @@ namespace Parsing
 			if (directoryName.find_first_not_of("-0123456789"sv) == std::string::npos) {
 				auto [ptr, ec]{ std::from_chars(directoryName.data(), directoryName.data() + directoryName.size(), priority) };
 				if (ec == std::errc()) {
-					if (exists(txtPath)) {
+					if (Utils::Exists(txtPath)) {
 						result.configSource = ConfigSource::kLegacy;
 						result.name = std::to_string(priority);
 						result.priority = priority;
 						result.conditionSet = ParseConditionsTxt(txtPath);  // parse conditions.txt
 						result.animationFiles = ParseAnimationsInDirectory(a_directory, true);
-						result.bKeepRandomResultsOnLoop = Settings::bLegacyKeepRandomResultsByDefault;
 						result.bSuccess = true;
 					} else {
 						const auto subEntryPath = a_directory.path().u8string();
@@ -795,7 +821,7 @@ namespace Parsing
 		std::vector<SubModParseResult> results;
 
 		for (const auto& subEntry : std::filesystem::directory_iterator(a_directory)) {
-			if (is_directory(subEntry)) {
+			if (Utils::IsDirectory(subEntry)) {
 				// check whether there's any file here
 				if (is_empty(subEntry)) {
 					continue;
@@ -803,7 +829,7 @@ namespace Parsing
 
 				// check whether the user json file exists, if yes, treat it as a OAR submod
 				auto jsonPath = subEntry.path() / "user.json"sv;
-				if (is_regular_file(jsonPath)) {
+				if (Utils::IsRegularFile(jsonPath)) {
 					auto result = ParseModSubdirectory(subEntry, true);
 
 					const std::string fileString = a_directory.path().stem().string();
@@ -845,7 +871,6 @@ namespace Parsing
 							result.priority = 0;
 							result.conditionSet = std::move(conditionSet);
 							result.animationFiles = ParseAnimationsInDirectory(subEntry, true);
-							result.bKeepRandomResultsOnLoop = Settings::bLegacyKeepRandomResultsByDefault;
 							result.bSuccess = true;
 							result.path = subEntry.path().string();
 
@@ -875,7 +900,7 @@ namespace Parsing
 		// iterate over all files
 		for (const auto& fileEntry : std::filesystem::directory_iterator(a_fullVariantsPath)) {
 			if (IsPathValid(fileEntry.path())) {
-				if (is_regular_file(fileEntry) && Utils::CompareStringsIgnoreCase(fileEntry.path().extension().string(), ".hkx"sv)) {
+				if (Utils::IsRegularFile(fileEntry) && Utils::CompareStringsIgnoreCase(fileEntry.path().extension().string(), ".hkx"sv)) {
 					variants.emplace_back(fileEntry.path().string());
 				}
 			}
@@ -897,7 +922,7 @@ namespace Parsing
 
 			// iterate over directories first
 			for (const auto& fileEntry : std::filesystem::directory_iterator(a_directory)) {
-				if (is_directory(fileEntry)) {
+				if (Utils::IsDirectory(fileEntry)) {
 					if (IsPathValid(fileEntry.path())) {
 						std::string directoryNameString = fileEntry.path().filename().string();
 
@@ -921,7 +946,7 @@ namespace Parsing
 
 			// then iterate over files
 			for (const auto& fileEntry : std::filesystem::directory_iterator(a_directory)) {
-				if (is_regular_file(fileEntry)) {
+				if (Utils::IsRegularFile(fileEntry)) {
 					if (IsPathValid(fileEntry.path())) {
 						if (Utils::CompareStringsIgnoreCase(fileEntry.path().extension().string(), ".hkx"sv)) {
 							// check if we should skip this file because the variants directory exists
@@ -945,7 +970,7 @@ namespace Parsing
 		} else {
 			for (const auto& fileEntry : std::filesystem::recursive_directory_iterator(a_directory)) {
 				if (IsPathValid(fileEntry.path())) {
-					if (is_regular_file(fileEntry) && Utils::CompareStringsIgnoreCase(fileEntry.path().extension().string(), ".hkx"sv)) {
+					if (Utils::IsRegularFile(fileEntry) && Utils::CompareStringsIgnoreCase(fileEntry.path().extension().string(), ".hkx"sv)) {
 						if (auto anim = ParseReplacementAnimationEntry(fileEntry.path().string())) {
 							result.emplace_back(*anim);
 						}

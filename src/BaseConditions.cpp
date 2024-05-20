@@ -4,7 +4,6 @@
 #include "Utils.h"
 
 #include <imgui_stdlib.h>
-#undef GetObject  // fix windows sdk definition issue
 
 namespace Conditions
 {
@@ -91,7 +90,7 @@ namespace Conditions
 		bool bEdited = false;
 
 		if (a_bEditable) {
-			if (!(getEnumMap && _type == Type::kStaticValue)) {
+			if (!_bForceStaticOnly && !_staticRange && !(HasEnumMap() && _type == Type::kStaticValue)) {
 				ImGui::SetNextItemWidth(UI::UICommon::FirstColumnWidth(a_firstColumnWidthPercent));
 				ImGui::PushID(&_type);
 				if (ImGui::SliderInt("", reinterpret_cast<int*>(&_type), 0, static_cast<int>(Type::kTotal) - 1, GetTypeName().data())) {
@@ -103,10 +102,24 @@ namespace Conditions
 			switch (_type) {
 			case Type::kStaticValue:
 				{
-					if (!getEnumMap) {
+					if (HasEnumMap()) {
+						if (getEnumMap) {
+							if (DisplayComboBox<int32_t, float>(getEnumMap(), _floatValue, a_firstColumnWidthPercent)) {
+								bEdited = true;
+							}
+						} else {
+							if (DisplayComboBox<uint32_t, float>(getUnsignedEnumMap(), _floatValue, a_firstColumnWidthPercent)) {
+								bEdited = true;
+							}
+						}
+						
+
+						UI::UICommon::SecondColumn(a_firstColumnWidthPercent);
+						ImGui::TextUnformatted(GetArgument().data());
+					} else if (_staticRange) {
 						ImGui::SetNextItemWidth(UI::UICommon::FirstColumnWidth(a_firstColumnWidthPercent));
 						ImGui::PushID(&_floatValue);
-						if (ImGui::InputFloat("", &_floatValue, 0.01f, 1.0f, "%.3f")) {
+						if (ImGui::SliderFloat("", &_floatValue, _staticRange->first, _staticRange->second, "%.3f", ImGuiSliderFlags_AlwaysClamp)) {
 							bEdited = true;
 						}
 						ImGui::PopID();
@@ -114,9 +127,12 @@ namespace Conditions
 						UI::UICommon::SecondColumn(a_firstColumnWidthPercent);
 						ImGui::TextUnformatted(GetArgument().data());
 					} else {
-						if (DisplayComboBox<float>(getEnumMap(), _floatValue, a_firstColumnWidthPercent)) {
+						ImGui::SetNextItemWidth(UI::UICommon::FirstColumnWidth(a_firstColumnWidthPercent));
+						ImGui::PushID(&_floatValue);
+						if (ImGui::InputFloat("", &_floatValue, 0.01f, 1.0f, "%.3f")) {
 							bEdited = true;
 						}
+						ImGui::PopID();
 
 						UI::UICommon::SecondColumn(a_firstColumnWidthPercent);
 						ImGui::TextUnformatted(GetArgument().data());
@@ -174,20 +190,27 @@ namespace Conditions
 		} else {
 			switch (_type) {
 			case Type::kStaticValue:
-				if (!getEnumMap) {
+				if (!HasEnumMap()) {
 					ImGui::TextUnformatted("Static value");
 
 					UI::UICommon::SecondColumn(a_firstColumnWidthPercent);
 					ImGui::TextUnformatted(GetArgument().data());
 				} else {
-					std::string currentEnumName;
-					auto enumMap = getEnumMap();
-					const auto it = enumMap.find(static_cast<int32_t>(_floatValue));
-					if (it != enumMap.end()) {
-						currentEnumName = it->second;
+					std::string currentEnumName = std::format("Unknown ({})", _floatValue);
+					if (getEnumMap) {
+						auto enumMap = getEnumMap();
+						const auto it = enumMap.find(static_cast<int32_t>(_floatValue));
+						if (it != enumMap.end()) {
+							currentEnumName = it->second;
+						}
 					} else {
-						currentEnumName = std::format("Unknown ({})", _floatValue);
+						auto enumMap = getUnsignedEnumMap();
+						const auto it = enumMap.find(static_cast<uint32_t>(_floatValue));
+						if (it != enumMap.end()) {
+							currentEnumName = it->second;
+						}
 					}
+					
 					ImGui::TextUnformatted(currentEnumName.data());
 
 					UI::UICommon::SecondColumn(a_firstColumnWidthPercent);
@@ -214,11 +237,19 @@ namespace Conditions
 		switch (_type) {
 		case Type::kStaticValue:
 			{
-				if (getEnumMap) {
-					auto enumMap = getEnumMap();
-					if (const auto nameIt = enumMap.find(static_cast<int32_t>(_floatValue)); nameIt != enumMap.end()) {
-						return nameIt->second.data();
+				if (HasEnumMap()) {
+					if (getEnumMap) {
+						auto enumMap = getEnumMap();
+						if (const auto nameIt = enumMap.find(static_cast<int32_t>(_floatValue)); nameIt != enumMap.end()) {
+							return nameIt->second.data();
+						}
+					} else {
+						auto enumMap = getUnsignedEnumMap();
+						if (const auto nameIt = enumMap.find(static_cast<uint32_t>(_floatValue)); nameIt != enumMap.end()) {
+							return nameIt->second.data();
+						}
 					}
+					
 				}
 				return std::format("{:.3}", _floatValue);
 			}
@@ -426,8 +457,8 @@ namespace Conditions
 		return false;
 	}
 
-	template <typename T>
-	bool NumericValue::DisplayComboBox(std::map<int32_t, std::string_view> a_enumMap, T& a_value, float a_firstColumnWidthPercent)
+	template <typename Key, typename T>
+	bool NumericValue::DisplayComboBox(std::map<Key, std::string_view> a_enumMap, T& a_value, float a_firstColumnWidthPercent)
 	{
 		bool bEdited = false;
 
@@ -435,15 +466,15 @@ namespace Conditions
 		ImGui::PushID(&a_value);
 		std::string currentEnumName;
 
-		if (const auto it = a_enumMap.find(static_cast<int32_t>(a_value)); it != a_enumMap.end()) {
+		if (const auto it = a_enumMap.find(static_cast<Key>(a_value)); it != a_enumMap.end()) {
 			currentEnumName = it->second;
 		} else {
-			currentEnumName = std::format("Unknown ({})", static_cast<int32_t>(a_value));
+			currentEnumName = std::format("Unknown ({})", static_cast<Key>(a_value));
 		}
 
 		if (ImGui::BeginCombo("##Enum value", currentEnumName.data())) {
 			for (auto& [enumValue, enumName] : a_enumMap) {
-				const bool bIsCurrent = enumValue == static_cast<int32_t>(a_value);
+				const bool bIsCurrent = enumValue == static_cast<Key>(a_value);
 				if (ImGui::Selectable(enumName.data(), bIsCurrent)) {
 					if (!bIsCurrent) {
 						a_value = static_cast<T>(enumValue);
@@ -1339,77 +1370,128 @@ namespace Conditions
 		return false;
 	}
 
-	void RandomConditionComponent::InitializeComponent(void* a_value)
+	void ConditionStateComponent::InitializeComponent(void* a_value)
 	{
 		auto& val = *static_cast<rapidjson::Value*>(a_value);
 
 		const auto object = val.GetObj();
 
-		if (const auto randomIt = object.FindMember(rapidjson::StringRef(_name.data(), _name.length())); randomIt != object.MemberEnd() && randomIt->value.IsObject()) {
-			const auto randomObj = randomIt->value.GetObject();
+		if (const auto componentIt = object.FindMember(rapidjson::StringRef(_name.data(), _name.length())); componentIt != object.MemberEnd() && componentIt->value.IsObject()) {
+			const auto componentObj = componentIt->value.GetObj();
 
-			if (const auto minIt = randomObj.FindMember("min"); minIt != randomObj.MemberEnd() && minIt->value.IsNumber()) {
-				minValue = minIt->value.GetFloat();
+			if (CanSelectScope()) {
+				if (const auto scopeIt = componentObj.FindMember("scope"); scopeIt != componentObj.MemberEnd() && scopeIt->value.IsString()) {
+					scope = GetStateDataScopeFromName(scopeIt->value.GetString());
+				}
 			}
 
-			if (const auto maxIt = randomObj.FindMember("max"); maxIt != randomObj.MemberEnd() && maxIt->value.IsNumber()) {
-				maxValue = maxIt->value.GetFloat();
+			if (CanResetOnLoopOrEcho()) {
+				if (const auto shouldResetIt = componentObj.FindMember("shouldResetOnLoopOrEcho"); shouldResetIt != componentObj.MemberEnd() && shouldResetIt->value.IsBool()) {
+					bShouldResetOnLoopOrEcho = shouldResetIt->value.GetBool();
+				}
 			}
 		}
 	}
 
-	void RandomConditionComponent::SerializeComponent(void* a_value, void* a_allocator)
+	void ConditionStateComponent::SerializeComponent(void* a_value, void* a_allocator)
 	{
 		auto& val = *static_cast<rapidjson::Value*>(a_value);
 		auto& allocator = *static_cast<rapidjson::Document::AllocatorType*>(a_allocator);
 
 		rapidjson::Value object(rapidjson::kObjectType);
-		object.AddMember("min", minValue, allocator);
-		object.AddMember("max", maxValue, allocator);
+
+		if (CanSelectScope()) {
+			object.AddMember("scope", rapidjson::StringRef(GetStateDataScopeName(scope).data(), GetStateDataScopeName(scope).length()), allocator);
+		}
+		if (CanResetOnLoopOrEcho()) {
+			object.AddMember("shouldResetOnLoopOrEcho", bShouldResetOnLoopOrEcho, allocator);
+		}
 
 		val.AddMember(rapidjson::StringRef(_name.data(), _name.length()), object, allocator);
 	}
 
-	bool RandomConditionComponent::DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent)
+	bool ConditionStateComponent::DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent)
 	{
 		bool bEdited = false;
 
-		const std::string argument(GetArgument());
-
-		if (a_bEditable) {
+		if (CanSelectScope() && a_bEditable) {
 			ImGui::SetNextItemWidth(UI::UICommon::FirstColumnWidth(a_firstColumnWidthPercent));
-			ImGui::PushID(&minValue);
-			float tempValues[2] = { minValue, maxValue };
-			if (ImGui::InputFloat2("", reinterpret_cast<float*>(&tempValues))) {
-				bEdited = true;
-				minValue = tempValues[0];
-				maxValue = tempValues[1];
+			ImGui::PushID(&scope);
+			const auto currentEnumName = GetStateDataScopeName(scope);
+
+			if (ImGui::BeginCombo("State data scope##Enum value", currentEnumName.data())) {
+				for (StateDataScope i = StateDataScope::kLocal; i <= StateDataScope::kReference; i = static_cast<StateDataScope>(static_cast<int32_t>(i) << 1)) {
+					if ((GetAllowedDataScopes() & i) != StateDataScope::kNone) {
+						const bool bIsCurrent = i == scope;
+						if (ImGui::Selectable(GetStateDataScopeName(i).data(), bIsCurrent)) {
+							if (!bIsCurrent) {
+								scope = i;
+								bEdited = true;
+							}
+						}
+						if (bIsCurrent) {
+							ImGui::SetItemDefaultFocus();
+						}
+						UI::UICommon::AddTooltip(GetStateDataScopeTooltip(i).data());
+					}
+				}
+				ImGui::EndCombo();
 			}
 			ImGui::PopID();
-
-			UI::UICommon::SecondColumn(a_firstColumnWidthPercent);
-			ImGui::TextUnformatted(argument.data());
+			UI::UICommon::AddTooltip(GetStateDataScopeTooltip(scope).data());
 		} else {
-			ImGui::TextUnformatted(argument.data());
+			const auto scopeText = std::format("State data scope: {}", GetStateDataScopeName(scope));
+			ImGui::TextUnformatted(scopeText.data());
+			UI::UICommon::AddTooltip(GetStateDataScopeTooltip(scope).data());
+		}
+
+		if (CanResetOnLoopOrEcho() && scope < StateDataScope::kReplacerMod) {
+			ImGui::PushID(&bShouldResetOnLoopOrEcho);
+			ImGui::SetNextItemWidth(UI::UICommon::FirstColumnWidth(a_firstColumnWidthPercent));
+			ImGui::BeginDisabled(!a_bEditable);
+			if (ImGui::Checkbox("Reset on loop/echo##bShouldResetOnLoopOrEcho", &bShouldResetOnLoopOrEcho)) {
+				bEdited = true;
+			}
+			UI::UICommon::AddTooltip("Enable if you want the data to be reset on animation clip loop or echo.");
+			ImGui::PopID();
+			ImGui::EndDisabled();
 		}
 
 		return bEdited;
 	}
 
-	RE::BSString RandomConditionComponent::GetArgument() const
+	RE::BSString ConditionStateComponent::GetArgument() const
 	{
-		return std::format("Random [{}, {}]", minValue, maxValue).data();
-	}
+		std::string retString = std::string(GetStateDataScopeName(scope));
+		retString.append(" scope");
 
-	bool RandomConditionComponent::GetRandomFloat(RE::hkbClipGenerator* a_clipGenerator, float& a_outFloat, void* a_parentSubMod) const
-	{
-		if (const auto activeClip = OpenAnimationReplacer::GetSingleton().GetActiveClip(a_clipGenerator)) {
-			a_outFloat = activeClip->GetRandomFloat(this, static_cast<SubMod*>(a_parentSubMod));
-			return true;
+		if (bShouldResetOnLoopOrEcho) {
+			retString.append(" | Reset on loop/echo"sv);
 		}
 
-		a_outFloat = effolkronium::random_static::get<float>(minValue, maxValue);
-		return false;
+		return retString.data();
+	}
+
+	IStateData* ConditionStateComponent::CreateStateData(ConditionStateDataFactory a_stateDataFactory)
+	{
+		return a_stateDataFactory();
+	}
+
+	IStateData* ConditionStateComponent::GetStateData(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const
+	{
+		return OpenAnimationReplacer::GetSingleton().GetConditionStateData(this, a_refr, a_clipGenerator, a_parentSubMod);
+	}
+
+	IStateData* ConditionStateComponent::AddStateData(IStateData* a_stateData, RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod)
+	{
+		return OpenAnimationReplacer::GetSingleton().AddConditionStateData(a_stateData, this, a_refr, a_clipGenerator, a_parentSubMod);
+	}
+
+	bool ConditionStateComponent::CanSelectScope() const
+	{
+		// check if there's more than one flag set
+		const int flags = static_cast<int>(GetAllowedDataScopes());
+		return flags && ((flags & (flags - 1)) != 0);  // Check if val is not a power of 2
 	}
 
 	void ConditionPresetComponent::InitializeComponent(void* a_value)

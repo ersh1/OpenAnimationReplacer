@@ -36,10 +36,10 @@ FakeClipGenerator::FakeClipGenerator(RE::hkbClipGenerator* a_clipGenerator, bool
 	}
 }
 
-FakeClipGenerator::FakeClipGenerator(RE::hkbBehaviorGraph* a_behaviorGraph, const ReplacementAnimation* a_replacementAnimation, std::string_view a_syncAnimationPrefix, std::optional<uint16_t> a_variantIndex /* = std::nullopt*/)
+FakeClipGenerator::FakeClipGenerator(RE::hkbBehaviorGraph* a_behaviorGraph, const ReplacementAnimation* a_replacementAnimation, std::string_view a_syncAnimationPrefix, Variant* a_variant)
 {
 	syncAnimationPrefix = a_syncAnimationPrefix;
-	animationBindingIndex = a_variantIndex.has_value() ? *a_variantIndex : a_replacementAnimation->GetIndex();
+	animationBindingIndex = a_variant ? a_variant->GetIndex() : a_replacementAnimation->GetIndex(a_variant);
 	mode = RE::hkbClipGenerator::PlaybackMode::kModeLooping;
 
 	const RE::BShkbAnimationGraph* graph = reinterpret_cast<RE::BShkbAnimationGraph*>(a_behaviorGraph->userData);

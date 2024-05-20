@@ -19,8 +19,8 @@ namespace OAR_API
 
 			// InterfaceVersion1
 			[[nodiscard]] ReplacementAnimationInfo GetCurrentReplacementAnimationInfo(RE::hkbClipGenerator* a_clipGenerator) noexcept override;
-			void ClearRandomFloats(RE::hkbClipGenerator* a_clipGenerator) noexcept override;
-			void ClearRandomFloats(RE::TESObjectREFR* a_refr) noexcept override;
+			void ClearConditionStateData(RE::hkbClipGenerator* a_clipGenerator) noexcept override;
+			void ClearConditionStateData(RE::TESObjectREFR* a_refr) noexcept override;
 
 		private:
 			AnimationsInterface() = default;

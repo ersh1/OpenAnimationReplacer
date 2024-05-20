@@ -565,11 +565,11 @@ namespace UI
 			UICommon::HelpMarker("These settings are workarounds for some issues with Legacy replacer mods.");
 			ImGui::Spacing();
 
-			if (ImGui::Checkbox("Keep random results on loop by default in Legacy mods", &Settings::bLegacyKeepRandomResultsByDefault)) {
+			if (ImGui::Checkbox("Don't reset on loop the state data of Random conditions by default in Legacy mods", &Settings::bLegacyKeepRandomResultsByDefault)) {
 				Settings::WriteSettings();
 			}
 			ImGui::SameLine();
-			UICommon::HelpMarker("Set to enable the setting \"Keep random results on loop\" by default for Legacy replacer mods. This will make them behave as previously expected. Changing this setting takes effect after restarting the game.");
+			UICommon::HelpMarker("Set to disable the setting \"Should reset on loop/echo\" by default in Random conditions for Legacy replacer mods. This will make them behave as previously expected. Changing this setting takes effect after restarting the game.");
 
 			ImGui::Spacing();
 			ImGui::Separator();
@@ -588,7 +588,7 @@ namespace UI
 				Settings::WriteSettings();
 			}
 			ImGui::SameLine();
-			UICommon::HelpMarker("Set to disable preloading all animations when the behavior is first loaded. This might not be necessary if your animations are loading fast enough. In my experience everything works perfectly fine with preloading disabled, but I'm leaving it enabled by default.");
+			UICommon::HelpMarker("Set to disable preloading all animations when the behavior is first loaded. This is not recommended, and the setting has been proven to cause some differences in animation behavior.");
 
 			if (ImGui::Checkbox("Increase animation limit", &Settings::bIncreaseAnimationLimit)) {
 				Settings::ClampAnimLimit();
@@ -1365,54 +1365,6 @@ namespace UI
 				drawBlendTimeOption(CustomBlendType::kEcho, hasCustomBlendTimeLabel, blendTimeLabel, blendTimeTooltip);
 			}
 
-			// Submod keep random results on loop
-			{
-				std::string keepRandomLabel = "Keep random results and variants on loop/echo##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "keepRandom";
-				std::string keepRandomTooltip = "If checked, the results of random number generation won't be reset when the animation loops or plays an echo. In case the animation has variants, the current variant won't get rerolled. Mostly useful for random movement animations that don't want to be interrupted after every step or two.";
-
-				if (_editMode != ConditionEditMode::kNone) {
-					bool tempKeepRandomResultsOnLoop = a_subMod->IsKeepingRandomResultsOnLoop();
-					if (ImGui::Checkbox(keepRandomLabel.data(), &tempKeepRandomResultsOnLoop)) {
-						a_subMod->SetKeepRandomResultsOnLoop(tempKeepRandomResultsOnLoop);
-						OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::UpdateSubModJob>(a_subMod, false);
-						a_subMod->SetDirty(true);
-					}
-					ImGui::SameLine();
-					UICommon::HelpMarker(keepRandomTooltip.data());
-				} else if (a_subMod->IsKeepingRandomResultsOnLoop()) {
-					ImGui::BeginDisabled();
-					bool tempKeepRandomResultsOnLoop = a_subMod->IsKeepingRandomResultsOnLoop();
-					ImGui::Checkbox(keepRandomLabel.data(), &tempKeepRandomResultsOnLoop);
-					ImGui::EndDisabled();
-					ImGui::SameLine();
-					UICommon::HelpMarker(keepRandomTooltip.data());
-				}
-			}
-
-			// Submod share random results
-			{
-				std::string shareRandomLabel = "Share random results##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "shareRandom";
-				std::string shareRandomTooltip = "If checked, the results of random number generation will be shared throughout the whole submod (instead of being rolled separately for each animation). In case the animations have variants, the randomly generated number will be shared for all animations. Useful if you want entire animation sets to be randomly selected instead of separate animations getting randomized.\n\nIn case of variants, keep the variant count the same for all of the animations or you'll most likely see unexpected results.\n\nKeep in mind that animations from other submods can still override any animations from this set if they don't have a similar structure and this setting enabled.";
-
-				if (_editMode != ConditionEditMode::kNone) {
-					bool tempShareRandomResults = a_subMod->IsSharingRandomResults();
-					if (ImGui::Checkbox(shareRandomLabel.data(), &tempShareRandomResults)) {
-						a_subMod->SetShareRandomResults(tempShareRandomResults);
-						OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::UpdateSubModJob>(a_subMod, false);
-						a_subMod->SetDirty(true);
-					}
-					ImGui::SameLine();
-					UICommon::HelpMarker(shareRandomTooltip.data());
-				} else if (a_subMod->IsSharingRandomResults()) {
-					ImGui::BeginDisabled();
-					bool tempShareRandomResults = a_subMod->IsSharingRandomResults();
-					ImGui::Checkbox(shareRandomLabel.data(), &tempShareRandomResults);
-					ImGui::EndDisabled();
-					ImGui::SameLine();
-					UICommon::HelpMarker(shareRandomTooltip.data());
-				}
-			}
-
 			// Submod animations
 			{
 				// list animation files
@@ -1464,7 +1416,7 @@ namespace UI
 					ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2, 2));
 
 					std::string animationsTableId = std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "animationsTable";
-					if (ImGui::BeginTable(animationsTableId.data(), 1, ImGuiTableFlags_BordersOuter)) {
+					if (ImGui::BeginTable(animationsTableId.data(), 1, ImGuiTableFlags_Borders)) {
 						const std::filesystem::path submodFullPath = a_subMod->GetPath();
 						a_subMod->ForEachReplacementAnimation([&](ReplacementAnimation* a_replacementAnimation) {
 							ImGui::TableNextRow();
@@ -1511,94 +1463,175 @@ namespace UI
 							UICommon::TextUnformattedEllipsisShort(a_replacementAnimation->GetAnimPath().data(), relativePath.string().data(), nullptr, ImGui::GetContentRegionAvail().x - previewButtonWidth);
 
 							// preview button(s)
-							DrawPreviewButtons(refrToEvaluate, a_replacementAnimation, previewButtonWidth, bCanPreview, bIsPreviewing);
+							if (!bHasVariants) {  // don't draw for variants. each variant gets its own button
+								DrawPreviewButtons(refrToEvaluate, a_replacementAnimation, previewButtonWidth, bCanPreview, bIsPreviewing);
+							}
 
 							// variants
 							if (bHasVariants) {
 								auto& variants = a_replacementAnimation->GetVariants();
-								auto variantMode = variants.GetVariantMode();
-								if (!a_replacementAnimation->IsSynchronizedAnimation()) {
-									// variant mode
-									if (_editMode != ConditionEditMode::kNone) {
-										const std::string label = "Variant Mode##" + std::to_string(reinterpret_cast<std::uintptr_t>(&variants)) + "variantMode";
-										const std::string current = variantMode == ReplacementAnimation::VariantMode::kRandom ? "Random" : "Sequential";
-										int tempVariantMode = static_cast<int>(variantMode);
-										ImGui::SetNextItemWidth(ImGui::GetFontSize() * 15);
-										if (ImGui::SliderInt(label.data(), &tempVariantMode, 0, 1, current.data(), ImGuiSliderFlags_NoInput)) {
-											variantMode = static_cast<ReplacementAnimation::VariantMode>(tempVariantMode);
-											variants.SetVariantMode(variantMode);
-											a_replacementAnimation->UpdateVariantCache();
-											a_subMod->SetDirty(true);
-										}
-									} else {
-										UICommon::TextUnformattedDisabled("Variant Mode:");
-										ImGui::SameLine();
-										ImGui::TextUnformatted(variantMode == ReplacementAnimation::VariantMode::kRandom ? "Random" : "Sequential");
-									}
+								auto variantScope = variants.GetVariantStateScope();
+								std::string variantsTableId = std::to_string(reinterpret_cast<std::uintptr_t>(&variants)) + "variantsTable";
+								if (variantScope > Conditions::StateDataScope::kLocal) {
+									ImGui::PushStyleColor(ImGuiCol_TableBorderStrong, UICommon::CONDITION_SHARED_STATE_BORDER_COLOR);
 								}
-
-								// sequential variant options
-								if (variantMode == ReplacementAnimation::VariantMode::kSequential) {
-									if (_editMode != ConditionEditMode::kNone) {
-										bool tempCanReplace = variants.CanReplaceOnLoopBeforeSequenceFinishes();
-										if (ImGui::Checkbox("Allow \"replace on loop\" before the sequence finishes", &tempCanReplace)) {
-											variants.LetReplaceOnLoopBeforeSequenceFinishes(tempCanReplace);
-											a_subMod->SetDirty(true);
-										}
-										UICommon::AddTooltip("If unchecked, other replacement animations will only be considered for replacement on loop if the variant sequence has finished - when the next variant would be the first playable one.");
-									} else {
-										if (variants.CanReplaceOnLoopBeforeSequenceFinishes()) {
-											ImGui::TextUnformatted("[Allow \"replace on loop\" before the sequence finishes]");
-										}
-									}
-								}
-
-								// variant list
-								int32_t index = 0;
-								a_replacementAnimation->ForEachVariant([&](ReplacementAnimation::Variant& a_variant) {
-									const bool bVariantDisabled = a_variant.IsDisabled();
-									if (bVariantDisabled) {
-										const auto& style = ImGui::GetStyle();
-										ImGui::PushStyleVar(ImGuiStyleVar_Alpha, style.DisabledAlpha);
-									}
-
+								if (ImGui::BeginTable(variantsTableId.data(), 1, ImGuiTableFlags_BordersOuter)) {
 									ImGui::TableNextRow();
 									ImGui::TableSetColumnIndex(0);
 									ImGui::AlignTextToFramePadding();
 
-									ImGui::Indent();
-									if (_editMode != ConditionEditMode::kNone) {
-										ImGui::PushID(&a_variant);
-										bool bEnabled = !a_variant.IsDisabled();
-										if (ImGui::Checkbox("##disableVariant", &bEnabled)) {
-											a_variant.SetDisabled(!bEnabled);
-											a_replacementAnimation->UpdateVariantCache();
+									auto variantMode = variants.GetVariantMode();
+									if (!a_replacementAnimation->IsSynchronizedAnimation()) {
+										// variant mode
+										if (_editMode != ConditionEditMode::kNone) {
+											const std::string label = "Variant Mode##" + std::to_string(reinterpret_cast<std::uintptr_t>(&variants)) + "variantMode";
+											const std::string current = variantMode == VariantMode::kRandom ? "Random" : "Sequential";
+											int tempVariantMode = static_cast<int>(variantMode);
+											ImGui::SetNextItemWidth(ImGui::GetFontSize() * 15);
+											if (ImGui::SliderInt(label.data(), &tempVariantMode, 0, 1, current.data(), ImGuiSliderFlags_NoInput)) {
+												variantMode = static_cast<VariantMode>(tempVariantMode);
+												variants.SetVariantMode(variantMode);
+												a_replacementAnimation->UpdateVariantCache();
+												a_subMod->SetDirty(true);
+												OpenAnimationReplacer::GetSingleton().ClearAllConditionStateData();
+											}
+										} else {
+											UICommon::TextUnformattedDisabled("Variant Mode:");
+											ImGui::SameLine();
+											ImGui::TextUnformatted(variantMode == VariantMode::kRandom ? "Random" : "Sequential");
+										}
+									}
+
+									// variant scope
+									{
+										auto getScopeName = [](const Conditions::StateDataScope a_scope) {
+											switch (a_scope) {
+											case Conditions::StateDataScope::kLocal:
+												return "Local"sv;
+											case Conditions::StateDataScope::kSubMod:
+												return "Submod"sv;
+											case Conditions::StateDataScope::kReplacerMod:
+												return "Replacer mod"sv;
+											}
+											return "INVALID"sv;
+										};
+
+										auto getScopeTooltip = [](const Conditions::StateDataScope a_scope) {
+											switch (a_scope) {
+											case Conditions::StateDataScope::kLocal:
+												return "The variant data (random value, played history) is unique per active animation clip."sv;
+											case Conditions::StateDataScope::kSubMod:
+												return "The variant data (random value, optionally played history) is shared between all animation clips in the submod, as long as their variant scope is set to the same value.\n\nThe data will be kept alive until all active clips from narrower scopes are inactive."sv;
+											case Conditions::StateDataScope::kReplacerMod:
+												return "The variant data (random value, optionally played history) is shared between all animation clips in the entire replacer mod, as long as their variant scope is set to the same value.\n\nThe data will be kept alive until all active clips from narrower scopes are inactive."sv;
+											}
+											return "INVALID"sv;
+										};
+
+										if (_editMode != ConditionEditMode::kNone) {
+											const std::string variantScopeLabel = "Variant state scope##" + std::to_string(reinterpret_cast<std::uintptr_t>(&variants));
+											if (ImGui::BeginCombo(variantScopeLabel.data(), getScopeName(variantScope).data())) {
+												for (Conditions::StateDataScope i = Conditions::StateDataScope::kLocal; i <= Conditions::StateDataScope::kReplacerMod; i = static_cast<Conditions::StateDataScope>(static_cast<int32_t>(i) << 1)) {
+													const bool bIsCurrent = i == variantScope;
+													if (ImGui::Selectable(getScopeName(i).data(), bIsCurrent)) {
+														if (!bIsCurrent) {
+															variants.SetVariantStateScope(i);
+															a_subMod->SetDirty(true);
+															OpenAnimationReplacer::GetSingleton().ClearAllConditionStateData();
+														}
+													}
+													if (bIsCurrent) {
+														ImGui::SetItemDefaultFocus();
+													}
+													UICommon::AddTooltip(getScopeTooltip(i).data());
+												}
+												ImGui::EndCombo();
+											}
+										} else {
+											const auto scopeText = std::format("Variant state scope: {}", getScopeName(variantScope));
+											ImGui::TextUnformatted(scopeText.data());
+											UICommon::AddTooltip(getScopeTooltip(variantScope).data());
+										}
+									}
+
+									// blend between variants
+									{
+										bool tempShouldBlend = variants.ShouldBlendBetweenVariants();
+										const std::string shouldBlendLabel = "Blend between variants##" + std::to_string(reinterpret_cast<std::uintptr_t>(&variants));
+										ImGui::BeginDisabled(_editMode == ConditionEditMode::kNone);
+										if (ImGui::Checkbox(shouldBlendLabel.data(), &tempShouldBlend)) {
+											variants.SetShouldBlendBetweenVariants(tempShouldBlend);
 											a_subMod->SetDirty(true);
 										}
-										UICommon::AddTooltip("If unchecked, the replacement animation variant will be disabled and will not be considered.");
+										ImGui::EndDisabled();
 										ImGui::SameLine();
+										UICommon::HelpMarker("If disabled, variants will not have any blend time between each other on loop and echo.");
+									}
 
-										switch (variantMode) {
-										case ReplacementAnimation::VariantMode::kRandom:
-											{
-												float tempWeight = a_variant.GetWeight();
-												ImGui::SetNextItemWidth(ImGui::GetFontSize() * 10);
-												if (ImGui::InputFloat("Weight", &tempWeight, .01f, 1.0f, "%.3f", ImGuiInputTextFlags_EnterReturnsTrue)) {
-													tempWeight = std::max(0.f, tempWeight);
-													a_variant.SetWeight(tempWeight);
-													a_replacementAnimation->UpdateVariantCache();
-													a_subMod->SetDirty(true);
-												}
-												UICommon::AddTooltip("The weight of this variant used for the weighted random selection (e.g. a variant with a weight of 2 will be twice as likely to be picked than a variant with a weight of 1)");
-												ImGui::SameLine();
+									// reset random on loop / echo
+									{
+										bool tempShouldResetRandom = variants.ShouldResetRandomOnLoopOrEcho();
+										const std::string shouldResetRandomLabel = "Reset random on loop or echo##" + std::to_string(reinterpret_cast<std::uintptr_t>(&variants));
+										ImGui::BeginDisabled(_editMode == ConditionEditMode::kNone);
+										if (ImGui::Checkbox(shouldResetRandomLabel.data(), &tempShouldResetRandom)) {
+											variants.SetShouldResetRandomOnLoopOrEcho(tempShouldResetRandom);
+											a_subMod->SetDirty(true);
+										}
+										ImGui::EndDisabled();
+										ImGui::SameLine();
+										UICommon::HelpMarker("If enabled, the random number that is used to select a random variant will be reset on every loop or echo.");
+									}
+
+									// share played history
+									{
+										if (variants.GetVariantStateScope() > Conditions::StateDataScope::kLocal) {
+											bool tempShouldSharePlayedHistory = variants.ShouldSharePlayedHistory();
+											const std::string shouldSharePlayedHistoryLabel = "Share played history##" + std::to_string(reinterpret_cast<std::uintptr_t>(&variants));
+											ImGui::BeginDisabled(_editMode == ConditionEditMode::kNone);
+											if (ImGui::Checkbox(shouldSharePlayedHistoryLabel.data(), &tempShouldSharePlayedHistory)) {
+												variants.SetShouldSharePlayedHistory(tempShouldSharePlayedHistory);
+												a_subMod->SetDirty(true);
+												OpenAnimationReplacer::GetSingleton().ClearAllConditionStateData();
 											}
-											break;
-										case ReplacementAnimation::VariantMode::kSequential:
-											{
+											ImGui::EndDisabled();
+											ImGui::SameLine();
+											UICommon::HelpMarker("If enabled, the played history (for the \"Play once\" setting) will be shared between all variants with the same variant state scope.");
+										}
+									}
+
+									// variant list
+									int32_t index = 0;
+									a_replacementAnimation->ForEachVariant([&](Variant& a_variant) {
+										const bool bVariantDisabled = a_variant.IsDisabled();
+										if (bVariantDisabled) {
+											const auto& style = ImGui::GetStyle();
+											ImGui::PushStyleVar(ImGuiStyleVar_Alpha, style.DisabledAlpha);
+										}
+
+										ImGui::TableNextRow();
+										ImGui::TableSetColumnIndex(0);
+										ImGui::AlignTextToFramePadding();
+
+										ImGui::Indent();
+										if (_editMode != ConditionEditMode::kNone) {
+											ImGui::PushID(&a_variant);
+											bool bEnabled = !a_variant.IsDisabled();
+											if (ImGui::Checkbox("##disableVariant", &bEnabled)) {
+												a_variant.SetDisabled(!bEnabled);
+												a_replacementAnimation->UpdateVariantCache();
+												a_subMod->SetDirty(true);
+												OpenAnimationReplacer::GetSingleton().ClearAllConditionStateData();
+											}
+											UICommon::AddTooltip("If unchecked, the replacement animation variant will be disabled and will not be considered.");
+											ImGui::SameLine();
+
+											if (variantMode == VariantMode::kSequential || a_variant.ShouldPlayOnce()) {
 												ImGui::BeginDisabled(index == 0);
 												if (ImGui::ArrowButton("Move variant up", ImGuiDir_Up)) {
 													variants.SwapVariants(index, index - 1);
+													a_replacementAnimation->UpdateVariantCache();
 													a_subMod->SetDirty(true);
+													OpenAnimationReplacer::GetSingleton().ClearAllConditionStateData();
 												}
 												ImGui::EndDisabled();
 												ImGui::SameLine();
@@ -1606,74 +1639,92 @@ namespace UI
 												ImGui::BeginDisabled(index >= variants.GetVariantCount() - 1);
 												if (ImGui::ArrowButton("Move variant down", ImGuiDir_Down)) {
 													variants.SwapVariants(index, index + 1);
+													a_replacementAnimation->UpdateVariantCache();
 													a_subMod->SetDirty(true);
+													OpenAnimationReplacer::GetSingleton().ClearAllConditionStateData();
 												}
 												ImGui::EndDisabled();
 												ImGui::SameLine();
-
-												bool tempPlayOnce = a_variant.ShouldPlayOnce();
-												if (ImGui::Checkbox("Play once", &tempPlayOnce)) {
-													a_variant.SetPlayOnce(tempPlayOnce);
+											} else if (variantMode == VariantMode::kRandom) {
+												float tempWeight = a_variant.GetWeight();
+												ImGui::SetNextItemWidth(ImGui::GetFontSize() * 10);
+												if (ImGui::InputFloat("Weight", &tempWeight, .01f, 1.0f, "%.3f", ImGuiInputTextFlags_EnterReturnsTrue)) {
+													tempWeight = std::max(0.f, tempWeight);
+													a_variant.SetWeight(tempWeight);
 													a_replacementAnimation->UpdateVariantCache();
 													a_subMod->SetDirty(true);
+													OpenAnimationReplacer::GetSingleton().ClearAllConditionStateData();
 												}
-												UICommon::AddTooltip("If checked, the variant will only play once until the animation data resets after a while of inactivity.");
-												ImGui::SameLine();
-											}
-											break;
-										}
-										ImGui::PopID();
-									} else {
-										switch (variantMode) {
-										case ReplacementAnimation::VariantMode::kRandom:
-											{
-												UICommon::TextUnformattedDisabled("Weight:");
-												ImGui::SameLine();
-												ImGui::TextUnformatted(std::format("{}", a_variant.GetWeight()).data());
 												UICommon::AddTooltip("The weight of this variant used for the weighted random selection (e.g. a variant with a weight of 2 will be twice as likely to be picked than a variant with a weight of 1)");
 												ImGui::SameLine();
 											}
-											break;
-										case ReplacementAnimation::VariantMode::kSequential:
-											{
-												if (a_variant.ShouldPlayOnce()) {
-													ImGui::TextUnformatted("[Play once]");
-													UICommon::AddTooltip("The variant will only play once until the animation data resets after a while of inactivity.");
+
+											bool tempPlayOnce = a_variant.ShouldPlayOnce();
+											if (ImGui::Checkbox(variantMode == VariantMode::kRandom ? "Play first and once" : "Play once", &tempPlayOnce)) {
+												a_variant.SetPlayOnce(tempPlayOnce);
+												a_replacementAnimation->UpdateVariantCache();
+												a_subMod->SetDirty(true);
+												OpenAnimationReplacer::GetSingleton().ClearAllConditionStateData();
+											}
+											UICommon::AddTooltip(variantMode == VariantMode::kRandom ? "Variants marked with this will play in sequence before other random variants, and will not repeat, until the animation data resets after a while of inactivity." : "If checked, the variant will only play once until the animation data resets after a while of inactivity.");
+											ImGui::SameLine();
+											ImGui::PopID();
+										} else {
+											switch (variantMode) {
+											case VariantMode::kRandom:
+												{
+													UICommon::TextUnformattedDisabled("Weight:");
+													ImGui::SameLine();
+													ImGui::TextUnformatted(std::format("{}", a_variant.GetWeight()).data());
+													UICommon::AddTooltip("The weight of this variant used for the weighted random selection (e.g. a variant with a weight of 2 will be twice as likely to be picked than a variant with a weight of 1)");
 													ImGui::SameLine();
 												}
+												break;
+											case VariantMode::kSequential:
+												{
+													if (a_variant.ShouldPlayOnce()) {
+														ImGui::TextUnformatted("[Play once]");
+														UICommon::AddTooltip("The variant will only play once until the animation data resets after a while of inactivity.");
+														ImGui::SameLine();
+													}
+												}
+												break;
 											}
-											break;
 										}
-									}
 
-									UICommon::TextUnformattedDisabled("Filename:");
-									ImGui::SameLine();
+										UICommon::TextUnformattedDisabled("Filename:");
+										ImGui::SameLine();
 
-									bIsPreviewing = IsPreviewingAnimation(refrToEvaluate, a_replacementAnimation, a_variant.GetIndex());
+										bIsPreviewing = IsPreviewingAnimation(refrToEvaluate, a_replacementAnimation, a_variant.GetIndex());
 
-									float variantPreviewButtonWidth = 0.f;
-									if (bCanPreview || bIsPreviewing) {
-										variantPreviewButtonWidth = GetPreviewButtonsWidth(a_replacementAnimation, bIsPreviewing);
-									}
+										float variantPreviewButtonWidth = 0.f;
+										if (bCanPreview || bIsPreviewing) {
+											variantPreviewButtonWidth = GetPreviewButtonsWidth(a_replacementAnimation, bIsPreviewing);
+										}
 
-									std::filesystem::path fullVariantPath = a_replacementAnimation->GetAnimPath();
-									fullVariantPath /= a_variant.GetFilename();
+										std::filesystem::path fullVariantPath = a_replacementAnimation->GetAnimPath();
+										fullVariantPath /= a_variant.GetFilename();
 
-									UICommon::TextUnformattedEllipsisShort(fullVariantPath.string().data(), a_variant.GetFilename().data(), nullptr, ImGui::GetContentRegionAvail().x - variantPreviewButtonWidth);
+										UICommon::TextUnformattedEllipsisShort(fullVariantPath.string().data(), a_variant.GetFilename().data(), nullptr, ImGui::GetContentRegionAvail().x - variantPreviewButtonWidth);
 
-									// preview variant button
-									DrawPreviewButtons(refrToEvaluate, a_replacementAnimation, variantPreviewButtonWidth, bCanPreview, bIsPreviewing, &a_variant);
+										// preview variant button
+										DrawPreviewButtons(refrToEvaluate, a_replacementAnimation, variantPreviewButtonWidth, bCanPreview, bIsPreviewing, &a_variant);
 
-									ImGui::Unindent();
+										ImGui::Unindent();
 
-									if (bVariantDisabled) {
-										ImGui::PopStyleVar();
-									}
+										if (bVariantDisabled) {
+											ImGui::PopStyleVar();
+										}
 
-									++index;
+										++index;
 
-									return RE::BSVisit::BSVisitControl::kContinue;
-								});
+										return RE::BSVisit::BSVisitControl::kContinue;
+									});
+									ImGui::EndTable();
+								}
+								if (variantScope > Conditions::StateDataScope::kLocal) {
+									ImGui::PopStyleColor();
+								}
 							}
 
 							if (bAnimationDisabled) {
@@ -1863,12 +1914,10 @@ namespace UI
 		auto evalResult = ConditionEvaluateResult::kFailure;
 		const auto refrToEvaluate = UIManager::GetSingleton().GetRefrToEvaluate();
 		if (refrToEvaluate) {
-			if (a_replacementAnimation->EvaluateConditions(refrToEvaluate, nullptr)) {
-				if (Utils::ConditionSetHasRandomResult(a_replacementAnimation->GetConditionSet())) {
-					evalResult = ConditionEvaluateResult::kRandom;
-				} else {
-					evalResult = ConditionEvaluateResult::kSuccess;
-				}
+			if (Utils::ConditionSetHasRandomResult(a_replacementAnimation->GetConditionSet())) {
+				evalResult = ConditionEvaluateResult::kRandom;
+			} else if (a_replacementAnimation->EvaluateConditions(refrToEvaluate, nullptr)) {
+				evalResult = ConditionEvaluateResult::kSuccess;
 			}
 		}
 
@@ -1921,7 +1970,7 @@ namespace UI
 			if (a_replacementAnimation->HasVariants()) {
 				ImGui::TextUnformatted("Variants:");
 				ImGui::Indent();
-				a_replacementAnimation->ForEachVariant([&](const ReplacementAnimation::Variant& a_variant) {
+				a_replacementAnimation->ForEachVariant([&](Variant& a_variant) {
 					const bool bVariantDisabled = a_variant.IsDisabled();
 					if (bVariantDisabled) {
 						auto& style = ImGui::GetStyle();
@@ -2082,12 +2131,10 @@ namespace UI
 
 		// Evaluate
 		auto evalResult = ConditionEvaluateResult::kFailure;
-		if (a_refrToEvaluate && a_condition->Evaluate(a_refrToEvaluate, nullptr, a_parentSubMod)) {
-			if (Utils::ConditionHasRandomResult(a_condition.get())) {
-				evalResult = ConditionEvaluateResult::kRandom;
-			} else {
-				evalResult = ConditionEvaluateResult::kSuccess;
-			}
+		if (Utils::ConditionHasRandomResult(a_condition.get())) {
+			evalResult = ConditionEvaluateResult::kRandom;
+		} else if (a_refrToEvaluate && a_condition->Evaluate(a_refrToEvaluate, nullptr, a_parentSubMod)) {
+			evalResult = ConditionEvaluateResult::kSuccess;
 		}
 
 		//ImGui::BeginGroup();
@@ -2096,15 +2143,19 @@ namespace UI
 		std::string conditionTableId = std::format("{}conditionTable", reinterpret_cast<uintptr_t>(a_condition.get()));
 		ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(0, 0));
 		const bool bIsConditionPreset = a_condition->GetConditionType() == Conditions::ConditionType::kPreset;
+		const bool bHasSharedState = Utils::ConditionHasStateComponentWithSharedScope(a_condition.get());
 		if (bIsConditionPreset) {
 			ImGui::PushStyleColor(ImGuiCol_TableBorderStrong, UICommon::CONDITION_PRESET_BORDER_COLOR);
+		} else if (bHasSharedState) {
+			ImGui::PushStyleColor(ImGuiCol_TableBorderStrong, UICommon::CONDITION_SHARED_STATE_BORDER_COLOR);
 		}
+
 		if (ImGui::BeginTable(conditionTableId.data(), 1, ImGuiTableFlags_BordersOuter)) {
 			ImGui::TableNextRow();
 			ImGui::TableSetColumnIndex(0);
 			//ImGui::AlignTextToFramePadding();
 
-			if (bIsConditionPreset) {
+			if (bIsConditionPreset || bHasSharedState) {
 				ImGui::PopStyleColor();  // ImGuiCol_TableBorderStrong
 			}
 
@@ -2335,10 +2386,14 @@ namespace UI
 				}
 
 				if (auto numComponents = a_condition->GetNumComponents(); numComponents > 0) {
+					bool bHasStateComponent = false;
 					for (uint32_t i = 0; i < numComponents; i++) {
 						auto component = a_condition->GetComponent(i);
 						const bool bIsMultiConditionComponent = component->GetType() == Conditions::ConditionComponentType::kMulti;
 						const bool bIsConditionPresetComponent = component->GetType() == Conditions::ConditionComponentType::kPreset;
+						if (component->GetType() == Conditions::ConditionComponentType::kState) {
+							bHasStateComponent = true;
+						}
 						if (bIsMultiConditionComponent || bIsConditionPresetComponent) {
 							const auto multiConditionComponent = static_cast<Conditions::IMultiConditionComponent*>(component);
 							// display component
@@ -2368,6 +2423,9 @@ namespace UI
 								a_bOutSetDirty = true;
 							}
 						}
+					}
+					if (bHasStateComponent && a_bOutSetDirty) {
+						OpenAnimationReplacer::GetSingleton().ClearAllConditionStateData();
 					}
 				}
 
@@ -2992,7 +3050,7 @@ namespace UI
 		return (ImGui::CalcTextSize("Preview").x + style.FramePadding.x * 2 + style.ItemSpacing.x);
 	}
 
-	void UIMain::DrawPreviewButtons(RE::TESObjectREFR* a_refr, const ReplacementAnimation* a_replacementAnimation, float a_previewButtonWidth, bool a_bCanPreview, bool a_bIsPreviewing, const ReplacementAnimation::Variant* a_variant)
+	void UIMain::DrawPreviewButtons(RE::TESObjectREFR* a_refr, const ReplacementAnimation* a_replacementAnimation, float a_previewButtonWidth, bool a_bCanPreview, bool a_bIsPreviewing, Variant* a_variant)
 	{
 		const float offset = a_variant ? -10.f : 0.f;
 
@@ -3005,25 +3063,21 @@ namespace UI
 				OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::StopPreviewAnimationJob>(a_refr);
 			}
 		} else if (a_bCanPreview) {
-			std::optional<uint16_t> variantIndex = std::nullopt;
-			if (a_variant) {
-				variantIndex = a_variant->GetIndex();
-			}
 			ImGui::SameLine(ImGui::GetContentRegionMax().x - a_previewButtonWidth + offset);
 			if (a_replacementAnimation->IsSynchronizedAnimation()) {
 				const std::string sourceLabel = std::format("Preview source##{}", reinterpret_cast<uintptr_t>(obj));
 				if (ImGui::Button(sourceLabel.data())) {
-					OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::BeginPreviewAnimationJob>(a_refr, a_replacementAnimation, Settings::synchronizedClipSourcePrefix, variantIndex);
+					OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::BeginPreviewAnimationJob>(a_refr, a_replacementAnimation, Settings::synchronizedClipSourcePrefix, a_variant);
 				}
 				ImGui::SameLine();
 				const std::string targetLabel = std::format("Preview target##{}", reinterpret_cast<uintptr_t>(obj));
 				if (ImGui::Button(targetLabel.data())) {
-					OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::BeginPreviewAnimationJob>(a_refr, a_replacementAnimation, Settings::synchronizedClipTargetPrefix, variantIndex);
+					OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::BeginPreviewAnimationJob>(a_refr, a_replacementAnimation, Settings::synchronizedClipTargetPrefix, a_variant);
 				}
 			} else {
 				const std::string label = std::format("Preview##{}", reinterpret_cast<uintptr_t>(obj));
 				if (ImGui::Button(label.data())) {
-					OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::BeginPreviewAnimationJob>(a_refr, a_replacementAnimation, variantIndex);
+					OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::BeginPreviewAnimationJob>(a_refr, a_replacementAnimation, a_variant);
 				}
 			}
 		}

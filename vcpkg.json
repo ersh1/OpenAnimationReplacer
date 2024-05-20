@@ -2,6 +2,7 @@
   "name": "openanimationreplacer",
   "version": "1",
   "dependencies": [
+    "boost-container-hash",
     "boost-stl-interfaces",
     "cryptopp",
     "directxtk",
@@ -9,7 +10,7 @@
     "fmt",
     {
       "name" : "imgui",
-      "features": [ "win32-binding", "dx11-binding" ]
+      "features": [ "dx11-binding" ]
     },
     "mergemapper",
     "rapidcsv",

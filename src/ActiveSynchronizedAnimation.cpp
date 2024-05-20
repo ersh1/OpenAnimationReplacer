@@ -35,7 +35,7 @@ void ActiveSynchronizedAnimation::OnSynchronizedClipPreActivate(RE::BSSynchroniz
 	activeClip->SetSynchronizedParent(a_synchronizedClipGenerator);
 
 	if (const auto synchronizedClipData = GetSynchronizedClipData(a_synchronizedClipGenerator)) {
-		activeClip->OnActivateSynchronized(a_synchronizedClipGenerator, synchronizedClipData->replacements, _bIsReplacementActive ? synchronizedClipData->replacementAnimation : nullptr, _variantIndex);
+		activeClip->OnActivateSynchronized(a_synchronizedClipGenerator, synchronizedClipData->replacements, _bIsReplacementActive ? synchronizedClipData->replacementAnimation : nullptr, _variant);
 
 		auto& animationLog = AnimationLog::GetSingleton();
 		const auto event = (activeClip->IsOriginal() || !_bIsReplacementActive) ? AnimationLogEntry::Event::kActivateSynchronized : AnimationLogEntry::Event::kActivateReplaceSynchronized;
@@ -214,8 +214,8 @@ void ActiveSynchronizedAnimation::Initialize()
 				replacementAnimation = replacements->EvaluateSynchronizedConditionsAndGetReplacementAnimation(sourceRefHandle.get().get(), targetRefHandle.get().get(), actorSyncInfo.synchronizedClipGenerator->clipGenerator);
 				if (replacementAnimation) {
 					// handle variants
-					if (!_variantIndex.has_value() && replacementAnimation->HasVariants()) {
-						_variantIndex = replacementAnimation->GetIndex();
+					if (!_variant && replacementAnimation->HasVariants()) {
+						replacementAnimation->GetIndex(_variant);
 					}
 				}
 			}

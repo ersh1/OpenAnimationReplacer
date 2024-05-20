@@ -64,5 +64,5 @@ protected:
 	bool _bIsAtEnd = false;
 	bool _bTransitioning = false;
 
-	std::optional<uint16_t> _variantIndex = std::nullopt;
+	Variant* _variant = nullptr;
 };

@@ -6,10 +6,11 @@
 #include <cryptopp/sha.h>
 
 #include "Settings.h"
+#include <Utils.h>
 
 void AnimationFileHashCache::ReadCacheFromDisk()
 {
-	if (!std::filesystem::exists(Settings::animationFileHashCachePath)) {
+	if (!Utils::Exists(Settings::animationFileHashCachePath)) {
 		return;
 	}
 
@@ -67,7 +68,7 @@ void AnimationFileHashCache::WriteCacheToDisk()
 
 void AnimationFileHashCache::DeleteCache()
 {
-	if (std::filesystem::is_regular_file(Settings::animationFileHashCachePath)) {
+	if (Utils::IsRegularFile(Settings::animationFileHashCachePath)) {
 		std::filesystem::remove(Settings::animationFileHashCachePath);
 	}
 

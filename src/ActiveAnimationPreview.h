@@ -5,7 +5,7 @@
 class ActiveAnimationPreview
 {
 public:
-	[[nodiscard]] ActiveAnimationPreview(RE::hkbBehaviorGraph* a_behaviorGraph, const ReplacementAnimation* a_replacementAnimation, std::string_view a_syncAnimationPrefix, std::optional<uint16_t> a_variantIndex = std::nullopt);
+	[[nodiscard]] ActiveAnimationPreview(RE::hkbBehaviorGraph* a_behaviorGraph, const ReplacementAnimation* a_replacementAnimation, std::string_view a_syncAnimationPrefix, Variant* a_variant = nullptr);
 
 	void OnUpdate(RE::hkbBehaviorGraph* a_behaviorGraph, const RE::hkbContext& a_context, float a_timestep);
 	void OnGenerate(RE::hkbBehaviorGraph* a_behaviorGraph, const RE::hkbContext& a_context, RE::hkbGeneratorOutput& a_output);

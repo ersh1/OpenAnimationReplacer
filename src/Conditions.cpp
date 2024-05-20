@@ -76,7 +76,7 @@ namespace Conditions
 		return std::make_unique<InvalidCondition>(errorStr);
 	}
 
-	std::unique_ptr<ICondition> CreateConditionFromJson(rapidjson::Value& a_value)
+	std::unique_ptr<ICondition> CreateConditionFromJson(rapidjson::Value& a_value, ConditionSet* a_parentConditionSet/* = nullptr*/)
 	{
 		if (!a_value.IsObject()) {
 			logger::error("Missing condition value!");
@@ -123,6 +123,9 @@ namespace Conditions
 					return ConvertDeprecatedCondition(condition, conditionName, a_value);
 				}
 				condition->PreInitialize();
+				if (a_parentConditionSet) {  // set the parent condition set early if possible so that PRESET conditions contained inside a multicondition can find the parent mod on their init
+					condition->SetParentConditionSet(a_parentConditionSet);
+				}
 				condition->Initialize(&a_value);
 				condition->PostInitialize();
 				return std::move(condition);
@@ -1004,30 +1007,71 @@ namespace Conditions
 		return modff(time, &days) * 24.f;
 	}
 
+	float RandomCondition::RandomConditionStateData::GetRandomFloat()
+	{
+		if (!_randomFloat.has_value()) {
+			_randomFloat = Utils::GetRandomFloat(_minValue, _maxValue);
+		}
+
+		return *_randomFloat;
+	}
+
+	void RandomCondition::Initialize(void* a_value)
+	{
+		ConditionBase::Initialize(a_value);
+
+		auto& value = *static_cast<rapidjson::Value*>(a_value);
+		const auto object = value.GetObj();
+
+		// backwards compatibility with saved pre 2.3.0 random conditions
+		if (const auto randomIt = object.FindMember(rapidjson::StringRef("Random value")); randomIt != object.MemberEnd() && randomIt->value.IsObject()) {
+			const auto randomObj = randomIt->value.GetObj();
+
+			if (const auto minIt = randomObj.FindMember("min"); minIt != randomObj.MemberEnd() && minIt->value.IsNumber()) {
+				minRandomComponent->SetStaticValue(minIt->value.GetFloat());
+			}
+
+			if (const auto maxIt = randomObj.FindMember("max"); maxIt != randomObj.MemberEnd() && maxIt->value.IsNumber()) {
+				maxRandomComponent->SetStaticValue(maxIt->value.GetFloat());
+			}
+		}
+	}
+
 	void RandomCondition::InitializeLegacy(const char* a_argument)
 	{
 		numericComponent->value.ParseLegacy(a_argument);
 		comparisonComponent->SetComparisonOperator(ComparisonOperator::kLessEqual);
-		randomComponent->SetMinValue(0.f);
-		randomComponent->SetMaxValue(1.f);
+		if (Settings::bLegacyKeepRandomResultsByDefault) {
+			stateComponent->SetShouldResetOnLoopOrEcho(false);
+		}
+		minRandomComponent->SetStaticValue(0.f);
+		maxRandomComponent->SetStaticValue(1.f);
 	}
 
 	RE::BSString RandomCondition::GetArgument() const
 	{
 		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+		const auto stateArgument = stateComponent->GetArgument();
 
-		std::string randomArgument(randomComponent->GetArgument());
-
-		return std::format("{} {} {}", randomArgument, separator, numericComponent->value.GetArgument()).data();
+		return std::format("Random [{}, {}] {} {} | {}", minRandomComponent->value.GetArgument(), maxRandomComponent->value.GetArgument(), separator, numericComponent->value.GetArgument(), stateArgument.data()).data();
 	}
 
 	bool RandomCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const
 	{
 		const float v = numericComponent->GetNumericValue(a_refr);
-
 		float randomFloat;
-		if (!randomComponent->GetRandomFloat(a_clipGenerator, randomFloat, a_parentSubMod)) {
-			return true;
+
+		IStateData* data = stateComponent->GetStateData(a_refr, a_clipGenerator, a_parentSubMod);
+		if (!data) {  // data not found, add new
+			const auto newStateData = static_cast<RandomConditionStateData*>(stateComponent->CreateStateData(RandomConditionStateData::Create));
+			newStateData->Initialize(stateComponent->ShouldResetOnLoopOrEcho(), minRandomComponent->GetNumericValue(a_refr), maxRandomComponent->GetNumericValue(a_refr));
+			data = stateComponent->AddStateData(newStateData, a_refr, a_clipGenerator, a_parentSubMod);
+		}
+
+		if (data) {
+			randomFloat = static_cast<RandomConditionStateData*>(data)->GetRandomFloat();
+		} else { // shouldn't happen normally
+			randomFloat = Utils::GetRandomFloat(minRandomComponent->GetNumericValue(a_refr), maxRandomComponent->GetNumericValue(a_refr));
 		}
 
 		return comparisonComponent->GetComparisonResult(randomFloat, v);
@@ -1656,16 +1700,6 @@ namespace Conditions
 		return enumMap;
 	}
 
-	std::map<int32_t, std::string_view> MovementSpeedCondition::GetEnumMap()
-	{
-		std::map<int32_t, std::string_view> enumMap;
-		enumMap[0] = "Run"sv;
-		enumMap[1] = "Jog"sv;
-		enumMap[2] = "Fast walk"sv;
-		enumMap[3] = "Walk"sv;
-		return enumMap;
-	}
-
 	RE::BSString ScaleCondition::GetArgument() const
 	{
 		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
@@ -1817,6 +1851,16 @@ namespace Conditions
 		}
 
 		return 0.f;
+	}
+
+	std::map<int32_t, std::string_view> MovementSpeedCondition::GetEnumMap()
+	{
+		std::map<int32_t, std::string_view> enumMap;
+		enumMap[0] = "Run"sv;
+		enumMap[1] = "Jog"sv;
+		enumMap[2] = "Fast walk"sv;
+		enumMap[3] = "Walk"sv;
+		return enumMap;
 	}
 
 	RE::BSString CurrentMovementSpeedCondition::GetArgument() const
@@ -3616,7 +3660,7 @@ namespace Conditions
 	bool PRESETCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const
 	{
 		if (conditionsComponent->conditionPreset) {
-			conditionsComponent->conditionPreset->EvaluateAll(a_refr, a_clipGenerator, static_cast<SubMod*>(a_parentSubMod));
+			return conditionsComponent->conditionPreset->EvaluateAll(a_refr, a_clipGenerator, static_cast<SubMod*>(a_parentSubMod));
 		}
 
 		return false;
@@ -3759,49 +3803,112 @@ namespace Conditions
 		return nullptr;
 	}
 
+	bool MovementSurfaceAngleCondition::MovementSurfaceAngleConditionStateData::Update(float a_deltaTime)
+	{
+		if (const auto ref = _refHandle.get()) {
+			RE::hkVector4 newSurfaceNormal;
+			if (Utils::GetSurfaceNormal(ref.get(), newSurfaceNormal, _bUseNavmesh)) {
+				if (_bHasValue) {
+					const float effectiveFactor = 1.0f - std::exp(-_smoothingFactor * a_deltaTime);
+					_smoothedNormal = Utils::Mix(_smoothedNormal, newSurfaceNormal, effectiveFactor);
+				} else {
+					_smoothedNormal = newSurfaceNormal;
+					_bHasValue = true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	bool MovementSurfaceAngleCondition::MovementSurfaceAngleConditionStateData::GetSmoothedSurfaceNormal(RE::hkVector4& a_outVector) const
+	{
+		a_outVector = _smoothedNormal;
+		return _bHasValue;
+	}
+
 	RE::BSString MovementSurfaceAngleCondition::GetArgument() const
 	{
 		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+		const auto stateArgument = stateComponent->GetArgument();
 
-		return std::format("Angle {} {}", separator, numericComponent->value.GetArgument()).data();
+		return std::format("Angle {} {} | {}", separator, numericComponent->value.GetArgument(), stateArgument.data()).data();
 	}
 
 	RE::BSString MovementSurfaceAngleCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
 	{
 		if (a_refr) {
-			return std::to_string(GetSurfaceAngle(a_refr)).data();
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				if (const auto charController = actor->GetCharController()) {
+					RE::hkVector4 surfaceVector;
+					if (Utils::GetSurfaceNormal(a_refr, surfaceVector, useNavmeshComponent->GetBoolValue())) {
+						float angle = GetAngleToSurfaceNormal(charController, surfaceVector);
+						return std::to_string(angle).data();
+					}
+				}
+			}
 		}
 
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool MovementSurfaceAngleCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
+	bool MovementSurfaceAngleCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
-		return comparisonComponent->GetComparisonResult(GetSurfaceAngle(a_refr), numericComponent->GetNumericValue(a_refr));
+		return comparisonComponent->GetComparisonResult(GetSurfaceAngle(a_refr, a_clipGenerator, a_parentSubMod), numericComponent->GetNumericValue(a_refr));
 	}
 
-	float MovementSurfaceAngleCondition::GetSurfaceAngle(RE::TESObjectREFR* a_refr) const
+	float MovementSurfaceAngleCondition::GetSurfaceAngle(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
 				if (const auto charController = actor->GetCharController()) {
-					const auto& surfaceVector = charController->supportNorm;
-					const auto& forwardVector = charController->forwardVec;
-					const auto dp = _mm_dp_ps(surfaceVector.quad, forwardVector.quad, 0x71);
-					const float dot = _mm_cvtss_f32(dp);
+					RE::hkVector4 surfaceVector;
+					bool bSuccess = false;
+					if (smoothingFactorComponent->GetNumericValue(a_refr) < 1.f) {
+						IStateData* data = stateComponent->GetStateData(a_refr, a_clipGenerator, a_parentSubMod);
+						if (!data) {  // data not found, add new
+							const auto newStateData = static_cast<MovementSurfaceAngleConditionStateData*>(stateComponent->CreateStateData(MovementSurfaceAngleConditionStateData::Create));
+							newStateData->Initialize(a_refr, stateComponent->ShouldResetOnLoopOrEcho(), smoothingFactorComponent->GetNumericValue(a_refr), useNavmeshComponent->GetBoolValue());
+							data = stateComponent->AddStateData(newStateData, a_refr, a_clipGenerator, a_parentSubMod);
+						}
 
-					const float angleRadians = acos(dot);
-					float ret = RE::NI_HALF_PI - angleRadians;
-					if (degreesComponent->GetBoolValue()) {
-						ret = RE::rad_to_deg(ret);
+						if (data) {
+							const auto smoothedData = static_cast<MovementSurfaceAngleConditionStateData*>(data);
+							bSuccess = smoothedData->GetSmoothedSurfaceNormal(surfaceVector);
+						}
 					}
 
-					return ret;
+					if (!bSuccess) {
+						bSuccess = Utils::GetSurfaceNormal(a_refr, surfaceVector, useNavmeshComponent->GetBoolValue());
+					}
+
+					if (bSuccess) {
+						if (Settings::bEnableDebugDraws && Settings::g_trueHUD) {
+							Settings::g_trueHUD->DrawArrow(a_refr->GetPosition(), a_refr->GetPosition() + Utils::HkVectorToNiPoint(surfaceVector) * 100.f, 10, 0, 0x0000FFFF);
+						}
+
+						return GetAngleToSurfaceNormal(charController, surfaceVector);
+					}
 				}
 			}
 		}
 
 		return 0.f;
+	}
+
+	float MovementSurfaceAngleCondition::GetAngleToSurfaceNormal(RE::bhkCharacterController* a_controller, const RE::hkVector4& a_surfaceNormal) const
+	{
+		const auto& forwardVector = a_controller->forwardVec;
+		const auto dp = _mm_dp_ps(a_surfaceNormal.quad, forwardVector.quad, 0x71);
+		const float dot = _mm_cvtss_f32(dp);
+
+		const float angleRadians = acos(dot);
+		float ret = RE::NI_HALF_PI - angleRadians;
+		if (degreesComponent->GetBoolValue()) {
+			ret = RE::rad_to_deg(ret);
+		}
+
+		return ret;
 	}
 
 	bool LocationClearedCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
@@ -3926,5 +4033,348 @@ namespace Conditions
 		}
 
 		return false;
+	}
+
+	bool IsOnStairsCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
+	{
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				if (const auto charController = actor->GetCharController()) {
+					return charController->flags.any(RE::CHARACTER_FLAGS::kOnStairs);
+				}
+			}
+		}
+
+		return false;
+	}
+
+	void SurfaceMaterialCondition::PostInitialize()
+	{
+		ConditionBase::PostInitialize();
+		numericComponent->value.getEnumMap = &SurfaceMaterialCondition::GetEnumMap;
+	}
+
+	RE::BSString SurfaceMaterialCondition::GetArgument() const
+	{
+		return RE::MaterialIDToString(GetRequiredMaterialID());
+	}
+
+	RE::BSString SurfaceMaterialCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+	{
+		RE::MATERIAL_ID materialID = RE::MATERIAL_ID::kNone;
+		if (GetSurfaceMaterialID(a_refr, materialID)) {
+			return RE::MaterialIDToString(materialID);
+		}
+
+		return ""sv.data();
+	}
+	
+	bool SurfaceMaterialCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
+	{
+		RE::MATERIAL_ID materialID = RE::MATERIAL_ID::kNone;
+		if (GetSurfaceMaterialID(a_refr, materialID)) {
+			return materialID == GetRequiredMaterialID();
+		}
+
+		return false;
+	}
+
+	RE::MATERIAL_ID SurfaceMaterialCondition::GetRequiredMaterialID() const
+	{
+		const auto& materialIDs = GetMaterialIDs();
+		int32_t currentValue = static_cast<int32_t>(numericComponent->GetNumericValue(nullptr));
+		if (currentValue >= materialIDs.size()) {
+			return RE::MATERIAL_ID::kNone;
+		}
+
+		return materialIDs[currentValue];
+	}
+
+	std::vector<RE::MATERIAL_ID>& SurfaceMaterialCondition::GetMaterialIDs()
+	{
+		static bool bInitialized = false;
+		static std::vector<RE::MATERIAL_ID> materialIDs;
+
+		if (!bInitialized) {
+			materialIDs.push_back(RE::MATERIAL_ID::kNone);
+			materialIDs.push_back(RE::MATERIAL_ID::kStoneBroken);
+			materialIDs.push_back(RE::MATERIAL_ID::kBlockBlade1Hand);
+			materialIDs.push_back(RE::MATERIAL_ID::kMeat);
+			materialIDs.push_back(RE::MATERIAL_ID::kCarriageWheel);
+			materialIDs.push_back(RE::MATERIAL_ID::kMetalLight);
+			materialIDs.push_back(RE::MATERIAL_ID::kWoodLight);
+			materialIDs.push_back(RE::MATERIAL_ID::kSnow);
+			materialIDs.push_back(RE::MATERIAL_ID::kGravel);
+			materialIDs.push_back(RE::MATERIAL_ID::kChainMetal);
+			materialIDs.push_back(RE::MATERIAL_ID::kBottle);
+			materialIDs.push_back(RE::MATERIAL_ID::kWood);
+			materialIDs.push_back(RE::MATERIAL_ID::kAsh);
+			materialIDs.push_back(RE::MATERIAL_ID::kSkin);
+			materialIDs.push_back(RE::MATERIAL_ID::kBlockBlunt);
+			materialIDs.push_back(RE::MATERIAL_ID::kDLC1DeerSkin);
+			materialIDs.push_back(RE::MATERIAL_ID::kInsect);
+			materialIDs.push_back(RE::MATERIAL_ID::kBarrel);
+			materialIDs.push_back(RE::MATERIAL_ID::kCeramicMedium);
+			materialIDs.push_back(RE::MATERIAL_ID::kBasket);
+			materialIDs.push_back(RE::MATERIAL_ID::kIce);
+			materialIDs.push_back(RE::MATERIAL_ID::kGlassStairs);
+			materialIDs.push_back(RE::MATERIAL_ID::kStoneStairs);
+			materialIDs.push_back(RE::MATERIAL_ID::kWater);
+			materialIDs.push_back(RE::MATERIAL_ID::kDraugrSkeleton);
+			materialIDs.push_back(RE::MATERIAL_ID::kBlade1Hand);
+			materialIDs.push_back(RE::MATERIAL_ID::kBook);
+			materialIDs.push_back(RE::MATERIAL_ID::kCarpet);
+			materialIDs.push_back(RE::MATERIAL_ID::kMetalSolid);
+			materialIDs.push_back(RE::MATERIAL_ID::kAxe1Hand);
+			materialIDs.push_back(RE::MATERIAL_ID::kBlockBlade2Hand);
+			materialIDs.push_back(RE::MATERIAL_ID::kOrganicLarge);
+			materialIDs.push_back(RE::MATERIAL_ID::kAmulet);
+			materialIDs.push_back(RE::MATERIAL_ID::kWoodStairs);
+			materialIDs.push_back(RE::MATERIAL_ID::kMud);
+			materialIDs.push_back(RE::MATERIAL_ID::kBoulderSmall);
+			materialIDs.push_back(RE::MATERIAL_ID::kSnowStairs);
+			materialIDs.push_back(RE::MATERIAL_ID::kStoneHeavy);
+			materialIDs.push_back(RE::MATERIAL_ID::kDragonSkeleton);
+			materialIDs.push_back(RE::MATERIAL_ID::kTrap);
+			materialIDs.push_back(RE::MATERIAL_ID::kBowsStaves);
+			materialIDs.push_back(RE::MATERIAL_ID::kAlduin);
+			materialIDs.push_back(RE::MATERIAL_ID::kBlockBowsStaves);
+			materialIDs.push_back(RE::MATERIAL_ID::kWoodAsStairs);
+			materialIDs.push_back(RE::MATERIAL_ID::kSteelGreatSword);
+			materialIDs.push_back(RE::MATERIAL_ID::kGrass);
+			materialIDs.push_back(RE::MATERIAL_ID::kBoulderLarge);
+			materialIDs.push_back(RE::MATERIAL_ID::kStoneAsStairs);
+			materialIDs.push_back(RE::MATERIAL_ID::kBlade2Hand);
+			materialIDs.push_back(RE::MATERIAL_ID::kBottleSmall);
+			materialIDs.push_back(RE::MATERIAL_ID::kBoneActor);
+			materialIDs.push_back(RE::MATERIAL_ID::kSand);
+			materialIDs.push_back(RE::MATERIAL_ID::kMetalHeavy);
+			materialIDs.push_back(RE::MATERIAL_ID::kDLC1SabreCatPelt);
+			materialIDs.push_back(RE::MATERIAL_ID::kIceForm);
+			materialIDs.push_back(RE::MATERIAL_ID::kDragon);
+			materialIDs.push_back(RE::MATERIAL_ID::kBlade1HandSmall);
+			materialIDs.push_back(RE::MATERIAL_ID::kSkinSmall);
+			materialIDs.push_back(RE::MATERIAL_ID::kPotsPans);
+			materialIDs.push_back(RE::MATERIAL_ID::kSkinSkeleton);
+			materialIDs.push_back(RE::MATERIAL_ID::kBlunt1Hand);
+			materialIDs.push_back(RE::MATERIAL_ID::kStoneStairsBroken);
+			materialIDs.push_back(RE::MATERIAL_ID::kSkinLarge);
+			materialIDs.push_back(RE::MATERIAL_ID::kOrganic);
+			materialIDs.push_back(RE::MATERIAL_ID::kBone);
+			materialIDs.push_back(RE::MATERIAL_ID::kWoodHeavy);
+			materialIDs.push_back(RE::MATERIAL_ID::kChain);
+			materialIDs.push_back(RE::MATERIAL_ID::kDirt);
+			materialIDs.push_back(RE::MATERIAL_ID::kGhost);
+			materialIDs.push_back(RE::MATERIAL_ID::kSkinMetalLarge);
+			materialIDs.push_back(RE::MATERIAL_ID::kBlockAxe);
+			materialIDs.push_back(RE::MATERIAL_ID::kArmorLight);
+			materialIDs.push_back(RE::MATERIAL_ID::kShieldLight);
+			materialIDs.push_back(RE::MATERIAL_ID::kCoin);
+			materialIDs.push_back(RE::MATERIAL_ID::kBlockBlunt2Hand);
+			materialIDs.push_back(RE::MATERIAL_ID::kShieldHeavy);
+			materialIDs.push_back(RE::MATERIAL_ID::kArmorHeavy);
+			materialIDs.push_back(RE::MATERIAL_ID::kArrow);
+			materialIDs.push_back(RE::MATERIAL_ID::kGlass);
+			materialIDs.push_back(RE::MATERIAL_ID::kStone);
+			materialIDs.push_back(RE::MATERIAL_ID::kWaterPuddle);
+			materialIDs.push_back(RE::MATERIAL_ID::kCloth);
+			materialIDs.push_back(RE::MATERIAL_ID::kSkinMetalSmall);
+			materialIDs.push_back(RE::MATERIAL_ID::kWard);
+			materialIDs.push_back(RE::MATERIAL_ID::kWeb);
+			materialIDs.push_back(RE::MATERIAL_ID::kTrailerSteelSword);
+			materialIDs.push_back(RE::MATERIAL_ID::kBlunt2Hand);
+			materialIDs.push_back(RE::MATERIAL_ID::kDLC1SwingingBridge);
+			materialIDs.push_back(RE::MATERIAL_ID::kBoulderMedium);
+
+			std::ranges::sort(materialIDs, [](RE::MATERIAL_ID a_lhs, RE::MATERIAL_ID a_rhs) {
+				return RE::MaterialIDToString(a_lhs) < RE::MaterialIDToString(a_rhs);
+			});
+
+			bInitialized = true;
+		}
+
+		return materialIDs;
+	}
+
+	bool SurfaceMaterialCondition::GetSurfaceMaterialID(RE::TESObjectREFR* a_refr, RE::MATERIAL_ID& a_outMaterialID) const
+	{
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				if (const auto charController = actor->GetCharController()) {
+					a_outMaterialID = *SKSE::stl::adjust_pointer<RE::MATERIAL_ID>(charController, 0x304);
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	std::map<int32_t, std::string_view> SurfaceMaterialCondition::GetEnumMap()
+	{
+		static bool bInitialized = false;
+		static std::map<int32_t, std::string_view> enumMap;
+		
+		if (!bInitialized) {
+			std::vector<RE::MATERIAL_ID>& materialIDs = GetMaterialIDs();
+			for (int32_t i = 0; i < materialIDs.size(); ++i) {
+				enumMap[i] = RE::MaterialIDToString(materialIDs[i]);
+			}
+			bInitialized = true;
+		}
+		return enumMap;
+	}
+
+	bool IsOverEncumberedCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
+	{
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				return actor->IsOverEncumbered();
+			}
+		}
+		
+		return false;
+	}
+
+	bool IsTrespassingCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
+	{
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				return actor->IsTrespassing();
+			}
+		}
+
+		return false;
+	}
+
+	bool IsGuardCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
+	{
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				return actor->IsGuard();
+			}
+		}
+
+		return false;
+	}
+
+	bool IsCrimeSearchingCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
+	{
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				return actor->GetActorRuntimeData().boolFlags.all(RE::Actor::BOOL_FLAGS::kCrimeSearch);
+			}
+		}
+
+		return false;
+	}
+
+	bool IsCombatSearchingCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
+	{
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				return actor->GetActorRuntimeData().boolBits.all(RE::Actor::BOOL_BITS::kSearchingInCombat);
+			}
+		}
+
+		return false;
+	}
+
+	bool IdleTimeCondition::IdleTimeConditionStateData::Update(float a_deltaTime)
+	{
+		if (const auto ref = _refHandle.get()) {
+			if (const auto actor = ref->As<RE::Actor>()) {
+				if (actor->IsMoving() || actor->IsAttacking() || actor->IsBlocking()) {
+					_idleTime = 0.f;
+					return false;
+				}
+
+				if (actor->AsActorState()->GetWeaponState() > RE::WEAPON_STATE::kSheathed) {
+					// check spellcasting
+					auto checkHand = [](RE::Actor* a_actor, bool a_bLeftHand) {
+						if (const auto equippedObject = a_actor->GetEquippedObject(a_bLeftHand)) {
+							if (const auto spell = equippedObject->As<RE::SpellItem>()) {
+								if (a_actor->IsCasting(spell)) {
+									return true;
+								}
+							} else if (const auto weapon = equippedObject->As<RE::TESObjectWEAP>()) {
+								if (weapon->IsStaff()) {
+									int iState = 0;
+									a_actor->GetGraphVariableInt("iState", iState);
+									if (iState == 10) {  // using staff
+										return true;
+									}
+								}
+							}
+						}
+
+						return false;
+					};
+
+					if (checkHand(actor, false)) {
+						_idleTime = 0.f;
+						return false;
+					}
+
+					if (checkHand(actor, true)) {
+						_idleTime = 0.f;
+						return false;
+					}
+				}
+
+				bool bIsShouting = false;
+				actor->GetGraphVariableBool("IsShouting", bIsShouting);
+				if (bIsShouting) {
+					_idleTime = 0.f;
+					return false;
+				}
+
+				_idleTime += a_deltaTime;
+			}
+		}
+
+		return false;
+	}
+
+	RE::BSString IdleTimeCondition::GetArgument() const
+	{
+		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+
+		return std::format("Idle time {} {}", separator, numericComponent->value.GetArgument()).data();
+	}
+
+	RE::BSString IdleTimeCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+	{
+		if (a_refr) {
+			return std::to_string(GetIdleTime(a_refr)).data();
+		}
+
+		return ""sv.data();
+	}
+
+	bool IdleTimeCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
+	{
+		return comparisonComponent->GetComparisonResult(GetIdleTime(a_refr), numericComponent->GetNumericValue(a_refr));
+	}
+
+	float IdleTimeCondition::GetIdleTime(RE::TESObjectREFR* a_refr) const
+	{
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				IStateData* data = stateComponent->GetStateData(a_refr, nullptr, nullptr);
+				if (!data) {  // data not found, add new
+					const auto newStateData = static_cast<IdleTimeConditionStateData*>(stateComponent->CreateStateData(IdleTimeConditionStateData::Create));
+					newStateData->Initialize(a_refr);
+					data = stateComponent->AddStateData(newStateData, a_refr, nullptr, nullptr);
+				}
+
+				if (data) {
+					const auto idleTimeData = static_cast<IdleTimeConditionStateData*>(data);
+					return idleTimeData->GetIdleTime();
+				}
+			}
+		}
+
+		return 0.f;
 	}
 }

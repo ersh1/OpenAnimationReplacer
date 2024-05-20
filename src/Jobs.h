@@ -158,20 +158,20 @@ namespace Jobs
 
 	struct BeginPreviewAnimationJob : GenericJob
 	{
-		BeginPreviewAnimationJob(RE::TESObjectREFR* a_refr, const ReplacementAnimation* a_replacementAnimation, std::optional<uint16_t> a_variantIndex = std::nullopt) :
+		BeginPreviewAnimationJob(RE::TESObjectREFR* a_refr, const ReplacementAnimation* a_replacementAnimation, Variant* a_variant = nullptr) :
 			refr(a_refr),
 			replacementAnimation(a_replacementAnimation),
-			variantIndex(a_variantIndex) {}
+			variant(a_variant) {}
 
-		BeginPreviewAnimationJob(RE::TESObjectREFR* a_refr, const ReplacementAnimation* a_replacementAnimation, std::string_view a_syncAnimationPrefix, std::optional<uint16_t> a_variantIndex = std::nullopt) :
+		BeginPreviewAnimationJob(RE::TESObjectREFR* a_refr, const ReplacementAnimation* a_replacementAnimation, std::string_view a_syncAnimationPrefix, Variant* a_variant = nullptr) :
 			refr(a_refr),
 			replacementAnimation(a_replacementAnimation),
 			syncAnimationPrefix(a_syncAnimationPrefix),
-			variantIndex(a_variantIndex) {}
+			variant(a_variant) {}
 
 		RE::TESObjectREFR* refr;
 		const ReplacementAnimation* replacementAnimation;
-		std::optional<uint16_t> variantIndex;
+		Variant* variant;
 		std::string syncAnimationPrefix{};
 
 		void Run() override;
@@ -185,29 +185,6 @@ namespace Jobs
 		RE::TESObjectREFR* refr;
 
 		void Run() override;
-	};
-
-	struct RemoveSharedRandomFloatJob : LatentJob
-	{
-		RemoveSharedRandomFloatJob(float a_delay, SubMod* a_subMod, RE::hkbBehaviorGraph* a_behaviorGraph) :
-			LatentJob(a_delay),
-			subMod(a_subMod),
-			behaviorGraph(a_behaviorGraph) {}
-
-		SubMod* subMod;
-		RE::hkbBehaviorGraph* behaviorGraph;
-
-		bool Run(float a_deltaTime) override
-		{
-			_timeRemaining -= a_deltaTime;
-
-			if (_timeRemaining > 0.f) {
-				return false;
-			}
-
-			subMod->ClearSharedRandom(behaviorGraph);
-			return true;
-		}
 	};
 
 	struct RemoveConditionPresetJob : GenericJob

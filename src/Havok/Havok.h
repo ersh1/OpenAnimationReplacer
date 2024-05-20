@@ -620,6 +620,18 @@ namespace RE
 		BSTHashMap<BSFixedString, BSTArray<AnimationSetData>*> hashMap;  // 08
 	};
 	static_assert(sizeof(AnimationSetDataSingleton) == 0x38);
+
+	struct PathingData
+	{
+		NiPoint3 unk00;
+		uint32_t unk0C;
+		BSNavmeshInfo* navmeshInfo;  // can get BSNavmesh with GetBSNavmesh_1410D7C40
+		BSTArray<BSNavmeshInfo*>* navmeshInfos;  // array of same type as unk10? can be null, possibly only filled in queries and not in the stored one in aiprocess
+		PathingCell* unk20;
+		uint16_t navmeshTriangleId;
+		uint8_t unk2A;
+		uint8_t unk2B;
+	};
 }
 
 inline RE::hkMemoryRouter& hkGetMemoryRouter() { return *(RE::hkMemoryRouter*)(uintptr_t)SKSE::WinAPI::TlsGetValue(g_dwTlsIndex); }

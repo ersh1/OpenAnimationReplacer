@@ -11,7 +11,6 @@
 #include <dxgi.h>
 #include <imgui.h>
 #include <imgui_impl_dx11.h>
-#include <imgui_impl_win32.h>
 
 namespace UI
 {
@@ -30,11 +29,20 @@ namespace UI
 		DXGI_SWAP_CHAIN_DESC sd{};
 		swapChain->GetDesc(&sd);
 
+		RECT rect{};
+		if (GetClientRect(sd.OutputWindow, &rect) == TRUE) {
+			_userData.screenScaleRatio = { static_cast<float>(sd.BufferDesc.Width) / static_cast<float>(rect.right), static_cast<float>(sd.BufferDesc.Height) / static_cast<float>(rect.bottom) };
+		} else {
+			_userData.screenScaleRatio = { 1.0f, 1.0f };
+		}
+
 		ImGui::CreateContext();
 
 		auto& io = ImGui::GetIO();
 
+		io.DisplaySize = { static_cast<float>(sd.BufferDesc.Width), static_cast<float>(sd.BufferDesc.Height) };
 		io.ConfigWindowsMoveFromTitleBarOnly = true;
+		io.UserData = &_userData;
 		io.IniFilename = Settings::imguiIni.data();
 		io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
 

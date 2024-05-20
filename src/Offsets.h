@@ -9,6 +9,7 @@ static RE::ObjectRefHandle& g_nullObjectRefHandle = *(RE::ObjectRefHandle*)REL::
 static int32_t* g_RelationshipRankTypeIdsByIndex = (int32_t*)REL::VariantID(502260, 369311, 0x1E911A0).address();                                          // 1DD3EF8, 1E67FE8, 1E911A0
 static RE::SynchronizedAnimationManager** g_syncAnimManagerPtr = (RE::SynchronizedAnimationManager**)REL::VariantID(514960, 401100, 0x2FC4880).address();  // 2EFF990, 2F9A0A0, 2FC4880
 static const char** g_str_BSSynchronizedClipGenerator = (const char**)REL::VariantID(522834, 409352, 0x30B4BB0).address();                                 // 2F5CB20, 2FF76A0, 30B4BB0
+static void** g_pathingSingleton = (void**)REL::VariantID(514893, 401037, 0x2FC4658).address();                                                              // 2EFF768, 2F99E98, 2FC4658
 
 using thkbBlendPoses = RE::hkVector4& (*)(uint32_t numData, const RE::hkQsTransform* src, const RE::hkQsTransform* dst, float amount, RE::hkQsTransform* out);
 static REL::Relocation<thkbBlendPoses> hkbBlendPoses{ REL::VariantID(63192, 64112, 0xB4DD80) };  // B12FA0, B38110, B4DD80
@@ -156,3 +157,18 @@ static REL::Relocation<tActor_GetTarget> Actor_GetTarget{ REL::VariantID(37655, 
 
 using tTESForm_GetEnchantment = RE::EnchantmentItem* (*)(RE::TESForm* a_this, RE::ExtraDataList* a_extraDataList);
 static REL::Relocation<tTESForm_GetEnchantment> TESForm_GetEnchantment{ REL::VariantID(14411, 14563, 0x1A0A80) };  // 190D50, 19B880, 1A0A80
+
+using tPathing_DataCtor1 = RE::PathingData* (*)(void* a_pathing, RE::PathingData& a_outStruct, RE::Actor* a_actor);
+static REL::Relocation<tPathing_DataCtor1> Pathing_DataCtor1{ REL::VariantID(29819, 30635, 0x483100) };  // 473120, 48DB60, 483100
+
+using tPathing_DataCtor2 = RE::PathingData* (*)(void* a_pathing, RE::PathingData& a_outStruct, RE::Actor* a_actor);
+static REL::Relocation<tPathing_DataCtor2> Pathing_DataCtor2{ REL::VariantID(29820, 30636, 0x4831E0) };  // 473200, 48DC40, 4831E0
+
+using tPathing_DataCtor3 = RE::PathingData* (*)(void* a_pathing, RE::PathingData& a_outStruct, const RE::NiPoint3& a_position, RE::TESObjectCELL* a_cell);
+static REL::Relocation<tPathing_DataCtor3> Pathing_DataCtor3{ REL::VariantID(29821, 30637, 0x483260) };  // 473280, 48DCC0, 483260
+
+using tPathingData_dtor = void (*)(RE::PathingData* a_pathingData);
+static REL::Relocation<tPathingData_dtor> PathingData_dtor{ REL::VariantID(87969, 90350, 0x1102620) };  // 10A59F0, 10FB5E0, 1102620
+
+using tBSNavmeshInfo_GetBSNavmesh = bool (*)(RE::BSNavmeshInfo* a_this, RE::BSTSmartPointer<RE::BSNavmesh>& a_outNavmesh);
+static REL::Relocation<tBSNavmeshInfo_GetBSNavmesh> BSNavmeshInfo_GetBSNavmesh{ REL::VariantID(88776, 91222, 0x1134970) };  // 10D7C40, 112F220, 1134970

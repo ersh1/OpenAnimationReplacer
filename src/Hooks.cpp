@@ -4,7 +4,6 @@
 
 #include <xbyak/xbyak.h>
 
-#include "Jobs.h"
 #include "Offsets.h"
 #include "OpenAnimationReplacer.h"
 #include "UI/UIManager.h"
@@ -32,6 +31,9 @@ namespace Hooks
 	{
 		OpenAnimationReplacer::gameTimeCounter += g_deltaTime;
 		OpenAnimationReplacer::GetSingleton().RunJobs();
+		if (!RE::UI::GetSingleton()->GameIsPaused()) {
+			OpenAnimationReplacer::GetSingleton().RunStateDataUpdates();
+		}
 		_Nullsub();
 	}
 

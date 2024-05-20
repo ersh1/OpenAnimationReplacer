@@ -1,5 +1,7 @@
 #pragma once
 
+#include "TrueHUDAPI.h"
+
 struct Settings
 {
 	enum class AnimationLogMode : uint32_t
@@ -57,11 +59,14 @@ struct Settings
 	static inline bool bDisablePreloading = false;
 	static inline bool bIncreaseAnimationLimit = false;
 
+	// Debug
+	static inline bool bEnableDebugDraws = false;
+
 	// Internal
 	static inline float fDefaultBlendTimeOnInterrupt = 0.3f;
 	static inline float fDefaultBlendTimeOnLoop = 0.3f;
 	static inline float fDefaultBlendTimeOnEcho = 0.1f;
-	static inline float fSharedRandomLifetime = 0.5f;
+	static inline float fStateDataLifetime = 0.5f;
 	static inline float fSequentialVariantLifetime = 0.5f;
 	static inline float fQueueFadeTime = 1.f;
 	static inline uint32_t uQueueMinSize = 10;
@@ -80,4 +85,6 @@ struct Settings
 
 	constexpr static inline std::string_view synchronizedClipSourcePrefix = "NPC";
 	constexpr static inline std::string_view synchronizedClipTargetPrefix = "2_";
+
+	static inline TRUEHUD_API::IVTrueHUD4* g_trueHUD = nullptr;
 };

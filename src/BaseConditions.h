@@ -2,7 +2,6 @@
 #include <imgui.h>
 #include <imgui_stdlib.h>
 #include <rapidjson/document.h>
-#include <shared_mutex>
 
 #include "UI/UICommon.h"
 #include "Utils.h"
@@ -248,6 +247,21 @@ namespace Conditions
 			_type = Type::kGraphVariable;
 		}
 
+		void SetStaticRange(float a_min, float a_max)
+		{
+			_staticRange = { a_min, a_max };
+			_type = Type::kStaticValue;
+			_bForceStaticOnly = true;
+		}
+
+		void SetForceStaticOnly(bool a_bForceStaticOnly)
+		{
+			if (a_bForceStaticOnly) {
+				_type = Type::kStaticValue;
+			}
+			_bForceStaticOnly = a_bForceStaticOnly;
+		}
+
 		[[nodiscard]] Type GetType() const { return _type; }
 
 		[[nodiscard]] std::string_view GetTypeName() const
@@ -279,13 +293,18 @@ namespace Conditions
 
 		rapidjson::Value Serialize(rapidjson::Document::AllocatorType& a_allocator);
 
-		std::function<std::map<int32_t, std::string_view>()> getEnumMap = nullptr;
+		std::function<std::map<int32_t, std::string_view>()>getEnumMap = nullptr;
+		std::function<std::map<uint32_t, std::string_view>()> getUnsignedEnumMap = nullptr;
+
+		bool HasEnumMap() const { return getEnumMap || getUnsignedEnumMap; }
 
 	protected:
 		Type _type = Type::kStaticValue;
+		bool _bForceStaticOnly = false;
 
 		// static value
 		float _floatValue = 0.f;
+		std::optional<std::pair<float, float>> _staticRange = std::nullopt;
 
 		// global variable
 		TESFormValue<RE::TESGlobal> _globalVariable;
@@ -334,8 +353,8 @@ namespace Conditions
 		}
 
 	private:
-		template <typename T>
-		bool DisplayComboBox(std::map<int32_t, std::string_view> a_enumMap, T& a_value, float a_firstColumnWidthPercent);
+		template <typename Key, typename T>
+		bool DisplayComboBox(std::map<Key, std::string_view> a_enumMap, T& a_value, float a_firstColumnWidthPercent);
 	};
 
 	class NiPoint3Value
@@ -701,8 +720,8 @@ namespace Conditions
 		ConditionSet(IMultiConditionComponent* a_parentMultiConditionComponent) :
 			_parentMultiConditionComponent(a_parentMultiConditionComponent) {}
 
-		bool EvaluateAll(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, SubMod* a_parentSubMod) const;
-		bool EvaluateAny(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, SubMod* a_parentSubMod) const;
+		[[nodiscard]] bool EvaluateAll(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, SubMod* a_parentSubMod) const;
+		[[nodiscard]] bool EvaluateAny(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, SubMod* a_parentSubMod) const;
 
 		bool IsEmpty() const { return _conditions.empty(); }
 		bool IsDirty() const { return _bDirty; }
@@ -733,7 +752,7 @@ namespace Conditions
 		[[nodiscard]] const ICondition* GetParentCondition() const;
 
 	private:
-		mutable std::shared_mutex _lock;
+		mutable SharedLock _lock;
 		std::vector<std::unique_ptr<ICondition>> _conditions;
 		bool _bDirty = false;
 
@@ -830,6 +849,9 @@ namespace Conditions
 		void SetGlobalVariable(RE::TESGlobal* a_global) override { value.SetGlobalVariable(a_global); }
 		void SetActorValue(RE::ActorValue a_actorValue, ActorValueType a_valueType) override { value.SetActorValue(a_actorValue, a_valueType); }
 		void SetGraphVariable(const char* a_graphVariableName, GraphVariableType a_valueType) override { value.SetGraphVariable(a_graphVariableName, a_valueType); }
+
+		void SetStaticRange(float a_min, float a_max) { value.SetStaticRange(a_min, a_max); }
+		void SetForceStaticOnly(bool a_bForceStaticOnly) { value.SetForceStaticOnly(a_bForceStaticOnly); }
 
 		NumericValue value;
 	};
@@ -1006,11 +1028,11 @@ namespace Conditions
 		}
 	};
 
-	class RandomConditionComponent : public IRandomConditionComponent
+	class ConditionStateComponent : public IConditionStateComponent
 	{
 	public:
-		RandomConditionComponent(const ICondition* a_parentCondition, const char* a_name, const char* a_description = "") :
-			IRandomConditionComponent(a_parentCondition, a_name, a_description) {}
+		ConditionStateComponent(const ICondition* a_parentCondition, const char* a_name, const char* a_description = "") :
+			IConditionStateComponent(a_parentCondition, a_name, a_description) {}
 
 		void InitializeComponent(void* a_value) override;
 		void SerializeComponent(void* a_value, void* a_allocator) override;
@@ -1021,14 +1043,78 @@ namespace Conditions
 
 		[[nodiscard]] bool IsValid() const override { return true; }
 
-		bool GetRandomFloat(RE::hkbClipGenerator* a_clipGenerator, float& a_outFloat, void* a_parentSubMod) const override;
-		[[nodiscard]] float GetMinValue() const override { return minValue; }
-		[[nodiscard]] float GetMaxValue() const override { return maxValue; }
-		void SetMinValue(float a_min) override { minValue = a_min; }
-		void SetMaxValue(float a_max) override { maxValue = a_max; }
+		[[nodiscard]] StateDataScope GetAllowedDataScopes() const override { return allowedScopes; };
+		void SetAllowedDataScopes(StateDataScope a_scopes) override { allowedScopes = a_scopes; };
+		[[nodiscard]] StateDataScope GetStateDataScope() const override { return scope; }
+		void SetStateDataScope(StateDataScope a_scope) override { scope = a_scope; }
 
-		float minValue = 0.f;
-		float maxValue = 1.f;
+		[[nodiscard]] bool CanResetOnLoopOrEcho() const override { return bCanResetOnLoopOrEcho; }
+		void SetCanResetOnLoopOrEcho(bool a_bCanResetOnLoopOrEcho) override { bCanResetOnLoopOrEcho = a_bCanResetOnLoopOrEcho; }
+		[[nodiscard]] bool ShouldResetOnLoopOrEcho() const override { return bShouldResetOnLoopOrEcho; }
+		void SetShouldResetOnLoopOrEcho(bool a_bShouldReset) override { bShouldResetOnLoopOrEcho = a_bShouldReset; }
+
+		[[nodiscard]] IStateData* CreateStateData(ConditionStateDataFactory a_stateDataFactory) override;
+
+		[[nodiscard]] IStateData* GetStateData(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+		[[nodiscard]] IStateData* AddStateData(IStateData* a_stateData, RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) override;
+
+		StateDataScope allowedScopes = StateDataScope::kLocal | StateDataScope::kSubMod;
+		StateDataScope scope = StateDataScope::kLocal;
+		bool bCanResetOnLoopOrEcho = true;
+		bool bShouldResetOnLoopOrEcho = false;
+
+		[[nodiscard]] static constexpr std::string_view GetStateDataScopeName(StateDataScope a_scope)
+		{
+			switch (a_scope) {
+			case StateDataScope::kLocal:
+				return "Local"sv;
+			case StateDataScope::kSubMod:
+				return "Submod"sv;
+			case StateDataScope::kReplacerMod:
+				return "Replacer mod"sv;
+			case StateDataScope::kReference:
+				return "Reference"sv;
+			}
+
+			return "INVALID"sv;
+		}
+
+		[[nodiscard]] static constexpr std::string_view GetStateDataScopeTooltip(StateDataScope a_scope)
+		{
+			switch (a_scope) {
+			case StateDataScope::kLocal:
+				return "The state data is unique for the combination of this reference, this instance of the condition, and the relevant animation clip."sv;
+			case StateDataScope::kSubMod:
+				return "The state data is unique for this reference, and is shared between all instances of the condition in the same submod."sv;
+			case StateDataScope::kReplacerMod:
+				return "The state data is unique for this reference, and is shared between all instances of the condition in all submods in the same replacer mod."sv;
+			case StateDataScope::kReference:
+				return "The state data is unique for this reference, and is shared between all instances of the condition."sv;
+			}
+
+			return "INVALID"sv;
+		}
+
+		[[nodiscard]] static constexpr StateDataScope GetStateDataScopeFromName(std::string_view a_name)
+		{
+			if (a_name == "Local"sv) {
+				return StateDataScope::kLocal;
+			}
+			if (a_name == "Submod"sv) {
+				return StateDataScope::kSubMod;
+			}
+			if (a_name == "Replacer mod"sv) {
+				return StateDataScope::kReplacerMod;
+			}
+			if (a_name == "Reference"sv) {
+				return StateDataScope::kReference;
+			}
+
+			return StateDataScope::kLocal;
+		}
+
+	protected:
+		bool CanSelectScope() const;
 	};
 
 	class ConditionPresetComponent : public IMultiConditionComponent

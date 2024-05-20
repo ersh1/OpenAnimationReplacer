@@ -147,6 +147,9 @@ void Settings::ReadSettings()
 			ReadBoolSetting(ini, "Experimental", "bDisablePreloading", bDisablePreloading);
 			ReadBoolSetting(ini, "Experimental", "bIncreaseAnimationLimit", bIncreaseAnimationLimit);
 
+			// Debug
+			ReadBoolSetting(ini, "Debug", "bEnableDebugDraws", bEnableDebugDraws);
+
 			return true;
 		}
 		return false;
@@ -218,6 +221,9 @@ void Settings::WriteSettings()
 	// Experimental
 	ini.SetBoolValue("Experimental", "bDisablePreloading", bDisablePreloading);
 	ini.SetBoolValue("Experimental", "bIncreaseAnimationLimit", bIncreaseAnimationLimit);
+
+	// Debug
+	ini.SetBoolValue("Debug", "bEnableDebugDraws", bEnableDebugDraws);
 
 	ini.SaveFile(iniPath.data());
 

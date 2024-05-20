@@ -31,13 +31,16 @@ struct ReplacementAnimData
 		bDisabled(a_bDisabled)
 	{}
 
-	ReplacementAnimData(std::string_view a_projectName, std::string_view a_path, bool a_bDisabled, std::optional<std::vector<Variant>>& a_variants, std::optional<ReplacementAnimation::VariantMode> a_variantMode, bool a_bLetReplaceOnLoop) :
+	ReplacementAnimData(std::string_view a_projectName, std::string_view a_path, bool a_bDisabled, std::optional<std::vector<Variant>>& a_variants, std::optional<VariantMode> a_variantMode, std::optional<Conditions::StateDataScope> a_variantStateScope, bool a_bBlendBetweenVariants, bool a_bResetRandomOnLoopOrEcho, bool a_bSharePlayedHistory) :
 		projectName(a_projectName),
 		path(a_path),
 		bDisabled(a_bDisabled),
 		variants(std::move(a_variants)),
 		variantMode(a_variantMode),
-		bLetReplaceOnLoop(a_bLetReplaceOnLoop)
+		variantStateScope(a_variantStateScope),
+		bBlendBetweenVariants(a_bBlendBetweenVariants),
+		bResetRandomOnLoopOrEcho(a_bResetRandomOnLoopOrEcho),
+		bSharePlayedHistory(a_bSharePlayedHistory)
 	{}
 
 	ReplacementAnimData(const ReplacementAnimation* a_replacementAnimation) :
@@ -49,8 +52,11 @@ struct ReplacementAnimData
 	std::string path;
 	bool bDisabled = false;
 	std::optional<std::vector<Variant>> variants = std::nullopt;
-	std::optional<ReplacementAnimation::VariantMode> variantMode = std::nullopt;
-	bool bLetReplaceOnLoop = false;
+	std::optional<VariantMode> variantMode = std::nullopt;
+	std::optional<Conditions::StateDataScope> variantStateScope = std::nullopt;
+	bool bBlendBetweenVariants = true;
+	bool bResetRandomOnLoopOrEcho = true;
+	bool bSharePlayedHistory = false;
 };
 
 namespace Parsing
@@ -110,8 +116,8 @@ namespace Parsing
 		bool bReplaceOnEcho = false;
 		bool bCustomBlendTimeOnEcho = false;
 		float blendTimeOnEcho = Settings::fDefaultBlendTimeOnEcho;
-		bool bKeepRandomResultsOnLoop = false;
-		bool bShareRandomResults = false;
+		bool bKeepRandomResultsOnLoop_DEPRECATED = false;
+		bool bShareRandomResults_DEPRECATED = false;
 		std::unique_ptr<Conditions::ConditionSet> conditionSet;
 		std::unique_ptr<Conditions::ConditionSet> synchronizedConditionSet;
 		std::vector<ReplacementAnimationFile> animationFiles;

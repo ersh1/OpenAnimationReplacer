@@ -4,6 +4,8 @@
 #define DIRECTINPUT_VERSION 0x0800
 #define IMGUI_DEFINE_MATH_OPERATORS
 
+#define USE_BS_LOCKS
+
 #pragma warning(push)
 #include <RE/Skyrim.h>
 #include <REL/Relocation.h>
@@ -19,6 +21,8 @@
 #pragma warning(pop)
 
 #include <shared_mutex>
+#include <ranges>
+#include <boost/container_hash/hash.hpp>
 
 using namespace std::literals;
 
@@ -49,6 +53,18 @@ namespace std
 			return reinterpret_cast<uintptr_t>(a_ptr.get());
 		}
 	};
+
+	template <class T1, class T2>
+	struct pointer_pair_hash
+	{
+		std::size_t operator()(const std::pair<T1*, T2*>& a_p) const
+		{
+			std::size_t seed = 0;
+			boost::hash_combine(seed, a_p.first);
+			boost::hash_combine(seed, a_p.second);
+			return seed;
+		}
+	};
 }
 
 namespace RE
@@ -58,7 +74,50 @@ namespace RE
 	{
 		return a_lhs.native_handle() < a_rhs.native_handle();
 	}
+
+	template <class T>
+	std::size_t hash_value(const BSPointerHandle<T>& a_handle)
+	{
+		boost::hash<uint32_t> hasher;
+		return hasher(a_handle.native_handle());
+	};
+
 }
+
+// Hash functor template
+template <typename T>
+struct KeyHash
+{
+	size_t operator()(const T& key) const
+	{
+		// Default hash implementation
+		return std::hash<T>{}(key);
+	}
+};
+
+template <typename T1, typename T2>
+struct KeyHash<std::pair<T1, T2>>
+{
+	std::size_t operator()(const std::pair<T1, T2>& a_p) const
+	{
+		std::size_t seed = 0;
+		boost::hash_combine(seed, a_p.first);
+		boost::hash_combine(seed, a_p.second);
+		return seed;
+	}
+};
+
+// Special hash support for std::string_view to enable heterogeneous lookup
+template <>
+struct KeyHash<std::string>
+{
+	using is_transparent = void;
+
+	size_t operator()(std::string_view key) const
+	{
+		return std::hash<std::string_view>{}(key);
+	}
+};
 
 // Case-insensitive hash function for std::filesystem::path
 struct CaseInsensitivePathHash
@@ -96,12 +155,21 @@ struct CaseInsensitivePathEqual
 	}
 };
 
+#ifdef USE_BS_LOCKS
+using ExclusiveLock = RE::BSSpinLock;
+using Locker = RE::BSSpinLockGuard;
+
+using SharedLock = RE::BSReadWriteLock;
+using ReadLocker = RE::BSReadLockGuard;
+using WriteLocker = RE::BSWriteLockGuard;
+#else
 using ExclusiveLock = std::mutex;
 using Locker = std::lock_guard<ExclusiveLock>;
 
 using SharedLock = std::shared_mutex;
 using ReadLocker = std::shared_lock<SharedLock>;
 using WriteLocker = std::unique_lock<SharedLock>;
+#endif
 
 #define DLLEXPORT __declspec(dllexport)
 

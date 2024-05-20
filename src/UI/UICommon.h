@@ -48,6 +48,7 @@ namespace UI
 		constexpr ImVec4 INVALID_CONDITION_COLOR(1.f, 0.3f, 0.3f, 1.f);
 		constexpr ImVec4 CONDITION_PRESET_COLOR(0.f, 0.9f, 0.76f, 1.f);
 		constexpr ImVec4 CONDITION_PRESET_BORDER_COLOR(0.f, 0.53f, 0.5f, 1.f);
+		constexpr ImVec4 CONDITION_SHARED_STATE_BORDER_COLOR(0.45f, 0.45f, 0.22f, 1.00f);
 		constexpr ImVec4 YELLOW_COLOR(1.f, 1.f, 0.f, 1.f);
 		constexpr ImVec4 BLACK_COLOR(0.f, 0.f, 0.f, 1.f);
 

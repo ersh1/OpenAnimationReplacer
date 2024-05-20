@@ -7,7 +7,7 @@ namespace Conditions
 {
 	[[nodiscard]] std::string_view CorrectLegacyConditionName(std::string_view a_conditionName);
 	[[nodiscard]] std::unique_ptr<ICondition> CreateConditionFromString(std::string_view a_line);
-	[[nodiscard]] std::unique_ptr<ICondition> CreateConditionFromJson(rapidjson::Value& a_value);
+	[[nodiscard]] std::unique_ptr<ICondition> CreateConditionFromJson(rapidjson::Value& a_value, ConditionSet* a_parentConditionSet = nullptr);
 	[[nodiscard]] std::unique_ptr<ICondition> CreateCondition(std::string_view a_conditionName);
 	[[nodiscard]] std::unique_ptr<ICondition> DuplicateCondition(const std::unique_ptr<ICondition>& a_conditionToDuplicate);
 	[[nodiscard]] std::unique_ptr<ConditionSet> DuplicateConditionSet(ConditionSet* a_conditionSetToDuplicate);
@@ -611,23 +611,54 @@ namespace Conditions
 	class RandomCondition : public ConditionBase
 	{
 	public:
+		class RandomConditionStateData : public IStateData
+		{
+		public:
+			static IStateData* Create() { return new RandomConditionStateData(); }
+
+			void Initialize(bool a_bResetOnLoopOrEcho, float a_minValue, float a_maxValue)
+			{
+				_bResetOnLoopOrEcho = a_bResetOnLoopOrEcho;
+				_minValue = a_minValue;
+				_maxValue = a_maxValue;
+			}
+
+			bool ShouldResetOnLoopOrEcho([[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] bool a_bIsEcho) const override { return _bResetOnLoopOrEcho; }
+
+			float GetRandomFloat();
+
+		protected:
+			bool _bResetOnLoopOrEcho = false;
+
+			float _minValue = 0.f;
+			float _maxValue = 1.f;
+			std::optional<float> _randomFloat = std::nullopt;
+		};
+
 		RandomCondition()
 		{
-			randomComponent = AddComponent<RandomConditionComponent>("Random value");
+			stateComponent = AddComponent<ConditionStateComponent>("State");
+			stateComponent->SetShouldResetOnLoopOrEcho(true);
+			minRandomComponent = AddComponent<NumericConditionComponent>("Minimum random value");
+			minRandomComponent->SetForceStaticOnly(true);
+			maxRandomComponent = AddComponent<NumericConditionComponent>("Maximum random value");
+			maxRandomComponent->SetForceStaticOnly(true);
 			comparisonComponent = AddComponent<ComparisonConditionComponent>("Comparison");
 			numericComponent = AddComponent<NumericConditionComponent>("Numeric value");
-
 			comparisonComponent->SetComparisonOperator(ComparisonOperator::kLess);
 		}
 
+		void Initialize(void* a_value) override;
 		void InitializeLegacy(const char* a_argument) override;
 
 		[[nodiscard]] RE::BSString GetArgument() const override;
 		[[nodiscard]] RE::BSString GetName() const override { return "Random"sv.data(); }
 		[[nodiscard]] RE::BSString GetDescription() const override { return "Compares a random value with a numeric value."sv.data(); }
-		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 0, 0 }; }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 2, 3, 0 }; }
 
-		RandomConditionComponent* randomComponent;
+		ConditionStateComponent* stateComponent;
+		NumericConditionComponent* minRandomComponent;
+		NumericConditionComponent* maxRandomComponent;
 		ComparisonConditionComponent* comparisonComponent;
 		NumericConditionComponent* numericComponent;
 
@@ -2306,11 +2337,49 @@ namespace Conditions
 	class MovementSurfaceAngleCondition : public ConditionBase
 	{
 	public:
+		class MovementSurfaceAngleConditionStateData : public IStateData
+		{
+		public:
+			static IStateData* Create() { return new MovementSurfaceAngleConditionStateData(); }
+
+			void Initialize(RE::TESObjectREFR* a_refr, bool a_bResetOnLoopOrEcho, float a_smoothingFactor, bool a_bUseNavmesh)
+			{
+				_refHandle = a_refr;
+				_bResetOnLoopOrEcho = a_bResetOnLoopOrEcho;
+				_smoothingFactor = pow(a_smoothingFactor, 0.1f);
+				_bUseNavmesh = a_bUseNavmesh;
+				_bHasValue = Utils::GetSurfaceNormal(a_refr, _smoothedNormal, a_bUseNavmesh);
+			}
+
+			bool Update(float a_deltaTime) override;
+			bool ShouldResetOnLoopOrEcho([[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] bool a_bIsEcho) const override { return _bResetOnLoopOrEcho; }
+
+			[[nodiscard]] bool GetSmoothedSurfaceNormal(RE::hkVector4& a_outVector) const;
+
+		protected:
+			RE::ObjectRefHandle _refHandle;
+			bool _bResetOnLoopOrEcho = false;
+
+			RE::hkVector4 _smoothedNormal;
+			float _smoothingFactor = 1.f;
+			bool _bUseNavmesh = true;
+
+			bool _bHasValue = false;
+		};
+
 		MovementSurfaceAngleCondition()
 		{
 			comparisonComponent = AddComponent<ComparisonConditionComponent>("Comparison");
 			numericComponent = AddComponent<NumericConditionComponent>("Numeric value");
 			degreesComponent = AddComponent<BoolConditionComponent>("Degrees", "Whether the angle values are in degrees or radians.");
+			useNavmeshComponent = AddComponent<BoolConditionComponent>("Use Navmesh", "Enable to try to access the navmesh first to calculate the surface's normal vector, if possible. Will be more inaccurate, but less volatile.");
+			useNavmeshComponent->SetBoolValue(true);
+			stateComponent = AddComponent<ConditionStateComponent>("State");
+			stateComponent->SetStateDataScope(StateDataScope::kSubMod);
+			stateComponent->SetAllowedDataScopes(StateDataScope::kSubMod);
+			smoothingFactorComponent = AddComponent<NumericConditionComponent>("Smoothing factor", "The smoothing factor controls how much the previous value influences the new value.\n\nA factor closer to 0 means the smoothing will respond more slowly to changes, while a factor closer to 1 means it will respond more quickly. 1 is effectively instant.");
+			smoothingFactorComponent->SetStaticRange(0.f, 1.f);
+			smoothingFactorComponent->SetStaticValue(1.f);
 		}
 
 		[[nodiscard]] RE::BSString GetArgument() const override;
@@ -2318,16 +2387,21 @@ namespace Conditions
 
 		[[nodiscard]] RE::BSString GetName() const override { return "MovementSurfaceAngle"sv.data(); }
 		[[nodiscard]] RE::BSString GetDescription() const override { return "Tests the angle of the surface that the ref is walking on against a numeric value.\nThe angle is calculated by comparing the surface's normal vector and the ref's forward vector."sv.data(); }
-		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 2, 2, 0 }; }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 2, 3, 0 }; }
+
+		float GetSmoothingFactor(RE::TESObjectREFR* a_refr) const { return smoothingFactorComponent->GetNumericValue(a_refr); }
 
 		ComparisonConditionComponent* comparisonComponent;
 		NumericConditionComponent* numericComponent;
 		BoolConditionComponent* degreesComponent;
-		BoolConditionComponent* absoluteComponent;
+		BoolConditionComponent* useNavmeshComponent;
+		ConditionStateComponent* stateComponent;
+		NumericConditionComponent* smoothingFactorComponent;
 
 	protected:
 		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
-		float GetSurfaceAngle(RE::TESObjectREFR* a_refr) const;
+		float GetSurfaceAngle(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const;
+		float GetAngleToSurfaceNormal(RE::bhkCharacterController* a_controller, const RE::hkVector4& a_surfaceNormal) const;
 	};
 
 	class LocationClearedCondition : public ConditionBase
@@ -2400,5 +2474,147 @@ namespace Conditions
 
 	protected:
 		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+	};
+
+	class IsOnStairsCondition : public ConditionBase
+	{
+	public:
+		[[nodiscard]] RE::BSString GetName() const override { return "IsOnStairs"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the ref is on stairs. Keep in mind that not all stairs in the game are marked as such."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 2, 3, 0 }; }
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+	};
+
+	class SurfaceMaterialCondition : public ConditionBase
+	{
+	public:
+		SurfaceMaterialCondition()
+		{
+			numericComponent = AddComponent<NumericConditionComponent>("Material ID", "The surface has to have this material ID.");
+		}
+
+		void PostInitialize() override;
+
+		[[nodiscard]] RE::BSString GetArgument() const override;
+		[[nodiscard]] RE::BSString GetCurrent(RE::TESObjectREFR* a_refr) const override;
+
+		[[nodiscard]] RE::BSString GetName() const override { return "SurfaceMaterial"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the surface the ref is standing on has a specified material ID."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 2, 3, 0 }; }
+
+		NumericConditionComponent* numericComponent;
+
+	protected:
+		bool GetSurfaceMaterialID(RE::TESObjectREFR* a_refr, RE::MATERIAL_ID& a_outMaterialID) const;
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+
+		RE::MATERIAL_ID GetRequiredMaterialID() const;
+
+		static std::vector<RE::MATERIAL_ID>& GetMaterialIDs();
+		static std::map<int32_t, std::string_view> GetEnumMap();
+	};
+
+	class IsOverEncumberedCondition : public ConditionBase
+	{
+	public:
+		[[nodiscard]] RE::BSString GetName() const override { return "IsOverEncumbered"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the ref is over-encumbered."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 2, 3, 0 }; }
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+	};
+
+	class IsTrespassingCondition : public ConditionBase
+	{
+	public:
+		[[nodiscard]] RE::BSString GetName() const override { return "IsTrespassing"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the ref is trespassing."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 2, 3, 0 }; }
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+	};
+
+	class IsGuardCondition : public ConditionBase
+	{
+	public:
+		[[nodiscard]] RE::BSString GetName() const override { return "IsGuard"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the ref is a guard."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 2, 3, 0 }; }
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+	};
+
+	class IsCrimeSearchingCondition : public ConditionBase
+	{
+	public:
+		[[nodiscard]] RE::BSString GetName() const override { return "IsCrimeSearching"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the ref is searching for a criminal."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 2, 3, 0 }; }
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+	};
+
+	class IsCombatSearchingCondition : public ConditionBase
+	{
+	public:
+		[[nodiscard]] RE::BSString GetName() const override { return "IsCombatSearching"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the ref is searching for a target in combat."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 2, 3, 0 }; }
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+	};
+
+	class IdleTimeCondition : public ConditionBase
+	{
+	public:
+		class IdleTimeConditionStateData : public IStateData
+		{
+		public:
+			static IStateData* Create() { return new IdleTimeConditionStateData(); }
+
+			void Initialize(RE::TESObjectREFR* a_refr)
+			{
+				_refHandle = a_refr;
+			}
+
+			bool Update(float a_deltaTime) override;
+
+			float GetIdleTime() const { return _idleTime; }
+
+		protected:
+			RE::ObjectRefHandle _refHandle;
+			float _idleTime = 0.f;
+		};
+
+		IdleTimeCondition()
+		{
+			comparisonComponent = AddComponent<ComparisonConditionComponent>("Comparison");
+			numericComponent = AddComponent<NumericConditionComponent>("Numeric value");
+			stateComponent = AddComponent<ConditionStateComponent>("State");
+			stateComponent->SetStateDataScope(StateDataScope::kReference);
+			stateComponent->SetAllowedDataScopes(StateDataScope::kReference);
+		}
+
+		[[nodiscard]] RE::BSString GetArgument() const override;
+		[[nodiscard]] RE::BSString GetCurrent(RE::TESObjectREFR* a_refr) const override;
+
+		[[nodiscard]] RE::BSString GetName() const override { return "IdleTime"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Compares the time the actor has spent idling with a numeric value."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 2, 3, 0 }; }
+
+		ComparisonConditionComponent* comparisonComponent;
+		NumericConditionComponent* numericComponent;
+		ConditionStateComponent* stateComponent;
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+		float GetIdleTime(RE::TESObjectREFR* a_refr) const;
 	};
 }

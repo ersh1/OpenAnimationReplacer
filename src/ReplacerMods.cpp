@@ -9,6 +9,26 @@
 
 #include <unordered_set>
 
+bool SubMod::StateDataUpdate(float a_deltaTime)
+{
+	return conditionStateData.UpdateData(a_deltaTime);
+}
+
+bool SubMod::StateDataOnLoopOrEcho(RE::ObjectRefHandle a_refHandle, ActiveClip* a_activeClip, bool a_bIsEcho)
+{
+	return conditionStateData.OnLoopOrEcho(a_refHandle, a_activeClip, a_bIsEcho);
+}
+
+bool SubMod::StateDataClearRefrData(RE::ObjectRefHandle a_refHandle)
+{
+	return conditionStateData.ClearRefrData(a_refHandle);
+}
+
+void SubMod::StateDataClearData()
+{
+	conditionStateData.Clear();
+}
+
 bool SubMod::AddReplacementAnimation(std::string_view a_animPath, uint16_t a_originalIndex, ReplacerProjectData* a_replacerProjectData, RE::hkbCharacterStringData* a_stringData)
 {
 	bool bAdded = false;
@@ -18,7 +38,7 @@ bool SubMod::AddReplacementAnimation(std::string_view a_animPath, uint16_t a_ori
 
 		auto& animFile = search->second;
 		if (animFile.variants) {
-			std::vector<ReplacementAnimation::Variant> variants;
+			std::vector<Variant> variants;
 			int32_t i = 0;
 			for (auto& variantToAdd : *animFile.variants) {
 				if (uint16_t newIndex = a_replacerProjectData->TryAddAnimationToAnimationBundleNames(variantToAdd.fullPath, variantToAdd.hash); newIndex != static_cast<uint16_t>(-1)) {
@@ -26,9 +46,9 @@ bool SubMod::AddReplacementAnimation(std::string_view a_animPath, uint16_t a_ori
 				}
 			}
 
-			newReplacementAnimation = std::make_unique<ReplacementAnimation>(variants, a_originalIndex, _priority, animFile.fullPath, a_stringData->name.data(), _conditionSet.get());
+			newReplacementAnimation = std::make_unique<ReplacementAnimation>(variants, a_originalIndex, animFile.fullPath, a_stringData->name.data(), _conditionSet.get());
 		} else if (uint16_t newIndex = a_replacerProjectData->TryAddAnimationToAnimationBundleNames(animFile.fullPath, animFile.hash); newIndex != static_cast<uint16_t>(-1)) {
-			newReplacementAnimation = std::make_unique<ReplacementAnimation>(newIndex, a_originalIndex, _priority, animFile.fullPath, a_stringData->name.data(), _conditionSet.get());
+			newReplacementAnimation = std::make_unique<ReplacementAnimation>(newIndex, a_originalIndex, animFile.fullPath, a_stringData->name.data(), _conditionSet.get());
 		}
 
 		if (newReplacementAnimation) {
@@ -100,15 +120,19 @@ void SubMod::LoadParseResult(const Parsing::SubModParseResult& a_parseResult)
 	_bReplaceOnEcho = a_parseResult.bReplaceOnEcho;
 	_bCustomBlendTimeOnEcho = a_parseResult.bCustomBlendTimeOnEcho;
 	_blendTimeOnEcho = a_parseResult.blendTimeOnEcho;
-	_bKeepRandomResultsOnLoop = a_parseResult.bKeepRandomResultsOnLoop;
-	_bShareRandomResults = a_parseResult.bShareRandomResults;
+	_bKeepRandomResultsOnLoop_DEPRECATED = a_parseResult.bKeepRandomResultsOnLoop_DEPRECATED;
+	_bShareRandomResults_DEPRECATED = a_parseResult.bShareRandomResults_DEPRECATED;
 	_conditionSet->MoveConditions(a_parseResult.conditionSet.get());
 	if (a_parseResult.synchronizedConditionSet) {
 		SetHasSynchronizedAnimations();
 		_synchronizedConditionSet->MoveConditions(a_parseResult.synchronizedConditionSet.get());
 	}
 
+	HandleDeprecatedSettings();
+
 	LoadReplacementAnimationDatas(_replacementAnimDatas);
+
+	RestorePresetReferences();
 
 	SetDirtyRecursive(false);
 }
@@ -126,6 +150,24 @@ void SubMod::LoadReplacementAnimationDatas(const std::vector<ReplacementAnimData
 	}
 }
 
+void SubMod::HandleDeprecatedSettings() const
+{
+	// need to set relevant values in variants
+	if (_bKeepRandomResultsOnLoop_DEPRECATED || _bShareRandomResults_DEPRECATED) {
+		for (auto& anim : _replacementAnimations) {
+			if (anim->HasVariants()) {
+				auto& variants = anim->GetVariants();
+				if (_bKeepRandomResultsOnLoop_DEPRECATED) {
+					variants.SetShouldResetRandomOnLoopOrEcho(!_bKeepRandomResultsOnLoop_DEPRECATED);
+				}
+				if (_bShareRandomResults_DEPRECATED) {
+					variants.SetVariantStateScope(Conditions::StateDataScope::kSubMod);
+				}
+			}
+		}
+	}
+}
+
 void SubMod::ResetAnimations()
 {
 	for (const auto& anim : _replacementAnimations) {
@@ -138,21 +180,6 @@ void SubMod::UpdateAnimations() const
 {
 	// Update stuff in each anim
 	for (const auto& anim : _replacementAnimations) {
-		anim->SetPriority(_priority);
-		anim->SetDisabledByParent(_bDisabled);
-		anim->SetIgnoreDontConvertAnnotationsToTriggersFlag(_bIgnoreDontConvertAnnotationsToTriggersFlag);
-		anim->SetTriggersFromAnnotationsOnly(_bTriggersFromAnnotationsOnly);
-		anim->SetInterruptible(_bInterruptible);
-		anim->ToggleCustomBlendTime(CustomBlendType::kInterrupt, _bCustomBlendTimeOnInterrupt);
-		anim->SetCustomBlendTime(CustomBlendType::kInterrupt, _blendTimeOnInterrupt);
-		anim->SetReplaceOnLoop(_bReplaceOnLoop);
-		anim->ToggleCustomBlendTime(CustomBlendType::kLoop, _bCustomBlendTimeOnLoop);
-		anim->SetCustomBlendTime(CustomBlendType::kLoop, _blendTimeOnLoop);
-		anim->SetReplaceOnEcho(_bReplaceOnEcho);
-		anim->ToggleCustomBlendTime(CustomBlendType::kEcho, _bCustomBlendTimeOnEcho);
-		anim->SetCustomBlendTime(CustomBlendType::kEcho, _blendTimeOnEcho);
-		anim->SetKeepRandomResultsOnLoop(_bKeepRandomResultsOnLoop);
-		anim->SetShareRandomResults(_bShareRandomResults);
 		anim->UpdateVariantCache();
 	}
 
@@ -165,10 +192,39 @@ void SubMod::UpdateAnimations() const
 		a_replacerProject->ForEach([](auto a_animReplacements) {
 			a_animReplacements->TestInterruptible();
 			a_animReplacements->TestReplaceOnEcho();
-			a_animReplacements->TestKeepRandomResultsOnLoop();
 			a_animReplacements->SortByPriority();
 		});
 	});
+}
+
+RE::BSVisit::BSVisitControl TryRestorePreset(std::unique_ptr<Conditions::ICondition>& a_condition)
+{
+	if (a_condition->GetConditionType() == Conditions::ConditionType::kPreset) {
+		const auto presetCondition = static_cast<Conditions::PRESETCondition*>(a_condition.get());
+		presetCondition->conditionsComponent->TryFindPreset();
+	} else {
+		for (uint32_t i = 0; i < a_condition->GetNumComponents(); ++i) {
+			const auto& component = a_condition->GetComponent(i);
+			if (component->GetType() == Conditions::ConditionComponentType::kMulti) {
+				auto multiConditionComponent = static_cast<Conditions::IMultiConditionComponent*>(component);
+				multiConditionComponent->ForEachCondition(TryRestorePreset);
+			}
+		}
+	}
+
+	return RE::BSVisit::BSVisitControl::kContinue;
+}
+
+void SubMod::RestorePresetReferences()
+{
+	auto restorePresetReferences = [&](Conditions::ConditionSet* a_conditionSet) {
+		if (const auto conditionSet = a_conditionSet) {
+			conditionSet->ForEachCondition(TryRestorePreset);
+		}
+	};
+
+	restorePresetReferences(_conditionSet.get());
+	restorePresetReferences(_synchronizedConditionSet.get());
 }
 
 bool SubMod::HasCustomBlendTime(CustomBlendType a_type) const
@@ -189,11 +245,11 @@ float SubMod::GetCustomBlendTime(CustomBlendType a_type) const
 {
 	switch (a_type) {
 	case CustomBlendType::kInterrupt:
-		return _blendTimeOnInterrupt;
+		return _bCustomBlendTimeOnInterrupt ? _blendTimeOnInterrupt : Settings::fDefaultBlendTimeOnInterrupt;
 	case CustomBlendType::kLoop:
-		return _blendTimeOnLoop;
+		return _bCustomBlendTimeOnLoop ? _blendTimeOnLoop : Settings::fDefaultBlendTimeOnLoop;
 	case CustomBlendType::kEcho:
-		return _blendTimeOnEcho;
+		return _bCustomBlendTimeOnEcho ? _blendTimeOnEcho : Settings::fDefaultBlendTimeOnEcho;
 	}
 
 	return 0.f;
@@ -257,10 +313,10 @@ bool SubMod::ReloadConfig()
 	auto directoryPathStr = directoryPath.string();
 	bool bOriginallyLegacy = Utils::ContainsStringIgnoreCase(directoryPathStr, "DynamicAnimationReplacer"sv);
 
-	auto configPath = directoryPath / "config.json"sv;
-	auto userPath = directoryPath / "user.json"sv;
-	bool bConfigJsonFound = is_regular_file(configPath);
-	bool bUserJsonFound = is_regular_file(userPath);
+	const auto configPath = directoryPath / "config.json"sv;
+	const auto userPath = directoryPath / "user.json"sv;
+	const bool bConfigJsonFound = Utils::IsRegularFile(configPath);
+	const bool bUserJsonFound = Utils::IsRegularFile(userPath);
 	if (bConfigJsonFound || bUserJsonFound) {
 		if (bOriginallyLegacy) {
 			// if it was originally a legacy mod, only read user.json
@@ -297,7 +353,7 @@ bool SubMod::ReloadConfig()
 	if (!bDeserializeSuccess && bOriginallyLegacy) {
 		ResetToLegacy();
 		if (Utils::ContainsStringIgnoreCase(directoryPathStr, "_CustomConditions"sv)) {
-			if (auto txtPath = directoryPath / "_conditions.txt"sv; exists(txtPath)) {
+			if (auto txtPath = directoryPath / "_conditions.txt"sv; Utils::Exists(txtPath)) {
 				auto newConditionSet = Parsing::ParseConditionsTxt(txtPath);
 				_conditionSet->MoveConditions(newConditionSet.get());
 
@@ -419,16 +475,15 @@ void SubMod::Serialize(rapidjson::Document& a_doc, ConditionEditMode a_editMode)
 
 				if (replacementAnimation->HasVariants()) {
 					auto variantMode = replacementAnimation->GetVariants().GetVariantMode();
+					auto variantStateScope = replacementAnimation->GetVariants().GetVariantStateScope();
 					animValue.AddMember("variantMode", static_cast<int>(variantMode), allocator);
-
-					if (variantMode == ReplacementAnimation::VariantMode::kSequential) {
-						if (replacementAnimation->GetVariants().CanReplaceOnLoopBeforeSequenceFinishes()) {
-							animValue.AddMember("letReplaceOnLoopBeforeSequenceFinishes", replacementAnimation->GetVariants().CanReplaceOnLoopBeforeSequenceFinishes(), allocator);
-						}
-					}
+					animValue.AddMember("variantStateScope", static_cast<int>(variantStateScope), allocator);
+					animValue.AddMember("blendBetweenVariants", replacementAnimation->GetVariants().ShouldBlendBetweenVariants(), allocator);
+					animValue.AddMember("resetRandomOnLoopOrEcho", replacementAnimation->GetVariants().ShouldResetRandomOnLoopOrEcho(), allocator);
+					animValue.AddMember("sharePlayedHistory", replacementAnimation->GetVariants().ShouldSharePlayedHistory(), allocator);
 
 					rapidjson::Value variantsValue(rapidjson::kArrayType);
-					replacementAnimation->ForEachVariant([&](const ReplacementAnimation::Variant& a_variant) {
+					replacementAnimation->ForEachVariant([&](const Variant& a_variant) {
 						if (a_variant.ShouldSaveToJson(variantMode)) {
 							rapidjson::Value variantValue(rapidjson::kObjectType);
 
@@ -438,14 +493,12 @@ void SubMod::Serialize(rapidjson::Document& a_doc, ConditionEditMode a_editMode)
 								variantValue.AddMember("disabled", a_variant.IsDisabled(), allocator);
 							}
 
-							if (variantMode == ReplacementAnimation::VariantMode::kRandom && a_variant.GetWeight() != 1.f) {
+							if (variantMode == VariantMode::kRandom && a_variant.GetWeight() != 1.f) {
 								variantValue.AddMember("weight", a_variant.GetWeight(), allocator);
 							}
 
-							if (variantMode == ReplacementAnimation::VariantMode::kSequential) {
-								if (a_variant.ShouldPlayOnce()) {
-									variantValue.AddMember("playOnce", a_variant.ShouldPlayOnce(), allocator);
-								}
+							if (a_variant.ShouldPlayOnce()) {
+								variantValue.AddMember("playOnce", a_variant.ShouldPlayOnce(), allocator);
 							}
 
 							variantsValue.PushBack(variantValue, allocator);
@@ -536,18 +589,6 @@ void SubMod::Serialize(rapidjson::Document& a_doc, ConditionEditMode a_editMode)
 		a_doc.AddMember("blendTimeOnEcho", blendValue, allocator);
 	}
 
-	// write keep random result on loop
-	if (_bKeepRandomResultsOnLoop) {
-		rapidjson::Value value(_bKeepRandomResultsOnLoop);
-		a_doc.AddMember("keepRandomResultsOnLoop", value, allocator);
-	}
-
-	// write share random results
-	if (_bShareRandomResults) {
-		rapidjson::Value value(_bShareRandomResults);
-		a_doc.AddMember("shareRandomResults", value, allocator);
-	}
-
 	// write conditions
 	{
 		rapidjson::Value value = _conditionSet->Serialize(allocator);
@@ -611,8 +652,8 @@ void SubMod::ResetToLegacy()
 	_bReplaceOnEcho = false;
 	_bCustomBlendTimeOnEcho = false;
 	_blendTimeOnEcho = Settings::fDefaultBlendTimeOnEcho;
-	_bKeepRandomResultsOnLoop = false;
-	_bShareRandomResults = false;
+	_bKeepRandomResultsOnLoop_DEPRECATED = Settings::bLegacyKeepRandomResultsByDefault;
+	_bShareRandomResults_DEPRECATED = false;
 
 	ResetReplacementAnimationsToLegacy();
 
@@ -626,19 +667,6 @@ void SubMod::ResetReplacementAnimationsToLegacy()
 	for (const auto& anim : _replacementAnimations) {
 		anim->SetDisabled(false);
 		anim->ResetVariants();
-		anim->SetIgnoreDontConvertAnnotationsToTriggersFlag(_bIgnoreDontConvertAnnotationsToTriggersFlag);
-		anim->SetTriggersFromAnnotationsOnly(_bTriggersFromAnnotationsOnly);
-		anim->SetInterruptible(_bInterruptible);
-		anim->ToggleCustomBlendTime(CustomBlendType::kInterrupt, false);
-		anim->SetCustomBlendTime(CustomBlendType::kInterrupt, Settings::fDefaultBlendTimeOnInterrupt);
-		anim->SetReplaceOnLoop(_bReplaceOnLoop);
-		anim->ToggleCustomBlendTime(CustomBlendType::kLoop, false);
-		anim->SetCustomBlendTime(CustomBlendType::kLoop, Settings::fDefaultBlendTimeOnLoop);
-		anim->SetReplaceOnEcho(_bReplaceOnEcho);
-		anim->ToggleCustomBlendTime(CustomBlendType::kEcho, false);
-		anim->SetCustomBlendTime(CustomBlendType::kEcho, Settings::fDefaultBlendTimeOnEcho);
-		anim->SetKeepRandomResultsOnLoop(_bKeepRandomResultsOnLoop);
-		anim->SetShareRandomResults(_bShareRandomResults);
 		anim->UpdateVariantCache();
 	}
 }
@@ -696,119 +724,46 @@ void SubMod::ForEachReplacementAnimationFile(const std::function<void(const Repl
 	}
 }
 
-float SubMod::GetSharedRandom(ActiveClip* a_activeClip, const Conditions::IRandomConditionComponent* a_randomComponent)
+bool ReplacerMod::StateDataUpdate(float a_deltaTime)
 {
-	{
-		ReadLocker locker(_randomLock);
-
-		if (const auto search = _sharedRandomFloats.find(a_activeClip->GetBehaviorGraph()); search != _sharedRandomFloats.end()) {
-			return search->second.GetRandomFloat(a_activeClip, a_randomComponent);
-		}
+	bool bActive = false;
+	if (conditionStateData.UpdateData(a_deltaTime)) {
+		bActive = true;
 	}
-
-	{
-		WriteLocker locker(_randomLock);
-
-		const auto behaviorGraph = a_activeClip->GetBehaviorGraph();
-
-		auto [it, bSuccess] = _sharedRandomFloats.try_emplace(behaviorGraph, this, behaviorGraph);
-		return it->second.GetRandomFloat(a_activeClip, a_randomComponent);
+	if (variantStateData.UpdateData(a_deltaTime)) {
+		bActive = true;
 	}
+	return bActive;
 }
 
-float SubMod::GetVariantRandom(ActiveClip* a_activeClip)
+bool ReplacerMod::StateDataOnLoopOrEcho(RE::ObjectRefHandle a_refHandle, ActiveClip* a_activeClip, bool a_bIsEcho)
 {
-	{
-		ReadLocker locker(_randomLock);
-
-		if (const auto search = _sharedRandomFloats.find(a_activeClip->GetBehaviorGraph()); search != _sharedRandomFloats.end()) {
-			return search->second.GetVariantFloat(a_activeClip);
-		}
+	bool bActive = false;
+	if (conditionStateData.OnLoopOrEcho(a_refHandle, a_activeClip, a_bIsEcho)) {
+		bActive = true;
 	}
-
-	{
-		WriteLocker locker(_randomLock);
-
-		const auto behaviorGraph = a_activeClip->GetBehaviorGraph();
-
-		auto [it, bSuccess] = _sharedRandomFloats.try_emplace(behaviorGraph, this, behaviorGraph);
-		return it->second.GetVariantFloat(a_activeClip);
+	if (variantStateData.OnLoopOrEcho(a_refHandle, a_activeClip, a_bIsEcho)) {
+		bActive = true;
 	}
+	return bActive;
 }
 
-void SubMod::ClearSharedRandom(const RE::hkbBehaviorGraph* a_behaviorGraph)
+bool ReplacerMod::StateDataClearRefrData(RE::ObjectRefHandle a_refHandle)
 {
-	WriteLocker locker(_randomLock);
-
-	_sharedRandomFloats.erase(a_behaviorGraph);
+	bool bActive = false;
+	if (conditionStateData.ClearRefrData(a_refHandle)) {
+		bActive = true;
+	}
+	if (variantStateData.ClearRefrData(a_refHandle)) {
+		bActive = true;
+	}
+	return bActive;
 }
 
-float SubMod::SharedRandomFloats::GetRandomFloat(ActiveClip* a_activeClip, const Conditions::IRandomConditionComponent* a_randomComponent)
+void ReplacerMod::StateDataClearData()
 {
-	AddActiveClip(a_activeClip);
-
-	// Returns a saved random float if it exists, otherwise generates a new one and saves it
-	{
-		ReadLocker locker(_randomLock);
-		const auto search = _randomFloats.find(a_randomComponent);
-		if (search != _randomFloats.end()) {
-			return search->second;
-		}
-	}
-
-	WriteLocker locker(_randomLock);
-	float randomFloat = Utils::GetRandomFloat(a_randomComponent->GetMinValue(), a_randomComponent->GetMaxValue());
-	_randomFloats.emplace(a_randomComponent, randomFloat);
-
-	return randomFloat;
-}
-
-float SubMod::SharedRandomFloats::GetVariantFloat(ActiveClip* a_activeClip)
-{
-	AddActiveClip(a_activeClip);
-
-	// Returns a saved variant float if it exists, otherwise generates a new one and saves it
-	{
-		ReadLocker locker(_randomLock);
-		if (_variantFloat) {
-			return *_variantFloat;
-		}
-	}
-
-	WriteLocker locker(_randomLock);
-	_variantFloat = Utils::GetRandomFloat(0.f, 1.f);
-
-	return *_variantFloat;
-}
-
-void SubMod::SharedRandomFloats::AddActiveClip(ActiveClip* a_activeClip)
-{
-	Locker locker(_clipLock);
-
-	auto [it, bSuccess] = _registeredCallbacks.try_emplace(a_activeClip, std::make_shared<ActiveClip::DestroyedCallback>([&](auto a_destroyedClip) {
-		RemoveActiveClip(a_destroyedClip);
-	}));
-
-	if (bSuccess) {
-		auto weakPtr = std::weak_ptr(it->second);
-		a_activeClip->RegisterDestroyedCallback(weakPtr);
-	}
-
-	// destroy queued removal job if any exists
-	_queuedRemovalJob = nullptr;
-}
-
-void SubMod::SharedRandomFloats::RemoveActiveClip(ActiveClip* a_activeClip)
-{
-	Locker locker(_clipLock);
-
-	_registeredCallbacks.erase(a_activeClip);
-
-	// queue for removal
-	if (_registeredCallbacks.empty()) {
-		_queuedRemovalJob = std::make_shared<Jobs::RemoveSharedRandomFloatJob>(Settings::fSharedRandomLifetime, _parentSubMod, _behaviorGraph);
-		OpenAnimationReplacer::GetSingleton().QueueWeakLatentJob(_queuedRemovalJob);
-	}
+	conditionStateData.Clear();
+	variantStateData.Clear();
 }
 
 void ReplacerMod::LoadParseResult(Parsing::ModParseResult& a_parseResult)
@@ -839,8 +794,8 @@ bool ReplacerMod::ReloadConfig()
 
 	const auto configPath = directoryPath / "config.json"sv;
 	const auto userPath = directoryPath / "user.json"sv;
-	const bool bConfigJsonFound = is_regular_file(configPath);
-	const bool bUserJsonFound = is_regular_file(userPath);
+	const bool bConfigJsonFound = Utils::IsRegularFile(configPath);
+	const bool bUserJsonFound = Utils::IsRegularFile(userPath);
 
 	if (bConfigJsonFound || bUserJsonFound) {
 		bool bDeserializeSuccess = false;
@@ -857,6 +812,7 @@ bool ReplacerMod::ReloadConfig()
 
 		if (bDeserializeSuccess) {
 			LoadParseResult(parseResult);
+			RestorePresetReferences();
 			auto& detectedProblems = DetectedProblems::GetSingleton();
 			detectedProblems.CheckForReplacerModsWithInvalidConditions();
 			return true;
@@ -1055,18 +1011,13 @@ void ReplacerMod::LoadConditionPresets(std::vector<std::unique_ptr<Conditions::C
 	for (auto& conditionPreset : a_conditionPresets) {
 		AddConditionPreset(conditionPreset);
 	}
+}
 
+void ReplacerMod::RestorePresetReferences()
+{
 	// try to restore references in conditions
 	ForEachSubMod([&](SubMod* a_subMod) {
-		if (const auto conditionSet = a_subMod->GetConditionSet()) {
-			conditionSet->ForEachCondition([&](std::unique_ptr<Conditions::ICondition>& a_condition) {
-				if (a_condition->GetConditionType() == Conditions::ConditionType::kPreset) {
-					const auto presetCondition = static_cast<Conditions::PRESETCondition*>(a_condition.get());
-					presetCondition->conditionsComponent->TryFindPreset();
-				}
-				return RE::BSVisit::BSVisitControl::kContinue;
-			});
-		}
+		a_subMod->RestorePresetReferences();
 		return RE::BSVisit::BSVisitControl::kContinue;
 	});
 }
@@ -1236,23 +1187,6 @@ void AnimationReplacements::TestReplaceOnEcho()
 	_bOriginalReplaceOnEcho = false;
 }
 
-void AnimationReplacements::TestKeepRandomResultsOnLoop()
-{
-	ReadLocker locker(_lock);
-
-	for (const auto& replacementAnimation : _replacements) {
-		if (replacementAnimation->GetKeepRandomResultsOnLoop()) {
-			if (!_bOriginalKeepRandomResultsOnLoop) {
-				logger::info("original animation {} will keep random condition results on loop because there are potential replacements that do", _originalPath);
-			}
-			_bOriginalKeepRandomResultsOnLoop = true;
-			return;
-		}
-	}
-
-	_bOriginalKeepRandomResultsOnLoop = false;
-}
-
 void AnimationReplacements::MarkAsSynchronizedAnimation(bool a_bSynchronized)
 {
 	_bSynchronized = a_bSynchronized;
@@ -1328,12 +1262,13 @@ void ReplacerProjectData::AddReplacementAnimation(RE::hkbCharacterStringData* a_
 	};
 
 	if (a_replacementAnimation->HasVariants()) {
-		a_replacementAnimation->ForEachVariant([&](const ReplacementAnimation::Variant& a_variant) {
+		a_replacementAnimation->ForEachVariant([&](const Variant& a_variant) {
 			addReplacementIndex(a_variant.GetIndex());
 			return RE::BSVisit::BSVisitControl::kContinue;
 		});
 	} else {
-		const uint16_t replacementIndex = a_replacementAnimation->GetIndex();
+		Variant* dummy = nullptr;
+		const uint16_t replacementIndex = a_replacementAnimation->GetIndex(dummy);
 		if (replacementIndex != static_cast<uint16_t>(-1)) {
 			addReplacementIndex(replacementIndex);
 		}

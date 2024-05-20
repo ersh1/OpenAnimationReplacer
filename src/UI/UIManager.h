@@ -3,6 +3,7 @@
 #include "Settings.h"
 
 #include "UIWindow.h"
+#include "ImGui/imgui_impl_win32.h"
 
 namespace UI
 {
@@ -91,6 +92,8 @@ namespace UI
 		mutable SharedLock _inputEventLock;
 		std::vector<KeyEvent> _keyEventQueue{};
 		bool _bFocusLost = false;
+
+		OAR_ImGuiUserData _userData;
 
 		UIManager();
 		virtual ~UIManager() noexcept = default;

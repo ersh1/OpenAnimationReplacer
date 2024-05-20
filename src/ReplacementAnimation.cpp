@@ -1,6 +1,5 @@
 #include "ReplacementAnimation.h"
 
-#include "ActiveClip.h"
 #include "AnimationFileHashCache.h"
 #include "Parsing.h"
 #include "ReplacerMods.h"
@@ -30,185 +29,16 @@ std::string ReplacementAnimationFile::GetOriginalPath() const
 	return Parsing::ConvertVariantsPath(Parsing::StripReplacerPath(fullPath));
 }
 
-bool ReplacementAnimation::Variant::ShouldSaveToJson(VariantMode a_variantMode) const
-{
-	if (_bDisabled) {
-		return true;
-	}
-
-	if (a_variantMode == VariantMode::kRandom && _weight != 1.f) {
-		return true;
-	}
-
-	if (a_variantMode == VariantMode::kSequential) {
-		return true;
-	}
-
-	return false;
-}
-
-void ReplacementAnimation::Variant::ResetSettings()
-{
-	_weight = 1.f;
-	_bDisabled = false;
-	_bPlayOnce = false;
-}
-
-uint16_t ReplacementAnimation::Variants::GetVariantIndex() const
-{
-	// no active clip, so only supports random variants
-	const float randomWeight = Utils::GetRandomFloat(0.f, 1.f);
-
-	ReadLocker locker(_lock);
-
-	const auto it = std::ranges::lower_bound(_cumulativeWeights, randomWeight);
-	const auto i = std::distance(_cumulativeWeights.begin(), it);
-	return _activeVariants[i]->GetIndex();
-}
-
-uint16_t ReplacementAnimation::Variants::GetVariantIndex(ActiveClip* a_activeClip) const
-{
-	switch (_variantMode) {
-	default:
-	case VariantMode::kRandom:
-		{
-			const float randomWeight = a_activeClip->GetVariantRandom(_parentReplacementAnimation);
-
-			ReadLocker locker(_lock);
-
-			const auto it = std::ranges::lower_bound(_cumulativeWeights, randomWeight);
-			const auto i = std::distance(_cumulativeWeights.begin(), it);
-			return _activeVariants[i]->GetIndex();
-		}
-	case VariantMode::kSequential:
-		{
-			ReadLocker locker(_lock);
-
-			const size_t i = a_activeClip->GetVariantSequential(_parentReplacementAnimation);
-			return _activeVariants[i]->GetIndex();
-		}
-	}
-}
-
-void ReplacementAnimation::Variants::UpdateVariantCache()
-{
-	WriteLocker locker(_lock);
-
-	_activeVariants.clear();
-
-	switch (_variantMode) {
-	case VariantMode::kRandom:
-		{
-			_totalWeight = 0.f;
-			_cumulativeWeights.clear();
-			float maxWeight = 0.f;
-
-			std::ranges::sort(_variants, [](const Variant& a, const Variant& b) {
-				return a.GetWeight() > b.GetWeight();
-			});
-
-			for (auto& variant : _variants) {
-				if (!variant.IsDisabled()) {
-					_totalWeight += variant.GetWeight();
-					maxWeight = std::max(maxWeight, variant.GetWeight());
-					_activeVariants.emplace_back(&variant);
-				}
-			}
-
-			// cache
-			float weightSum = 0.f;
-
-			for (const auto activeVariant : _activeVariants) {
-				const float normalizedWeight = activeVariant->GetWeight();
-				weightSum += normalizedWeight;
-				_cumulativeWeights.emplace_back(weightSum / _totalWeight);
-			}
-		}
-		break;
-
-	case VariantMode::kSequential:
-		std::ranges::sort(_variants, [](const Variant& a, const Variant& b) {
-			return a.GetOrder() < b.GetOrder();
-		});
-
-		for (auto& variant : _variants) {
-			if (!variant.IsDisabled()) {
-				_activeVariants.emplace_back(&variant);
-			}
-		}
-
-		break;
-	}
-}
-
-RE::BSVisit::BSVisitControl ReplacementAnimation::Variants::ForEachVariant(const std::function<RE::BSVisit::BSVisitControl(Variant&)>& a_func)
-{
-	using Result = RE::BSVisit::BSVisitControl;
-
-	for (auto& variant : _variants) {
-		const auto result = a_func(variant);
-		if (result == Result::kStop) {
-			return result;
-		}
-	}
-
-	return Result::kContinue;
-}
-
-RE::BSVisit::BSVisitControl ReplacementAnimation::Variants::ForEachVariant(const std::function<RE::BSVisit::BSVisitControl(const Variant&)>& a_func) const
-{
-	using Result = RE::BSVisit::BSVisitControl;
-
-	for (auto& variant : _variants) {
-		const auto result = a_func(variant);
-		if (result == Result::kStop) {
-			return result;
-		}
-	}
-
-	return Result::kContinue;
-}
-
-void ReplacementAnimation::Variants::SwapVariants(int32_t a_variantIndexA, int32_t a_variantIndexB)
-{
-	if (a_variantIndexA < _variants.size() && a_variantIndexB < _variants.size()) {
-		_variants[a_variantIndexA].SetOrder(a_variantIndexB);
-		_variants[a_variantIndexB].SetOrder(a_variantIndexA);
-	}
-
-	UpdateVariantCache();
-}
-
-size_t ReplacementAnimation::Variants::GetActiveVariantCount() const
-{
-	ReadLocker locker(_lock);
-
-	return _activeVariants.size();
-}
-
-ReplacementAnimation::Variant* ReplacementAnimation::Variants::GetActiveVariant(size_t a_variantIndex) const
-{
-	ReadLocker locker(_lock);
-
-	if (a_variantIndex <= _activeVariants.size()) {
-		return _activeVariants[a_variantIndex];
-	}
-
-	return nullptr;
-}
-
-ReplacementAnimation::ReplacementAnimation(uint16_t a_index, uint16_t a_originalIndex, int32_t a_priority, std::string_view a_path, std::string_view a_projectName, Conditions::ConditionSet* a_conditionSet) :
+ReplacementAnimation::ReplacementAnimation(uint16_t a_index, uint16_t a_originalIndex, std::string_view a_path, std::string_view a_projectName, Conditions::ConditionSet* a_conditionSet) :
 	_index(a_index),
 	_originalIndex(a_originalIndex),
-	_priority(a_priority),
 	_path(a_path),
 	_projectName(a_projectName),
 	_conditionSet(a_conditionSet)
 {}
 
-ReplacementAnimation::ReplacementAnimation(std::vector<Variant>& a_variants, uint16_t a_originalIndex, int32_t a_priority, std::string_view a_path, std::string_view a_projectName, Conditions::ConditionSet* a_conditionSet) :
+ReplacementAnimation::ReplacementAnimation(std::vector<Variant>& a_variants, uint16_t a_originalIndex, std::string_view a_path, std::string_view a_projectName, Conditions::ConditionSet* a_conditionSet) :
 	_originalIndex(a_originalIndex),
-	_priority(a_priority),
 	_path(a_path),
 	_projectName(a_projectName),
 	_conditionSet(a_conditionSet)
@@ -232,6 +62,22 @@ bool ReplacementAnimation::ShouldSaveToJson() const
 			return true;
 		}
 
+		if (variants.GetVariantStateScope() != Conditions::StateDataScope::kLocal) {
+			return true;
+		}
+
+		if (!variants.ShouldBlendBetweenVariants()) {
+			return true;
+		}
+
+		if (!variants.ShouldResetRandomOnLoopOrEcho()) {
+			return true;
+		}
+
+		if (variants.ShouldSharePlayedHistory()) {
+			return true;
+		}
+
 		variants.ForEachVariant([&](const Variant& a_variant) {
 			if (a_variant.ShouldSaveToJson(variantMode)) {
 				bShouldSave = true;
@@ -249,80 +95,87 @@ bool ReplacementAnimation::ShouldSaveToJson() const
 	return false;
 }
 
-uint16_t ReplacementAnimation::GetIndex() const
+bool ReplacementAnimation::IsDisabled() const
+{
+	return _bDisabled || _parentSubMod->IsDisabled();
+}
+
+uint16_t ReplacementAnimation::GetIndex(Variant*& a_outVariant) const
 {
 	if (HasVariants()) {
-		return std::get<Variants>(_index).GetVariantIndex();
+		return std::get<Variants>(_index).GetVariantIndex(a_outVariant);
 	}
 
 	return std::get<uint16_t>(_index);
 }
 
-uint16_t ReplacementAnimation::GetIndex(ActiveClip* a_activeClip) const
+uint16_t ReplacementAnimation::GetIndex(ActiveClip* a_activeClip, Variant*& a_outVariant) const
 {
 	if (HasVariants()) {
-		return std::get<Variants>(_index).GetVariantIndex(a_activeClip);
+		return std::get<Variants>(_index).GetVariantIndex(a_activeClip, a_outVariant);
 	}
 
 	return std::get<uint16_t>(_index);
 }
 
-bool ReplacementAnimation::HasCustomBlendTime(CustomBlendType a_type) const
+int32_t ReplacementAnimation::GetPriority() const
 {
-	switch (a_type) {
-	case CustomBlendType::kInterrupt:
-		return _bCustomBlendTimeOnInterrupt;
-	case CustomBlendType::kLoop:
-		return _bCustomBlendTimeOnLoop;
-	case CustomBlendType::kEcho:
-		return _bCustomBlendTimeOnEcho;
-	}
-
-	return false;
+	return _parentSubMod->GetPriority();
 }
 
-float ReplacementAnimation::GetCustomBlendTime(CustomBlendType a_type) const
+bool ReplacementAnimation::GetIgnoreDontConvertAnnotationsToTriggersFlag() const
 {
-	switch (a_type) {
-	case CustomBlendType::kInterrupt:
-		return _bCustomBlendTimeOnInterrupt ? _blendTimeOnInterrupt : Settings::fDefaultBlendTimeOnInterrupt;
-	case CustomBlendType::kLoop:
-		return _bCustomBlendTimeOnLoop ? _blendTimeOnLoop : Settings::fDefaultBlendTimeOnLoop;
-	case CustomBlendType::kEcho:
-		return _bCustomBlendTimeOnEcho ? _blendTimeOnEcho : Settings::fDefaultBlendTimeOnEcho;
-	}
-
-	return 0.f;
+	return _parentSubMod->IsIgnoringDontConvertAnnotationsToTriggersFlag();
 }
 
-void ReplacementAnimation::ToggleCustomBlendTime(CustomBlendType a_type, bool a_bEnable)
+bool ReplacementAnimation::GetTriggersFromAnnotationsOnly() const
 {
-	switch (a_type) {
-	case CustomBlendType::kInterrupt:
-		_bCustomBlendTimeOnInterrupt = a_bEnable;
-		break;
-	case CustomBlendType::kLoop:
-		_bCustomBlendTimeOnLoop = a_bEnable;
-		break;
-	case CustomBlendType::kEcho:
-		_bCustomBlendTimeOnEcho = a_bEnable;
-		break;
-	}
+	return _parentSubMod->IsOnlyUsingTriggersFromAnnotations();
 }
 
-void ReplacementAnimation::SetCustomBlendTime(CustomBlendType a_type, float a_value)
+bool ReplacementAnimation::GetInterruptible() const
 {
-	switch (a_type) {
-	case CustomBlendType::kInterrupt:
-		_blendTimeOnInterrupt = a_value;
-		break;
-	case CustomBlendType::kLoop:
-		_blendTimeOnLoop = a_value;
-		break;
-	case CustomBlendType::kEcho:
-		_blendTimeOnEcho = a_value;
-		break;
+	return _parentSubMod->IsInterruptible();
+}
+
+bool ReplacementAnimation::GetReplaceOnLoop() const
+{
+	return _parentSubMod->IsReevaluatingOnLoop();
+}
+
+bool ReplacementAnimation::GetReplaceOnEcho() const
+{
+	return _parentSubMod->IsReevaluatingOnEcho();
+}
+
+bool ReplacementAnimation::HasCustomBlendTime(CustomBlendType a_type, bool a_bBetweenVariants) const
+{
+	if (a_bBetweenVariants) {
+		if (a_type != CustomBlendType::kInterrupt) {
+			if (HasVariants()) {
+				if (!GetVariants().ShouldBlendBetweenVariants()) {
+					return true;
+				}
+			}
+		}
 	}
+
+	return _parentSubMod->HasCustomBlendTime(a_type);
+}
+
+float ReplacementAnimation::GetCustomBlendTime(CustomBlendType a_type, bool a_bBetweenVariants) const
+{
+	if (a_bBetweenVariants) {
+		if (a_type != CustomBlendType::kInterrupt) {
+			if (HasVariants()) {
+				if (!GetVariants().ShouldBlendBetweenVariants()) {
+					return 0.f;
+				}
+			}
+		}
+	}
+
+	return _parentSubMod->GetCustomBlendTime(a_type);
 }
 
 SubMod* ReplacementAnimation::GetParentSubMod() const
@@ -348,9 +201,10 @@ void ReplacementAnimation::LoadAnimData(const ReplacementAnimData& a_replacement
 {
 	SetDisabled(a_replacementAnimData.bDisabled);
 	if (HasVariants()) {
+		auto& variants = std::get<Variants>(_index);
+
 		if (a_replacementAnimData.variants.has_value()) {
 			// try to find the matching variant for each variant data in replacement anim data, and load the settings if found
-			auto& variants = std::get<Variants>(_index);
 			for (const ReplacementAnimData::Variant& variantData : *a_replacementAnimData.variants) {
 				auto search = std::ranges::find_if(variants._variants, [&](const Variant& a_variant) {
 					return variantData.filename == a_variant.GetFilename();
@@ -366,10 +220,17 @@ void ReplacementAnimation::LoadAnimData(const ReplacementAnimData& a_replacement
 		}
 
 		if (a_replacementAnimData.variantMode.has_value()) {
-			auto& variants = std::get<Variants>(_index);
 			variants.SetVariantMode(*a_replacementAnimData.variantMode);
-			variants.LetReplaceOnLoopBeforeSequenceFinishes(a_replacementAnimData.bLetReplaceOnLoop);
 		}
+
+		if (a_replacementAnimData.variantStateScope.has_value()) {
+			
+			variants.SetVariantStateScope(*a_replacementAnimData.variantStateScope);
+		}
+
+		variants.SetShouldBlendBetweenVariants(a_replacementAnimData.bBlendBetweenVariants);
+		variants.SetShouldResetRandomOnLoopOrEcho(a_replacementAnimData.bResetRandomOnLoopOrEcho);
+		variants.SetShouldSharePlayedHistory(a_replacementAnimData.bSharePlayedHistory);
 	}
 }
 
@@ -377,9 +238,7 @@ void ReplacementAnimation::ResetVariants()
 {
 	if (HasVariants()) {
 		auto& variants = std::get<Variants>(_index);
-		for (Variant& variant : variants._variants) {
-			variant.ResetSettings();
-		}
+		variants.ResetSettings();
 	}
 }
 

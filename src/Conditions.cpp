@@ -76,7 +76,7 @@ namespace Conditions
 		return std::make_unique<InvalidCondition>(errorStr);
 	}
 
-	std::unique_ptr<ICondition> CreateConditionFromJson(rapidjson::Value& a_value, ConditionSet* a_parentConditionSet/* = nullptr*/)
+	std::unique_ptr<ICondition> CreateConditionFromJson(rapidjson::Value& a_value, ConditionSet* a_parentConditionSet /* = nullptr*/)
 	{
 		if (!a_value.IsObject()) {
 			logger::error("Missing condition value!");
@@ -1070,7 +1070,7 @@ namespace Conditions
 
 		if (data) {
 			randomFloat = static_cast<RandomConditionStateData*>(data)->GetRandomFloat();
-		} else { // shouldn't happen normally
+		} else {  // shouldn't happen normally
 			randomFloat = Utils::GetRandomFloat(minRandomComponent->GetNumericValue(a_refr), maxRandomComponent->GetNumericValue(a_refr));
 		}
 
@@ -4068,7 +4068,7 @@ namespace Conditions
 
 		return ""sv.data();
 	}
-	
+
 	bool SurfaceMaterialCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		RE::MATERIAL_ID materialID = RE::MATERIAL_ID::kNone;
@@ -4214,7 +4214,7 @@ namespace Conditions
 	{
 		static bool bInitialized = false;
 		static std::map<int32_t, std::string_view> enumMap;
-		
+
 		if (!bInitialized) {
 			std::vector<RE::MATERIAL_ID>& materialIDs = GetMaterialIDs();
 			for (int32_t i = 0; i < materialIDs.size(); ++i) {
@@ -4232,7 +4232,7 @@ namespace Conditions
 				return actor->IsOverEncumbered();
 			}
 		}
-		
+
 		return false;
 	}
 

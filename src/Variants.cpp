@@ -467,12 +467,11 @@ void VariantStateData::OnStartVariant(const Variants* a_variants, Variant* a_var
 			auto& variantClipData = search->second;
 			auto nextSequentialVariant = variantClipData.nextSequentialVariant;
 
-
 			if (a_variants->ShouldSharePlayedHistory()) {
 				if (_sharedPlayedHistory.empty()) {
 					// initialize the vector
 					_sharedPlayedHistory.resize(std::max(nextSequentialVariant + 1, a_variants->GetSequentialVariantCount()));
-				} else if (_sharedPlayedHistory.size()<= nextSequentialVariant) {
+				} else if (_sharedPlayedHistory.size() <= nextSequentialVariant) {
 					// resize the vector
 					_sharedPlayedHistory.resize(nextSequentialVariant + 1);
 				}

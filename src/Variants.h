@@ -1,9 +1,9 @@
 #pragma once
 
+#include "API/OpenAnimationReplacer-ConditionTypes.h"
 #include "Settings.h"
 #include "StateDataContainer.h"
 #include "Utils.h"
-#include "API/OpenAnimationReplacer-ConditionTypes.h"
 
 class ActiveClip;
 class ReplacementAnimation;
@@ -130,7 +130,7 @@ struct VariantClipData
 		bExpired = false;
 		timeInactive = 0.f;
 	}
-	
+
 	void OnExpire()  // reset next sequential variant on expiration, but keep played history
 	{
 		bExpired = true;

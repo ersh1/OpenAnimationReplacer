@@ -293,7 +293,7 @@ namespace Conditions
 
 		rapidjson::Value Serialize(rapidjson::Document::AllocatorType& a_allocator);
 
-		std::function<std::map<int32_t, std::string_view>()>getEnumMap = nullptr;
+		std::function<std::map<int32_t, std::string_view>()> getEnumMap = nullptr;
 		std::function<std::map<uint32_t, std::string_view>()> getUnsignedEnumMap = nullptr;
 
 		bool HasEnumMap() const { return getEnumMap || getUnsignedEnumMap; }

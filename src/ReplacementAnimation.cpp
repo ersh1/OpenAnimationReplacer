@@ -224,7 +224,6 @@ void ReplacementAnimation::LoadAnimData(const ReplacementAnimData& a_replacement
 		}
 
 		if (a_replacementAnimData.variantStateScope.has_value()) {
-			
 			variants.SetVariantStateScope(*a_replacementAnimData.variantStateScope);
 		}
 

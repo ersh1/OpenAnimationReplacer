@@ -57,7 +57,7 @@ public:
 	{
 		return shared_from_this();
 	}
-	
+
 	[[nodiscard]] ActiveClip(RE::hkbClipGenerator* a_clipGenerator, RE::hkbCharacter* a_character, RE::hkbBehaviorGraph* a_behaviorGraph);
 	virtual ~ActiveClip();
 

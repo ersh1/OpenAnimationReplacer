@@ -184,14 +184,16 @@ namespace Utils
 	class UniqueQueue
 	{
 	public:
-		void push(const T& a_value) {
+		void push(const T& a_value)
+		{
 			if (!_set.contains(a_value)) {
 				_queue.push(a_value);
 				_set.emplace(a_value);
 			}
 		}
 
-		void pop() {
+		void pop()
+		{
 			if (!_queue.empty()) {
 				_set.erase(_queue.front());
 				_queue.pop();

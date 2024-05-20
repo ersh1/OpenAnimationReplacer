@@ -40,7 +40,7 @@ public:
 
 			_timeSinceLastAccess += a_deltaTime;
 		}
-		
+
 		return true;
 	}
 
@@ -130,7 +130,7 @@ public:
 	void UnregisterStateDataContainer();
 };
 
-template<typename T = void>
+template <typename T = void>
 class StateDataContainer
 {
 public:

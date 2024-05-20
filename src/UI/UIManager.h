@@ -2,8 +2,8 @@
 
 #include "Settings.h"
 
-#include "UIWindow.h"
 #include "ImGui/imgui_impl_win32.h"
+#include "UIWindow.h"
 
 namespace UI
 {

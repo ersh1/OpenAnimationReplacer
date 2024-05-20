@@ -625,7 +625,7 @@ namespace RE
 	{
 		NiPoint3 unk00;
 		uint32_t unk0C;
-		BSNavmeshInfo* navmeshInfo;  // can get BSNavmesh with GetBSNavmesh_1410D7C40
+		BSNavmeshInfo* navmeshInfo;              // can get BSNavmesh with GetBSNavmesh_1410D7C40
 		BSTArray<BSNavmeshInfo*>* navmeshInfos;  // array of same type as unk10? can be null, possibly only filled in queries and not in the stored one in aiprocess
 		PathingCell* unk20;
 		uint16_t navmeshTriangleId;

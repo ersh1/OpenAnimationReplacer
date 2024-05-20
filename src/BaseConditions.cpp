@@ -112,7 +112,6 @@ namespace Conditions
 								bEdited = true;
 							}
 						}
-						
 
 						UI::UICommon::SecondColumn(a_firstColumnWidthPercent);
 						ImGui::TextUnformatted(GetArgument().data());
@@ -210,7 +209,7 @@ namespace Conditions
 							currentEnumName = it->second;
 						}
 					}
-					
+
 					ImGui::TextUnformatted(currentEnumName.data());
 
 					UI::UICommon::SecondColumn(a_firstColumnWidthPercent);
@@ -249,7 +248,6 @@ namespace Conditions
 							return nameIt->second.data();
 						}
 					}
-					
 				}
 				return std::format("{:.3}", _floatValue);
 			}

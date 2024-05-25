@@ -7,6 +7,7 @@
 #include <unordered_set>
 
 class ActiveClip;
+using DestroyedCallback = std::function<void(ActiveClip* a_destroyedClip)>;
 
 class StateDataContainerEntry
 {
@@ -17,7 +18,7 @@ public:
 
 	[[nodiscard]] RE::ObjectRefHandle GetRefHandle() const { return _refHandle; }
 
-	[[nodiscard]] Conditions::IStateData* AccessData(RE::hkbClipGenerator* a_clipGenerator) const;
+	[[nodiscard]] Conditions::IStateData* AccessData(RE::hkbClipGenerator* a_clipGenerator);
 
 	void KeepAlive() const
 	{
@@ -32,10 +33,8 @@ public:
 	{
 		if (_lastUpdateTimestamp != g_durationOfApplicationRunTimeMS) {  // only run if last update was not this frame
 			_lastUpdateTimestamp = g_durationOfApplicationRunTimeMS;
-			if (!_data->Update(a_deltaTime)) {
-				if (_timeSinceLastAccess > Settings::fStateDataLifetime) {  // expired
-					return false;
-				}
+			if (!_data->Update(a_deltaTime) && !HasAnyActiveClips() && _timeSinceLastAccess > Settings::fStateDataLifetime) {  // expired
+				return false;
 			}
 
 			_timeSinceLastAccess += a_deltaTime;
@@ -46,11 +45,19 @@ public:
 
 private:
 	bool CheckRelevantClips(ActiveClip* a_activeClip) const;
+	bool HasAnyActiveClips() const;
+
+	void AddActiveClip(ActiveClip* a_activeClip);
+	void RemoveActiveClip(ActiveClip* a_activeClip);
 
 	RE::ObjectRefHandle _refHandle;
 	std::unique_ptr<Conditions::IStateData> _data;
-	mutable std::list<std::weak_ptr<ActiveClip>> _relevantClips{};
 
+	mutable SharedLock _clipsLock;
+	std::unordered_set<ActiveClip*> _activeClips{};
+	std::unordered_set<ActiveClip*> _relevantClips{};
+	std::unordered_map<ActiveClip*, std::shared_ptr<DestroyedCallback>> _registeredCallbacks;
+	
 	uint32_t _lastUpdateTimestamp = 0;
 	mutable float _timeSinceLastAccess = 0.f;
 };
@@ -221,7 +228,7 @@ public:
 		_stateData.clear();
 	}
 
-	Conditions::IStateData* AccessStateData(Key a_key, RE::hkbClipGenerator* a_clipGenerator) const
+	Conditions::IStateData* AccessStateData(Key a_key, RE::hkbClipGenerator* a_clipGenerator)
 	{
 		ReadLocker locker(_stateDataLock);
 

@@ -58,6 +58,10 @@ public:
 	void OnSynchronizedClipPostUpdate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context, float a_timestep);
 	void OnSynchronizedClipDeactivate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context);
 
+	[[nodiscard]] ActiveScenelessSynchronizedClip* GetActiveScenelessSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context) const;
+	ActiveScenelessSynchronizedClip* AddOrGetActiveScenelessSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context);
+	void RemoveScenelessSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator);
+
 	[[nodiscard]] bool HasActiveAnimationPreviews() const { return !_activeAnimationPreviews.empty(); }
 	[[nodiscard]] ActiveAnimationPreview* GetActiveAnimationPreview(RE::hkbBehaviorGraph* a_behaviorGraph) const;
 	void AddActiveAnimationPreview(RE::hkbBehaviorGraph* a_behaviorGraph, const ReplacementAnimation* a_replacementAnimation, std::string_view a_syncAnimationPrefix, Variant* a_variant = nullptr);
@@ -97,7 +101,7 @@ public:
 	OAR_API::Conditions::APIResult AddCustomCondition(std::string_view a_pluginName, REL::Version a_pluginVersion, std::string_view a_conditionName, Conditions::ConditionFactory a_conditionFactory);
 	bool IsCustomCondition(std::string_view a_conditionName) const;
 
-	[[nodiscard]] Conditions::IStateData* GetConditionStateData(const Conditions::IConditionStateComponent* a_conditionStateComponent, RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const;
+	[[nodiscard]] Conditions::IStateData* GetConditionStateData(const Conditions::IConditionStateComponent* a_conditionStateComponent, RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod);
 	[[nodiscard]] Conditions::IStateData* AddConditionStateData(Conditions::IStateData* a_conditionStateData, const Conditions::IConditionStateComponent* a_conditionStateComponent, RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod);
 	[[nodiscard]] VariantStateData* GetVariantStateData(RE::TESObjectREFR* a_refr, const Variants* a_variants, ActiveClip* a_activeClip) const;
 	[[nodiscard]] VariantStateData* AddVariantStateData(VariantStateData* a_variantStateData, RE::TESObjectREFR* a_refr, const Variants* a_variants, ActiveClip* a_activeClip);
@@ -166,6 +170,7 @@ protected:
 
 	mutable SharedLock _activeSynchronizedAnimationsLock;
 	std::unordered_map<RE::BGSSynchronizedAnimationInstance*, std::unique_ptr<ActiveSynchronizedAnimation>> _activeSynchronizedAnimations;
+	std::unordered_map<RE::BSSynchronizedClipGenerator*, std::unique_ptr<ActiveScenelessSynchronizedClip>> _activeScenelessSynchronizedClips;
 
 	// For clips that are part of a synchronized animation where one of the involved animations is replaced and wants non annotation triggers removed.
 	// Solves the issue where vanilla triggers from first person killmoves have effect while third person animations are replaced.

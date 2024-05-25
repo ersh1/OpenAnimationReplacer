@@ -128,6 +128,9 @@ namespace Hooks
 
 		if (activeSynchronizedAnimation) {
 			activeSynchronizedAnimation->OnSynchronizedClipPreActivate(a_this, a_context);
+		} else {
+			ActiveScenelessSynchronizedClip* activeScenelessSynchronizedClip = OpenAnimationReplacer::GetSingleton().AddOrGetActiveScenelessSynchronizedClip(a_this, a_context);
+			activeScenelessSynchronizedClip->OnSynchronizedClipActivate(a_this, a_context);
 		}
 
 		_BSSynchronizedClipGenerator_Activate(a_this, a_context);

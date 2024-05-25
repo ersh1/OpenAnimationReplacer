@@ -373,13 +373,51 @@ void OpenAnimationReplacer::OnSynchronizedClipPostUpdate(RE::BSSynchronizedClipG
 
 void OpenAnimationReplacer::OnSynchronizedClipDeactivate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context)
 {
-	ReadLocker locker(_activeSynchronizedAnimationsLock);
+	{
+		ReadLocker locker(_activeSynchronizedAnimationsLock);
+		if (const auto synchronizedAnimationInstance = a_synchronizedClipGenerator->synchronizedScene) {
+			if (const auto search = _activeSynchronizedAnimations.find(synchronizedAnimationInstance); search != _activeSynchronizedAnimations.end()) {
+				search->second->OnSynchronizedClipDeactivate(a_synchronizedClipGenerator, a_context);
 
-	if (const auto synchronizedAnimationInstance = a_synchronizedClipGenerator->synchronizedScene) {
-		if (const auto search = _activeSynchronizedAnimations.find(synchronizedAnimationInstance); search != _activeSynchronizedAnimations.end()) {
-			search->second->OnSynchronizedClipDeactivate(a_synchronizedClipGenerator, a_context);
+				return;
+			}
 		}
 	}
+	
+	if (const auto scenelessClip = GetActiveScenelessSynchronizedClip(a_synchronizedClipGenerator, a_context)) {
+		scenelessClip->OnSynchronizedClipDeactivate(a_synchronizedClipGenerator, a_context);
+		RemoveScenelessSynchronizedClip(a_synchronizedClipGenerator);
+	}
+}
+
+ActiveScenelessSynchronizedClip* OpenAnimationReplacer::GetActiveScenelessSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, [[maybe_unused]] const RE::hkbContext& a_context) const
+{
+	ReadLocker locker(_activeSynchronizedAnimationsLock);
+
+	if (const auto search = _activeScenelessSynchronizedClips.find(a_synchronizedClipGenerator); search != _activeScenelessSynchronizedClips.end()) {
+		return search->second.get();
+	}
+
+	return nullptr;
+}
+
+ActiveScenelessSynchronizedClip* OpenAnimationReplacer::AddOrGetActiveScenelessSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, [[maybe_unused]] const RE::hkbContext& a_context)
+{
+	WriteLocker locker(_activeSynchronizedAnimationsLock);
+
+	auto [newClipIt, result] = _activeScenelessSynchronizedClips.try_emplace(a_synchronizedClipGenerator, nullptr);
+	if (result) {
+		newClipIt->second = std::make_unique<ActiveScenelessSynchronizedClip>(a_synchronizedClipGenerator);
+	}
+
+	return newClipIt->second.get();
+}
+
+void OpenAnimationReplacer::RemoveScenelessSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator)
+{
+	WriteLocker locker(_activeSynchronizedAnimationsLock);
+
+	_activeScenelessSynchronizedClips.erase(a_synchronizedClipGenerator);
 }
 
 ActiveAnimationPreview* OpenAnimationReplacer::GetActiveAnimationPreview(RE::hkbBehaviorGraph* a_behaviorGraph) const
@@ -977,7 +1015,7 @@ bool OpenAnimationReplacer::IsCustomCondition(std::string_view a_conditionName) 
 	return _customConditionFactories.contains(a_conditionName.data());
 }
 
-Conditions::IStateData* OpenAnimationReplacer::GetConditionStateData(const Conditions::IConditionStateComponent* a_conditionStateComponent, RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const
+Conditions::IStateData* OpenAnimationReplacer::GetConditionStateData(const Conditions::IConditionStateComponent* a_conditionStateComponent, RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod)
 {
 	if (a_refr) {
 		switch (a_conditionStateComponent->GetStateDataScope()) {

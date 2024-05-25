@@ -66,3 +66,19 @@ protected:
 
 	Variant* _variant = nullptr;
 };
+
+// a special case where some mod uses SendAnimationEvent to trigger a synchronized clip. This doesn't create a BGSSynchronizedAnimationInstance at all.
+// we still need to run some code here
+class ActiveScenelessSynchronizedClip
+{
+public:
+	[[nodiscard]] ActiveScenelessSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator);
+	~ActiveScenelessSynchronizedClip() = default;
+
+	void OnSynchronizedClipActivate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context);
+	void OnSynchronizedClipDeactivate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context);
+
+protected:
+	RE::BSSynchronizedClipGenerator* _parentSynchronizedClipGenerator = nullptr;
+	std::optional<uint16_t> _originalSynchronizedIndex;
+};

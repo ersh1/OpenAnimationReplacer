@@ -126,6 +126,8 @@ if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 			"/permissive-"	# Standards conformance
 			"/Zc:preprocessor"	# Enable preprocessor conformance mode
 
+			"/bigobj"	# Increase Number of Sections in .obj file
+
 			"$<$<CONFIG:DEBUG>:>"
 			"$<$<CONFIG:RELEASE>:/Zc:inline;/JMC-;/Ob3>"
 	)

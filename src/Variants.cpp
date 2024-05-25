@@ -641,7 +641,7 @@ void VariantStateDataContainer::Clear()
 	_replacerModVariantStateData.Clear();
 }
 
-Conditions::IStateData* VariantStateDataContainer::AccessStateData(RE::ObjectRefHandle a_key, RE::hkbClipGenerator* a_clipGenerator, const Variants* a_variants) const
+Conditions::IStateData* VariantStateDataContainer::AccessStateData(RE::ObjectRefHandle a_key, RE::hkbClipGenerator* a_clipGenerator, const Variants* a_variants)
 {
 	switch (a_variants->GetVariantStateScope()) {
 	case Conditions::StateDataScope::kLocal:

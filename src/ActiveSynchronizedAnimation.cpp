@@ -327,3 +327,27 @@ RE::BGSSynchronizedAnimationInstance::ActorSyncInfo const* ActiveSynchronizedAni
 
 	return nullptr;
 }
+
+ActiveScenelessSynchronizedClip::ActiveScenelessSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator) :
+	_parentSynchronizedClipGenerator(a_synchronizedClipGenerator)
+{}
+
+void ActiveScenelessSynchronizedClip::OnSynchronizedClipActivate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context)
+{
+	// fix ID if we aren't running Paired Animation Improvements
+	if (a_synchronizedClipGenerator->animationBindingIndex != static_cast<uint16_t>(-1)) {
+		_originalSynchronizedIndex = a_synchronizedClipGenerator->animationBindingIndex;
+		a_synchronizedClipGenerator->animationBindingIndex += OpenAnimationReplacer::GetSingleton().GetSynchronizedClipsIDOffset(a_context.character);
+	}
+
+	bool bAdded;
+	const auto activeClip = OpenAnimationReplacer::GetSingleton().AddOrGetActiveClip(a_synchronizedClipGenerator->clipGenerator, a_context, bAdded);
+	activeClip->SetSynchronizedParent(a_synchronizedClipGenerator);
+}
+
+void ActiveScenelessSynchronizedClip::OnSynchronizedClipDeactivate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, [[maybe_unused]] const RE::hkbContext& a_context)
+{
+	if (_originalSynchronizedIndex.has_value()) {
+		a_synchronizedClipGenerator->animationBindingIndex = *_originalSynchronizedIndex;
+	}
+}

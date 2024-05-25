@@ -34,6 +34,16 @@ ActiveClip::ActiveClip(RE::hkbClipGenerator* a_clipGenerator, RE::hkbCharacter* 
 
 ActiveClip::~ActiveClip()
 {
+	{
+		Locker locker(_callbacksLock);
+
+		for (const auto& callbackWeakPtr : _destroyedCallbacks) {
+			if (auto callback = callbackWeakPtr.lock()) {
+				(*callback)(this);
+			}
+		}
+	}
+
 	UnregisterStateDataContainer();
 	RestoreOriginalAnimation();
 }
@@ -450,6 +460,18 @@ bool ActiveClip::IsInLoopSequence()
 	}
 
 	return false;
+}
+
+void ActiveClip::RegisterDestroyedCallback(std::weak_ptr<DestroyedCallback>& a_callback)
+{
+	Locker locker(_callbacksLock);
+
+	// cleanup expired callbacks
+	std::erase_if(_destroyedCallbacks, [this](const std::weak_ptr<DestroyedCallback>& a_callbackWeakPtr) {
+		return a_callbackWeakPtr.expired();
+	});
+
+	_destroyedCallbacks.emplace_back(a_callback);
 }
 
 bool ActiveClip::OnLoopOrEcho(RE::hkbClipGenerator* a_clipGenerator, bool a_bIsEcho, float a_echoDuration)

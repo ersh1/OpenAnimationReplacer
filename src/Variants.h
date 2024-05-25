@@ -211,7 +211,7 @@ public:
 	bool OnLoopOrEcho(RE::ObjectRefHandle a_refHandle, ActiveClip* a_activeClip, bool a_bIsEcho);
 	bool ClearRefrData(RE::ObjectRefHandle a_refHandle);
 	void Clear();
-	Conditions::IStateData* AccessStateData(RE::ObjectRefHandle a_key, RE::hkbClipGenerator* a_clipGenerator, const Variants* a_variants) const;
+	Conditions::IStateData* AccessStateData(RE::ObjectRefHandle a_key, RE::hkbClipGenerator* a_clipGenerator, const Variants* a_variants);
 	Conditions::IStateData* AddStateData(RE::ObjectRefHandle a_key, Conditions::IStateData* a_stateData, RE::hkbClipGenerator* a_clipGenerator, const Variants* a_variants);
 
 protected:

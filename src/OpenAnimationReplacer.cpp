@@ -383,7 +383,7 @@ void OpenAnimationReplacer::OnSynchronizedClipDeactivate(RE::BSSynchronizedClipG
 			}
 		}
 	}
-	
+
 	if (const auto scenelessClip = GetActiveScenelessSynchronizedClip(a_synchronizedClipGenerator, a_context)) {
 		scenelessClip->OnSynchronizedClipDeactivate(a_synchronizedClipGenerator, a_context);
 		RemoveScenelessSynchronizedClip(a_synchronizedClipGenerator);

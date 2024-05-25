@@ -57,7 +57,7 @@ private:
 	std::unordered_set<ActiveClip*> _activeClips{};
 	std::unordered_set<ActiveClip*> _relevantClips{};
 	std::unordered_map<ActiveClip*, std::shared_ptr<DestroyedCallback>> _registeredCallbacks;
-	
+
 	uint32_t _lastUpdateTimestamp = 0;
 	mutable float _timeSinceLastAccess = 0.f;
 };

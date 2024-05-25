@@ -7,7 +7,7 @@ Conditions::IStateData* StateDataContainerEntry::AccessData(RE::hkbClipGenerator
 	if (auto activeClip = OpenAnimationReplacer::GetSingleton().GetActiveClip(a_clipGenerator)) {
 		AddActiveClip(activeClip);
 	}
-	
+
 	_timeSinceLastAccess = 0.f;
 	return _data.get();
 }

@@ -280,7 +280,7 @@ void ActiveClip::PreUpdate(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbC
 			if (a_clipGenerator->animationControl->playbackSpeed > 0.f) {
 				blendTime /= a_clipGenerator->animationControl->playbackSpeed;
 			}
-			
+
 			bool bTryReplaceOnLoop = false;
 			hkbClipGenerator_ComputeBeginAndEndLocalTime(a_clipGenerator, a_timestep + blendTime, &prevLocalTime, &newLocalTime, &numLoops, &newAtEnd);
 			if (numLoops > 0) {

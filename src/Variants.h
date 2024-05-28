@@ -216,6 +216,10 @@ public:
 
 protected:
 	StateDataContainer<> _replacerModVariantStateData{};
+
+	mutable SharedLock _subModMapLock;
 	std::unordered_map<SubMod*, StateDataContainer<>> _subModVariantStateData{};
+
+	mutable SharedLock _localMapLock;
 	std::unordered_map<RE::hkbClipGenerator*, StateDataContainer<>> _localVariantStateData{};
 };

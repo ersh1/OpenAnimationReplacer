@@ -545,23 +545,29 @@ bool VariantStateDataContainer::UpdateData(float a_deltaTime)
 
 	std::unordered_set<RE::ObjectRefHandle> activeKeys{};
 
-	for (auto it = _localVariantStateData.begin(); it != _localVariantStateData.end();) {
-		auto& entry = it->second;
-		if (entry.UpdateData(a_deltaTime, activeKeys)) {
-			++it;
-			bActive = true;
-		} else {
-			it = _localVariantStateData.erase(it);
+	{
+		WriteLocker locker(_localMapLock);
+		for (auto it = _localVariantStateData.begin(); it != _localVariantStateData.end();) {
+			auto& entry = it->second;
+			if (entry.UpdateData(a_deltaTime, activeKeys)) {
+				++it;
+				bActive = true;
+			} else {
+				it = _localVariantStateData.erase(it);
+			}
 		}
 	}
 
-	for (auto it = _subModVariantStateData.begin(); it != _subModVariantStateData.end();) {
-		auto& entry = it->second;
-		if (entry.UpdateData(a_deltaTime, activeKeys)) {
-			++it;
-			bActive = true;
-		} else {
-			it = _subModVariantStateData.erase(it);
+	{
+		WriteLocker locker(_subModMapLock);
+		for (auto it = _subModVariantStateData.begin(); it != _subModVariantStateData.end();) {
+			auto& entry = it->second;
+			if (entry.UpdateData(a_deltaTime, activeKeys)) {
+				++it;
+				bActive = true;
+			} else {
+				it = _subModVariantStateData.erase(it);
+			}
 		}
 	}
 
@@ -576,23 +582,29 @@ bool VariantStateDataContainer::OnLoopOrEcho(RE::ObjectRefHandle a_refHandle, Ac
 {
 	bool bActive = false;
 
-	for (auto it = _localVariantStateData.begin(); it != _localVariantStateData.end();) {
-		auto& entry = it->second;
-		if (entry.OnLoopOrEcho(a_refHandle, a_activeClip, a_bIsEcho)) {
-			++it;
-			bActive = true;
-		} else {
-			it = _localVariantStateData.erase(it);
+	{
+		WriteLocker locker(_localMapLock);
+		for (auto it = _localVariantStateData.begin(); it != _localVariantStateData.end();) {
+			auto& entry = it->second;
+			if (entry.OnLoopOrEcho(a_refHandle, a_activeClip, a_bIsEcho)) {
+				++it;
+				bActive = true;
+			} else {
+				it = _localVariantStateData.erase(it);
+			}
 		}
 	}
 
-	for (auto it = _subModVariantStateData.begin(); it != _subModVariantStateData.end();) {
-		auto& entry = it->second;
-		if (entry.OnLoopOrEcho(a_refHandle, a_activeClip, a_bIsEcho)) {
-			++it;
-			bActive = true;
-		} else {
-			it = _subModVariantStateData.erase(it);
+	{
+		WriteLocker locker(_subModMapLock);
+		for (auto it = _subModVariantStateData.begin(); it != _subModVariantStateData.end();) {
+			auto& entry = it->second;
+			if (entry.OnLoopOrEcho(a_refHandle, a_activeClip, a_bIsEcho)) {
+				++it;
+				bActive = true;
+			} else {
+				it = _subModVariantStateData.erase(it);
+			}
 		}
 	}
 
@@ -607,23 +619,29 @@ bool VariantStateDataContainer::ClearRefrData(RE::ObjectRefHandle a_refHandle)
 {
 	bool bActive = false;
 
-	for (auto it = _localVariantStateData.begin(); it != _localVariantStateData.end();) {
-		auto& entry = it->second;
-		if (entry.ClearRefrData(a_refHandle)) {
-			++it;
-			bActive = true;
-		} else {
-			it = _localVariantStateData.erase(it);
+	{
+		WriteLocker locker(_localMapLock);
+		for (auto it = _localVariantStateData.begin(); it != _localVariantStateData.end();) {
+			auto& entry = it->second;
+			if (entry.ClearRefrData(a_refHandle)) {
+				++it;
+				bActive = true;
+			} else {
+				it = _localVariantStateData.erase(it);
+			}
 		}
 	}
 
-	for (auto it = _subModVariantStateData.begin(); it != _subModVariantStateData.end();) {
-		auto& entry = it->second;
-		if (entry.ClearRefrData(a_refHandle)) {
-			++it;
-			bActive = true;
-		} else {
-			it = _subModVariantStateData.erase(it);
+	{
+		WriteLocker locker(_subModMapLock);
+		for (auto it = _subModVariantStateData.begin(); it != _subModVariantStateData.end();) {
+			auto& entry = it->second;
+			if (entry.ClearRefrData(a_refHandle)) {
+				++it;
+				bActive = true;
+			} else {
+				it = _subModVariantStateData.erase(it);
+			}
 		}
 	}
 
@@ -636,8 +654,15 @@ bool VariantStateDataContainer::ClearRefrData(RE::ObjectRefHandle a_refHandle)
 
 void VariantStateDataContainer::Clear()
 {
-	_localVariantStateData.clear();
-	_subModVariantStateData.clear();
+	{
+		WriteLocker locker(_localMapLock);
+		_localVariantStateData.clear();
+	}
+
+	{
+		WriteLocker locker(_subModMapLock);
+		_subModVariantStateData.clear();
+	}
 	_replacerModVariantStateData.Clear();
 }
 
@@ -645,13 +670,19 @@ Conditions::IStateData* VariantStateDataContainer::AccessStateData(RE::ObjectRef
 {
 	switch (a_variants->GetVariantStateScope()) {
 	case Conditions::StateDataScope::kLocal:
-		if (auto search = _localVariantStateData.find(a_clipGenerator); search != _localVariantStateData.end()) {
-			return search->second.AccessStateData(a_key, a_clipGenerator);
+		{
+			ReadLocker locker(_localMapLock);
+			if (auto search = _localVariantStateData.find(a_clipGenerator); search != _localVariantStateData.end()) {
+				return search->second.AccessStateData(a_key, a_clipGenerator);
+			}
 		}
 		break;
 	case Conditions::StateDataScope::kSubMod:
-		if (auto search = _subModVariantStateData.find(a_variants->GetParentSubMod()); search != _subModVariantStateData.end()) {
-			return search->second.AccessStateData(a_key, a_clipGenerator);
+		{
+			ReadLocker locker(_subModMapLock);
+			if (auto search = _subModVariantStateData.find(a_variants->GetParentSubMod()); search != _subModVariantStateData.end()) {
+				return search->second.AccessStateData(a_key, a_clipGenerator);
+			}
 		}
 		break;
 	case Conditions::StateDataScope::kReplacerMod:
@@ -665,9 +696,15 @@ Conditions::IStateData* VariantStateDataContainer::AddStateData(RE::ObjectRefHan
 {
 	switch (a_variants->GetVariantStateScope()) {
 	case Conditions::StateDataScope::kLocal:
-		return _localVariantStateData[a_clipGenerator].AddStateData(a_key, a_stateData, a_clipGenerator);
+		{
+			WriteLocker locker(_localMapLock);
+			return _localVariantStateData[a_clipGenerator].AddStateData(a_key, a_stateData, a_clipGenerator);
+		}
 	case Conditions::StateDataScope::kSubMod:
-		return _subModVariantStateData[a_variants->GetParentSubMod()].AddStateData(a_key, a_stateData, a_clipGenerator);
+		{
+			WriteLocker locker(_subModMapLock);
+			return _subModVariantStateData[a_variants->GetParentSubMod()].AddStateData(a_key, a_stateData, a_clipGenerator);
+		}
 	case Conditions::StateDataScope::kReplacerMod:
 		return _replacerModVariantStateData.AddStateData(a_key, a_stateData, a_clipGenerator);
 	}

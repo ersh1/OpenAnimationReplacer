@@ -126,10 +126,10 @@ void FakeClipGenerator::Activate(const RE::hkbContext& a_context)
 	}
 
 	// create new animation control
-	auto animControl = static_cast<RE::hkaDefaultAnimationControl*>(hkHeapAlloc(sizeof(RE::hkaDefaultAnimationControl)));
+	/*auto animControl = static_cast<RE::hkaDefaultAnimationControl*>(hkHeapAlloc(sizeof(RE::hkaDefaultAnimationControl)));
 	RE::hkRefPtr animControlPtr(animControl);
 	hkaDefaultAnimationControl_ctor(animControl, binding, true, 2);
-	animationControl = animControlPtr;
+	animationControl = animControlPtr;*/
 }
 
 void FakeClipGenerator::Update(const RE::hkbContext& a_context, float a_deltaTime)

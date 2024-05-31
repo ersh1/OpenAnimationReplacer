@@ -188,12 +188,12 @@ protected:
 
 	ExclusiveLock _factoriesLock;
 	bool _bFactoriesInitialized = false;
-	std::map<std::string, std::function<std::unique_ptr<Conditions::ICondition>()>> _conditionFactories;
-	std::map<std::string, std::function<std::unique_ptr<Conditions::ICondition>()>> _hiddenConditionFactories;
+	std::map<std::string, std::function<std::unique_ptr<Conditions::ICondition>()>, CaseInsensitiveCompare> _conditionFactories;
+	std::map<std::string, std::function<std::unique_ptr<Conditions::ICondition>()>, CaseInsensitiveCompare> _hiddenConditionFactories;
 
 	mutable SharedLock _customConditionsLock;
-	std::unordered_map<std::string, REL::Version> _customConditionPlugins;
-	std::unordered_map<std::string, Conditions::ConditionFactory> _customConditionFactories;
+	std::unordered_map<std::string, REL::Version, CaseInsensitiveHash, CaseInsensitiveEqual> _customConditionPlugins;
+	std::unordered_map<std::string, Conditions::ConditionFactory, CaseInsensitiveHash, CaseInsensitiveEqual> _customConditionFactories;
 
 	mutable SharedLock _jobsLock;
 	std::vector<std::unique_ptr<Jobs::GenericJob>> _jobs;

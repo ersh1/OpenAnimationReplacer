@@ -63,16 +63,16 @@ struct Settings
 	static inline bool bEnableDebugDraws = false;
 
 	// Internal
-	static inline float fDefaultBlendTimeOnInterrupt = 0.3f;
-	static inline float fDefaultBlendTimeOnLoop = 0.3f;
-	static inline float fDefaultBlendTimeOnEcho = 0.1f;
-	static inline float fStateDataLifetime = 0.5f;
-	static inline float fSequentialVariantLifetime = 0.5f;
-	static inline float fQueueFadeTime = 1.f;
-	static inline uint32_t uQueueMinSize = 10;
-	static inline float fAnimationLogEntryFadeTime = 0.5f;
-	static inline float fAnimationEventLogEntryColorTimeLong = 1.f;
-	static inline float fWelcomeBannerFadeTime = 1.f;
+	constexpr static inline float fDefaultBlendTimeOnInterrupt = 0.3f;
+	constexpr static inline float fDefaultBlendTimeOnLoop = 0.3f;
+	constexpr static inline float fDefaultBlendTimeOnEcho = 0.1f;
+	constexpr static inline float fStateDataLifetime = 0.5f;
+	constexpr static inline float fSequentialVariantLifetime = 0.5f;
+	constexpr static inline float fQueueFadeTime = 1.f;
+	constexpr static inline uint32_t uQueueMinSize = 10;
+	constexpr static inline float fAnimationLogEntryFadeTime = 0.5f;
+	constexpr static inline float fAnimationEventLogEntryColorTimeLong = 1.f;
+	constexpr static inline float fWelcomeBannerFadeTime = 1.f;
 
 	static inline uint16_t maxAnimLimitDefault = 0x7FFF;
 	static inline uint16_t maxAnimLimitIncreased = 0xFFFE;

@@ -119,6 +119,40 @@ struct KeyHash<std::string>
 	}
 };
 
+struct CaseInsensitiveHash
+{
+	size_t operator()(const std::string& a_key) const
+	{
+		std::string lowerStr = a_key;
+		std::ranges::transform(lowerStr, lowerStr.begin(), [](char c) {
+			return static_cast<char>(std::tolower(c));
+		});
+		return std::hash<std::string>()(lowerStr);
+	}
+};
+
+struct CaseInsensitiveEqual
+{
+	bool operator()(const std::string& a, const std::string& b) const
+	{
+		return std::equal(a.begin(), a.end(), b.begin(), b.end(),
+			[](char a, char b) {
+				return std::tolower(a) == std::tolower(b);
+			});
+	}
+};
+
+struct CaseInsensitiveCompare
+{
+	bool operator()(const std::string& a, const std::string& b) const
+	{
+		return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end(),
+			[](char a, char b) {
+				return std::tolower(a) < std::tolower(b);
+			});
+	}
+};
+
 // Case-insensitive hash function for std::filesystem::path
 struct CaseInsensitivePathHash
 {

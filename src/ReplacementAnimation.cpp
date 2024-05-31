@@ -148,28 +148,19 @@ bool ReplacementAnimation::GetReplaceOnEcho() const
 	return _parentSubMod->IsReevaluatingOnEcho();
 }
 
-bool ReplacementAnimation::HasCustomBlendTime(CustomBlendType a_type, bool a_bBetweenVariants) const
+float ReplacementAnimation::GetCustomBlendTime(ActiveClip* a_activeClip, CustomBlendType a_type, bool a_bBetweenVariants) const
 {
-	if (a_bBetweenVariants) {
+	if (a_bBetweenVariants && a_activeClip) {
 		if (a_type != CustomBlendType::kInterrupt) {
 			if (HasVariants()) {
-				if (!GetVariants().ShouldBlendBetweenVariants()) {
-					return true;
-				}
-			}
-		}
-	}
-
-	return _parentSubMod->HasCustomBlendTime(a_type);
-}
-
-float ReplacementAnimation::GetCustomBlendTime(CustomBlendType a_type, bool a_bBetweenVariants) const
-{
-	if (a_bBetweenVariants) {
-		if (a_type != CustomBlendType::kInterrupt) {
-			if (HasVariants()) {
-				if (!GetVariants().ShouldBlendBetweenVariants()) {
-					return 0.f;
+				// figure out if we're in the middle of a variant sequence
+				const auto& variants = GetVariants();
+				if (!variants.ShouldBlendBetweenVariants()) {
+					if (const auto stateData = variants.GetVariantStateData(a_activeClip)) {
+						if (!stateData->IsAtBeginningOfSequence(a_activeClip->GetClipGenerator(), &variants)) {
+							return 0.f;
+						}
+					}
 				}
 			}
 		}

@@ -604,8 +604,8 @@ namespace RE
 
 		// members
 		InterpolatorDataPointer<Data> data;  // 00 - data[0..size-1] contains points/quats, &data[size] contains times
-		uint32_t size;              // 08
-		uint32_t padC;              // 0C
+		uint32_t size;                       // 08
+		uint32_t padC;                       // 0C
 	};
 
 	class AnimationClipDataSingleton :
@@ -662,10 +662,10 @@ namespace RE
 		class AnimationData : public BSIntrusiveRefCounted
 		{
 		public:
-			uint32_t pad04;                        // 04
+			uint32_t pad04;                             // 04
 			BSTHashMap<BSFixedString, ClipData> clips;  // 08
-			BSTArray<BoundAnimationData> boundDatas;       // 38
-			BSTArray<BSFixedString> hkxFiles;            // 50
+			BSTArray<BoundAnimationData> boundDatas;    // 38
+			BSTArray<BSFixedString> hkxFiles;           // 50
 		};
 		static_assert(sizeof(AnimationData) == 0x68);
 
@@ -687,13 +687,13 @@ namespace RE
 		// members
 		//uint64_t unk08;                            // 08
 		BSTHashMap<BSFixedString, NiPointer<AnimationData>> animDatas;  // 10
-		BSTArray<BSFixedString> hkxFiles;                                         // 40
-		uint64_t unk58;                                                   // 58
-		uint64_t unk60;                                                   // 60
-		uint64_t unk68;                                                   // 68
-		uint64_t unk70;                                                   // 70
-		uint64_t unk78;                                                   // 78
-		uint64_t unk80;                                                   // 80
+		BSTArray<BSFixedString> hkxFiles;                               // 40
+		uint64_t unk58;                                                 // 58
+		uint64_t unk60;                                                 // 60
+		uint64_t unk68;                                                 // 68
+		uint64_t unk70;                                                 // 70
+		uint64_t unk78;                                                 // 78
+		uint64_t unk80;                                                 // 80
 	};
 	static_assert(sizeof(AnimationClipDataSingleton) == 0x88);
 

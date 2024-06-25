@@ -35,7 +35,7 @@ public:
 		ReplacementAnimation* replacementAnimation;
 		float blendTime;
 		Type type;
-		
+
 		AnimationLogEntry::Event replacementEvent;
 		Variant* variant = nullptr;
 

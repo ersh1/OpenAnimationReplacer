@@ -552,6 +552,62 @@ namespace RE
 	};
 	static_assert(offsetof(hkMemoryRouter, heap) == 0x58);
 
+	// used a bunch of RE from fenix31415's commonlib fork (https://github.com/fenix31415/CommonLibSSE/) as it's not merged into NG yet
+	template <typename Data>
+	class BSTInterpolatorData
+	{
+	public:
+		template <typename T>
+		class InterpolatorDataPointer
+		{
+			enum
+			{
+				kManaged = 1 << 0
+			};
+
+			void* ptr;
+
+		public:
+			InterpolatorDataPointer() :
+				ptr(nullptr) {}
+
+			T* data()
+			{
+				return reinterpret_cast<T*>(reinterpret_cast<std::uintptr_t>(ptr) & ~kManaged);
+			}
+
+			const T* data() const
+			{
+				return reinterpret_cast<const T*>(reinterpret_cast<std::uintptr_t>(ptr) & ~kManaged);
+			}
+		};
+
+		const float* times() const
+		{
+			return reinterpret_cast<const float*>(&data.data()[size]);
+		}
+
+		const Data* checkpoints() const
+		{
+			return data.data();
+		}
+
+		Data* checkpoints()
+		{
+			return data.data();
+		}
+
+		std::pair<float, Data> operator[](size_t ind) const
+		{
+			return { times()[ind], checkpoints()[ind] };
+		}
+
+		// members
+		InterpolatorDataPointer<Data> data;  // 00 - data[0..size-1] contains points/quats, &data[size] contains times
+		uint32_t size;              // 08
+		uint32_t padC;              // 0C
+	};
+
 	class AnimationClipDataSingleton :
 		public BSTSingletonSDM<AnimationClipDataSingleton>
 	{
@@ -559,15 +615,59 @@ namespace RE
 		inline static auto RTTI = RTTI_AnimationClipDataSingleton;
 		inline static auto VTABLE = VTABLE_AnimationClipDataSingleton;
 
-		class AnimationClipData : public BSIntrusiveRefCounted
+		class BoundAnimationData
+		{
+		public:
+			BSTInterpolatorData<NiPoint3> translation;   // 00
+			BSTInterpolatorData<hkQuaternion> rotation;  // 10
+			float duration;                              // 20
+			uint32_t pad24;                              // 24
+		};
+		static_assert(sizeof(BoundAnimationData) == 0x28);
+
+		struct ClipTriggerData
+		{
+			BSFixedString name;
+			float time;
+			uint32_t padC;
+		};
+		static_assert(sizeof(ClipTriggerData) == 0x10);
+
+		class ClipData
+		{
+		public:
+			bool GetEventTime(const BSFixedString& a_eventName, float& a_outTime)
+			{
+				using func_t = decltype(&AnimationClipDataSingleton::ClipData::GetEventTime);
+				REL::Relocation<func_t> func{ RELOCATION_ID(31803, 32577) };
+				return func(this, a_eventName, a_outTime);
+			}
+
+			// members
+			float motionSpeed;               // 00
+			uint16_t bound_data_ind;         // 04
+			uint16_t numTriggers;            // 06
+			ClipTriggerData triggerData[1];  // 08 -- actually [numTriggers]
+		};
+		static_assert(sizeof(ClipData) == 0x18);
+
+		class AnimationClipData
+		{
+		public:
+			ClipData* clipGeneratorData;
+			BoundAnimationData* boundAnimationData;
+		};
+		static_assert(sizeof(AnimationClipData) == 0x10);
+
+		class AnimationData : public BSIntrusiveRefCounted
 		{
 		public:
 			uint32_t pad04;                        // 04
-			BSTHashMap<uint64_t, uint64_t> map08;  // 08
-			BSTArray<uint64_t> array38;            // 38
-			BSTArray<uint64_t> array50;            // 50
+			BSTHashMap<BSFixedString, ClipData> clips;  // 08
+			BSTArray<BoundAnimationData> boundDatas;       // 38
+			BSTArray<BSFixedString> hkxFiles;            // 50
 		};
-		static_assert(sizeof(AnimationClipData) == 0x68);
+		static_assert(sizeof(AnimationData) == 0x68);
 
 		virtual ~AnimationClipDataSingleton();  // 00
 
@@ -577,10 +677,17 @@ namespace RE
 			return *singleton;
 		}
 
+		bool GetClipInformation(const BSFixedString& a_projectName, const BSFixedString& a_clipName, AnimationClipData& a_outClipInformation)
+		{
+			using func_t = decltype(&AnimationClipDataSingleton::GetClipInformation);
+			REL::Relocation<func_t> func{ RELOCATION_ID(31799, 32573) };
+			return func(this, a_projectName, a_clipName, a_outClipInformation);
+		}
+
 		// members
 		//uint64_t unk08;                            // 08
-		BSTHashMap<BSFixedString, NiPointer<AnimationClipData>> hashMap;  // 10
-		BSTArray<uint64_t> array;                                         // 40
+		BSTHashMap<BSFixedString, NiPointer<AnimationData>> animDatas;  // 10
+		BSTArray<BSFixedString> hkxFiles;                                         // 40
 		uint64_t unk58;                                                   // 58
 		uint64_t unk60;                                                   // 60
 		uint64_t unk68;                                                   // 68

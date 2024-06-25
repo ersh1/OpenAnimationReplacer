@@ -125,11 +125,13 @@ void FakeClipGenerator::Activate(const RE::hkbContext& a_context)
 		binding = animationBindingWithTriggers->binding.get();
 	}
 
-	// create new animation control
-	/*auto animControl = static_cast<RE::hkaDefaultAnimationControl*>(hkHeapAlloc(sizeof(RE::hkaDefaultAnimationControl)));
-	RE::hkRefPtr animControlPtr(animControl);
-	hkaDefaultAnimationControl_ctor(animControl, binding, true, 2);
-	animationControl = animControlPtr;*/
+	if (animationControl == nullptr) {
+		// create new animation control
+		auto animControl = static_cast<RE::hkaDefaultAnimationControl*>(hkHeapAlloc(sizeof(RE::hkaDefaultAnimationControl)));
+		RE::hkRefPtr animControlPtr(animControl);
+		hkaDefaultAnimationControl_ctor(animControl, binding, true, 2);
+		animationControl = animControlPtr;
+	}	
 }
 
 void FakeClipGenerator::Update(const RE::hkbContext& a_context, float a_deltaTime)
@@ -172,11 +174,11 @@ void FakeClipGenerator::Update(const RE::hkbContext& a_context, float a_deltaTim
 
 	if (!atEnd) {
 		atEnd = newAtEnd;
-		RE::hkbEventQueue* eventQueue = a_context.eventQueue;
+		/*RE::hkbEventQueue* eventQueue = a_context.eventQueue;
 		if (!eventQueue) {
 			eventQueue = *reinterpret_cast<RE::hkbEventQueue**>(&a_context.character->eventQueue);
-		}
-		hkbClipGenerator_ProcessCyclicTriggers(fakeClipGeneratorPtr, prevLocalTime, newLocalTime, loops, eventQueue, a_context);
+		}*/
+		//hkbClipGenerator_ProcessCyclicTriggers(fakeClipGeneratorPtr, prevLocalTime, newLocalTime, loops, eventQueue, a_context);
 		if ((loops & 1) != 0) {
 			if (mode != RE::hkbClipGenerator::PlaybackMode::kModeUserControlled) {
 				pingPongBackward = !pingPongBackward;
@@ -185,12 +187,12 @@ void FakeClipGenerator::Update(const RE::hkbContext& a_context, float a_deltaTim
 	}
 
 	if (mode != RE::hkbClipGenerator::PlaybackMode::kModeUserControlled) {
-		RE::hkbEventQueue* eventQueue = a_context.eventQueue;
+		/*RE::hkbEventQueue* eventQueue = a_context.eventQueue;
 		if (!eventQueue) {
 			eventQueue = *reinterpret_cast<RE::hkbEventQueue**>(&a_context.character->eventQueue);
-		}
+		}*/
 		const float localDeltaTime = a_deltaTime * animationControl->playbackSpeed;
-		hkbClipGenerator_ProcessAcyclicTriggers(fakeClipGeneratorPtr, time, time + localDeltaTime, eventQueue, a_context);
+		//hkbClipGenerator_ProcessAcyclicTriggers(fakeClipGeneratorPtr, time, time + localDeltaTime, eventQueue, a_context);
 		time += localDeltaTime;
 
 		// echos handling here, skipping for now

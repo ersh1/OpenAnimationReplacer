@@ -148,14 +148,17 @@ bool ReplacementAnimation::GetReplaceOnEcho() const
 	return _parentSubMod->IsReevaluatingOnEcho();
 }
 
-float ReplacementAnimation::GetCustomBlendTime(ActiveClip* a_activeClip, CustomBlendType a_type, bool a_bBetweenVariants) const
+float ReplacementAnimation::GetCustomBlendTime(ActiveClip* a_activeClip, CustomBlendType a_type, bool a_bCheckWithinSequence, bool a_bIsBetweenVariants) const
 {
-	if (a_bBetweenVariants && a_activeClip) {
+	if (a_bCheckWithinSequence && a_activeClip) {
 		if (a_type != CustomBlendType::kInterrupt) {
 			if (HasVariants()) {
 				// figure out if we're in the middle of a variant sequence
 				const auto& variants = GetVariants();
 				if (!variants.ShouldBlendBetweenVariants()) {
+					if (a_bIsBetweenVariants) {
+						return 0.f;
+					}
 					if (const auto stateData = variants.GetVariantStateData(a_activeClip)) {
 						if (!stateData->IsAtBeginningOfSequence(a_activeClip->GetClipGenerator(), &variants)) {
 							return 0.f;

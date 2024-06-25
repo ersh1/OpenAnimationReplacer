@@ -381,7 +381,7 @@ size_t VariantStateData::GetNextSequentialVariant(RE::hkbClipGenerator* a_clipGe
 		if (a_variants->ShouldSharePlayedHistory()) {
 			if (a_variants->GetActiveVariant(variantClipData.nextSequentialVariant)->ShouldPlayOnce()) {
 				for (size_t i = variantClipData.nextSequentialVariant; i < a_variants->GetSequentialVariantCount(); ++i) {
-					if (!a_variants->GetActiveVariant(i)->ShouldPlayOnce() || _sharedPlayedHistory.size() < i || !_sharedPlayedHistory[i].HasPlayed()) {
+					if (!a_variants->GetActiveVariant(i)->ShouldPlayOnce() || _sharedPlayedHistory.size() <= i || !_sharedPlayedHistory[i].HasPlayed()) {
 						variantClipData.nextSequentialVariant = i;
 						return variantClipData.nextSequentialVariant;
 					}
@@ -523,10 +523,10 @@ void VariantStateData::IterateSequence(const Variants* a_variants, ActiveClip* a
 			}
 
 			if (a_variants->ShouldSharePlayedHistory()) {
-				if (_sharedPlayedHistory.size() < variantClipData.nextSequentialVariant || !_sharedPlayedHistory[variantClipData.nextSequentialVariant].HasPlayed()) {
+				if (_sharedPlayedHistory.size() <= variantClipData.nextSequentialVariant || !_sharedPlayedHistory[variantClipData.nextSequentialVariant].HasPlayed()) {
 					return;
 				}
-			} else if (variantClipData.playedHistory.size() < variantClipData.nextSequentialVariant || !variantClipData.playedHistory[variantClipData.nextSequentialVariant]) {
+			} else if (variantClipData.playedHistory.size() <= variantClipData.nextSequentialVariant || !variantClipData.playedHistory[variantClipData.nextSequentialVariant]) {
 				return;
 			}
 		}

@@ -24,19 +24,22 @@ public:
 			type(a_type),
 			replacementEvent(a_replacementEvent) {}
 
-		QueuedReplacement(ReplacementAnimation* a_replacementAnimation, float a_blendTime, Type a_type, AnimationLogEntry::Event a_replacementEvent, Variant* a_variant) :
+		QueuedReplacement(ReplacementAnimation* a_replacementAnimation, float a_blendTime, Type a_type, AnimationLogEntry::Event a_replacementEvent, Variant* a_variant, bool a_bReplaceAtTrueEndOfLoop) :
 			replacementAnimation(a_replacementAnimation),
 			blendTime(a_blendTime),
 			type(a_type),
 			replacementEvent(a_replacementEvent),
-			variant(a_variant) {}
+			variant(a_variant),
+			bReplaceAtTrueEndOfLoop(a_bReplaceAtTrueEndOfLoop) {}
 
 		ReplacementAnimation* replacementAnimation;
 		float blendTime;
 		Type type;
-		;
+		
 		AnimationLogEntry::Event replacementEvent;
 		Variant* variant = nullptr;
+
+		bool bReplaceAtTrueEndOfLoop = false;
 	};
 
 	struct BlendingClip
@@ -67,9 +70,9 @@ public:
 	void StateDataClearData() override;
 
 	bool ShouldReplaceAnimation(const ReplacementAnimation* a_newReplacementAnimation, bool a_bTryVariant, Variant*& a_outVariant);
-	void ReplaceAnimation(ReplacementAnimation* a_replacementAnimation, Variant* a_variant = nullptr);
+	void ReplaceAnimation(ReplacementAnimation* a_replacementAnimation, Variant*& a_variant);
 	void RestoreOriginalAnimation();
-	void QueueReplacementAnimation(ReplacementAnimation* a_replacementAnimation, float a_blendTime, QueuedReplacement::Type a_type, AnimationLogEntry::Event a_replacementEvent, Variant* a_variant = nullptr);
+	void QueueReplacementAnimation(ReplacementAnimation* a_replacementAnimation, float a_blendTime, QueuedReplacement::Type a_type, AnimationLogEntry::Event a_replacementEvent, Variant* a_variant = nullptr, bool a_bReplaceAtTrueEndOfLoop = false);
 	[[nodiscard]] ReplacementAnimation* PopQueuedReplacementAnimation();
 	void ReplaceActiveAnimation(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context);
 	void SetReplacements(class AnimationReplacements* a_replacements) { _replacements = a_replacements; }
@@ -95,10 +98,12 @@ public:
 	// interruptible anim
 	[[nodiscard]] bool IsInterruptible() const { return _currentReplacementAnimation ? _currentReplacementAnimation->GetInterruptible() : _bOriginalInterruptible; }
 	[[nodiscard]] bool HasQueuedReplacement() const { return _queuedReplacement.has_value(); }
+	[[nodiscard]] bool IsReadyToReplace(bool a_bIsAtTrueEndOfLoop = false) const;
 	[[nodiscard]] bool IsBlending() const { return !_blendingClipGenerators.empty(); }
 	[[nodiscard]] bool IsTransitioning() const { return _bTransitioning; }
 	[[nodiscard]] bool ShouldReplaceOnLoop() const { return _currentReplacementAnimation ? _currentReplacementAnimation->GetReplaceOnLoop() : true; }
 	[[nodiscard]] bool ShouldReplaceOnEcho() const { return _currentReplacementAnimation ? _currentReplacementAnimation->GetReplaceOnEcho() : _bOriginalReplaceOnEcho; }
+	[[nodiscard]] bool ShouldReplaceOnLoopOrEcho() const { return ShouldReplaceOnLoop() || ShouldReplaceOnEcho(); }
 	void SetTransitioning(bool a_bValue);
 	void StartBlend(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context, float a_blendTime);
 	void PreUpdate(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context, float a_timestep);
@@ -143,6 +148,7 @@ protected:
 	bool _bTriggersBackedUp = false;
 	bool _bRemovedNonAnnotationTriggers = false;
 	bool _bIsAtEndOfLoop = false;
+	bool _bLogAtEndOfLoop = false;
 	const bool _bOriginalInterruptible;
 	const bool _bOriginalReplaceOnEcho;
 

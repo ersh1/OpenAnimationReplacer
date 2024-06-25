@@ -101,7 +101,7 @@ bool ActiveClip::ShouldReplaceAnimation(const ReplacementAnimation* a_newReplace
 	return false;
 }
 
-void ActiveClip::ReplaceAnimation(ReplacementAnimation* a_replacementAnimation, Variant* a_variant)
+void ActiveClip::ReplaceAnimation(ReplacementAnimation* a_replacementAnimation, Variant*& a_variant)
 {
 	RestoreOriginalAnimation();
 
@@ -143,9 +143,9 @@ void ActiveClip::RestoreOriginalAnimation()
 	_currentVariant = nullptr;
 }
 
-void ActiveClip::QueueReplacementAnimation(ReplacementAnimation* a_replacementAnimation, float a_blendTime, QueuedReplacement::Type a_type, AnimationLogEntry::Event a_replacementEvent, Variant* a_variant)
+void ActiveClip::QueueReplacementAnimation(ReplacementAnimation* a_replacementAnimation, float a_blendTime, QueuedReplacement::Type a_type, AnimationLogEntry::Event a_replacementEvent, Variant* a_variant, bool a_bReplaceAtTrueEndOfLoop)
 {
-	_queuedReplacement = { a_replacementAnimation, a_blendTime, a_type, a_replacementEvent, a_variant };
+	_queuedReplacement = { a_replacementAnimation, a_blendTime, a_type, a_replacementEvent, a_variant, a_bReplaceAtTrueEndOfLoop };
 }
 
 ReplacementAnimation* ActiveClip::PopQueuedReplacementAnimation()
@@ -207,10 +207,12 @@ void ActiveClip::ReplaceActiveAnimation(RE::hkbClipGenerator* a_clipGenerator, c
 	}
 	SetTransitioning(false);
 
-	if (type == QueuedReplacement::Type::kLoop && blendTime > 0.f) {
-		// set start time to end of animation minus blend time, so we end blending right at the beginning of the anim after it loops
-		if (a_clipGenerator->binding && a_clipGenerator->binding->animation) {
-			startTime = std::max(a_clipGenerator->binding->animation->duration - blendTime, 0.f);
+	if (!variant || !variant->ShouldPlayOnce()) {  // don't do this for playonce variants
+		if (type == QueuedReplacement::Type::kLoop && blendTime > 0.f) {
+			// set start time to end of animation minus blend time, so we end blending right at the beginning of the anim after it loops
+			if (a_clipGenerator->binding && a_clipGenerator->binding->animation) {
+				startTime = std::max(a_clipGenerator->binding->animation->duration - blendTime, 0.f);
+			}
 		}
 	}
 
@@ -218,6 +220,15 @@ void ActiveClip::ReplaceActiveAnimation(RE::hkbClipGenerator* a_clipGenerator, c
 		a_clipGenerator->animationControl->localTime = startTime;
 		a_clipGenerator->localTime = startTime;
 	}
+}
+
+bool ActiveClip::IsReadyToReplace(bool a_bIsAtTrueEndOfLoop) const
+{
+	if (HasQueuedReplacement()) {
+		return !_queuedReplacement->bReplaceAtTrueEndOfLoop || a_bIsAtTrueEndOfLoop;
+	}
+
+	return false;
 }
 
 void ActiveClip::SetTransitioning(bool a_bValue)
@@ -245,7 +256,19 @@ void ActiveClip::PreUpdate(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbC
 		return;  // Analogous function already ran by ActiveSynchronizedAnimation
 	}
 
-	if (!HasQueuedReplacement()) {
+	bool bIsLoopingThisUpdate = false;
+	if (a_clipGenerator->mode == RE::hkbClipGenerator::PlaybackMode::kModeLooping) {
+		float prevLocalTime = 0.f;
+		float newLocalTime = 0.f;
+		int32_t numLoops = 0;
+		bool newAtEnd = false;
+
+		hkbClipGenerator_ComputeBeginAndEndLocalTime(a_clipGenerator, a_timestep, &prevLocalTime, &newLocalTime, &numLoops, &newAtEnd);
+
+		bIsLoopingThisUpdate = numLoops > 0;
+	}
+
+	if (!IsReadyToReplace(bIsLoopingThisUpdate)) {
 		// check if the animation should be interrupted (queue a replacement if so)
 		if (IsInterruptible()) {
 			const auto newReplacementAnim = OpenAnimationReplacer::GetSingleton().GetReplacementAnimation(a_context.character, a_clipGenerator, _originalIndex);
@@ -264,47 +287,53 @@ void ActiveClip::PreUpdate(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbC
 	if (!HasQueuedReplacement()) {
 		// check if the animation is going to loop in this update
 		if (a_clipGenerator->mode == RE::hkbClipGenerator::PlaybackMode::kModeLooping) {
-			// calculate numLoops in this update, with added blend time so we replace just before it loops
-			float prevLocalTime = 0.f;
-			float newLocalTime = 0.f;
-			int32_t numLoops = 0;
-			bool newAtEnd = false;
-			float blendTime = Settings::fDefaultBlendTimeOnLoop;
-			if (HasReplacementAnimation()) {
-				blendTime = GetReplacementAnimation()->GetCustomBlendTime(this, CustomBlendType::kLoop, true);
-			}
+			bool bIsLoopingThisUpdateWithBlendTimeOffset = bIsLoopingThisUpdate;
+			if (!bIsLoopingThisUpdate) {
+				// calculate numLoops in this update, with added blend time so we replace just before it loops
+				float blendTime = Settings::fDefaultBlendTimeOnLoop;
+				if (HasReplacementAnimation()) {
+					blendTime = GetReplacementAnimation()->GetCustomBlendTime(this, CustomBlendType::kLoop, true);
+				}
 
-			if (hkbClipGenerator_GetAnimDuration(a_clipGenerator) <= blendTime) {
-				blendTime = 0.f;
-			}
+				if (hkbClipGenerator_GetAnimDuration(a_clipGenerator) <= blendTime) {
+					blendTime = 0.f;
+				}
 
-			if (a_clipGenerator->animationControl->playbackSpeed > 0.f) {
-				blendTime /= a_clipGenerator->animationControl->playbackSpeed;
+				if (a_clipGenerator->animationControl->playbackSpeed > 0.f) {
+					blendTime /= a_clipGenerator->animationControl->playbackSpeed;
+				}
+
+				if (blendTime > 0.f) {
+					float prevLocalTime = 0.f;
+					float newLocalTime = 0.f;
+					int32_t numLoops = 0;
+					bool newAtEnd = false;
+					hkbClipGenerator_ComputeBeginAndEndLocalTime(a_clipGenerator, a_timestep + blendTime, &prevLocalTime, &newLocalTime, &numLoops, &newAtEnd);
+					bIsLoopingThisUpdateWithBlendTimeOffset = numLoops > 0;
+				}
 			}
 
 			bool bTryReplaceOnLoop = false;
-			hkbClipGenerator_ComputeBeginAndEndLocalTime(a_clipGenerator, a_timestep + blendTime, &prevLocalTime, &newLocalTime, &numLoops, &newAtEnd);
-			if (numLoops > 0) {
+			if (bIsLoopingThisUpdateWithBlendTimeOffset) {
 				if (!_bIsAtEndOfLoop) {
 					bTryReplaceOnLoop = true;
 					_bIsAtEndOfLoop = true;
 				}
 			} else {
 				_bIsAtEndOfLoop = false;
+				_bLogAtEndOfLoop = true;
 			}
 
-			bool bShouldTryLog = true;
 			if (bTryReplaceOnLoop) {
 				// recheck conditions to see if we should replace the animation
 				if (OnLoop(a_clipGenerator)) {
-					bShouldTryLog = false;
+					_bLogAtEndOfLoop = false;
 				}
 			}
 
-			if (bShouldTryLog) {
-				// if we're not replacing on loop, only log if we're actually looping in this update (the previous check takes into account blend time)
-				hkbClipGenerator_ComputeBeginAndEndLocalTime(a_clipGenerator, a_timestep, &prevLocalTime, &newLocalTime, &numLoops, &newAtEnd);  // same but without added blendTime
-				if (numLoops > 0) {
+			if (_bLogAtEndOfLoop) {
+				// if we're not replacing on loop, only log if we're actually looping in this update
+				if (bIsLoopingThisUpdate) {
 					auto& animationLog = AnimationLog::GetSingleton();
 					constexpr auto event = AnimationLogEntry::Event::kLoop;
 					if (animationLog.ShouldLogAnimations() && animationLog.ShouldLogAnimationsForActiveClip(this, event)) {
@@ -316,7 +345,7 @@ void ActiveClip::PreUpdate(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbC
 	}
 
 	// replace anim if queued
-	if (HasQueuedReplacement()) {
+	if (IsReadyToReplace(bIsLoopingThisUpdate)) {
 		ReplaceActiveAnimation(a_clipGenerator, a_context);
 	}
 
@@ -488,11 +517,13 @@ bool ActiveClip::OnLoopOrEcho(RE::hkbClipGenerator* a_clipGenerator, bool a_bIsE
 
 	bool bContinueVariantSequence = false;
 
+	bool bShouldReplace = a_bIsEcho ? ShouldReplaceOnEcho() : ShouldReplaceOnLoop();
+
 	// figure out if we're in the middle of a variant sequence
 	if (bHasVariants) {
 		const auto& variants = _currentReplacementAnimation->GetVariants();
 		if (const auto stateData = variants.GetVariantStateData(this)) {
-			bContinueVariantSequence = !stateData->IsAtBeginningOfSequence(_clipGenerator, &variants);
+			bContinueVariantSequence = !bShouldReplace || !stateData->IsAtBeginningOfSequence(_clipGenerator, &variants);
 		}
 	}
 
@@ -500,11 +531,11 @@ bool ActiveClip::OnLoopOrEcho(RE::hkbClipGenerator* a_clipGenerator, bool a_bIsE
 		// don't run the entire logic - we don't want to replace this with another animation, just replace with the next variant of the same animation
 		Variant* variant = nullptr;
 		[[maybe_unused]] const uint16_t newVariantIndex = _currentReplacementAnimation->GetIndex(this, variant);
-		float blendTime = GetReplacementAnimation()->GetCustomBlendTime(this, a_bIsEcho ? CustomBlendType::kEcho : CustomBlendType::kLoop, true);
+		float blendTime = GetReplacementAnimation()->GetCustomBlendTime(this, a_bIsEcho ? CustomBlendType::kEcho : CustomBlendType::kLoop, true, true);
 		if (a_clipGenerator->animationControl->playbackSpeed > 0.f) {
 			blendTime /= a_clipGenerator->animationControl->playbackSpeed;
 		}
-		QueueReplacementAnimation(_currentReplacementAnimation, blendTime, a_bIsEcho ? QueuedReplacement::Type::kRestart : QueuedReplacement::Type::kLoop, a_bIsEcho ? AnimationLogEntry::Event::kEchoReplace : AnimationLogEntry::Event::kLoopReplace, variant);
+		QueueReplacementAnimation(_currentReplacementAnimation, blendTime, a_bIsEcho ? QueuedReplacement::Type::kRestart : QueuedReplacement::Type::kLoop, a_bIsEcho ? AnimationLogEntry::Event::kEchoReplace : AnimationLogEntry::Event::kLoopReplace, variant, blendTime == 0.f);
 		return true;
 	}
 
@@ -512,16 +543,16 @@ bool ActiveClip::OnLoopOrEcho(RE::hkbClipGenerator* a_clipGenerator, bool a_bIsE
 	// but if we're in a variant sequence, only do it at the beginning.
 	OpenAnimationReplacer::GetSingleton().OnActiveClipLoopOrEcho(this, a_bIsEcho);
 
-	if (a_bIsEcho ? ShouldReplaceOnEcho() : ShouldReplaceOnLoop()) {
+	if (bShouldReplace) {
 		const auto newReplacementAnim = OpenAnimationReplacer::GetSingleton().GetReplacementAnimation(_character, a_clipGenerator, _originalIndex);
 		Variant* variant = nullptr;
 		if (ShouldReplaceAnimation(newReplacementAnim, bHasVariants, variant)) {
 			const bool bBetweenVariants = newReplacementAnim == _currentReplacementAnimation;
-			float blendTime = HasReplacementAnimation() ? GetReplacementAnimation()->GetCustomBlendTime(this, a_bIsEcho ? CustomBlendType::kEcho : CustomBlendType::kLoop, bBetweenVariants) : (a_bIsEcho ? a_echoDuration : Settings::fDefaultBlendTimeOnLoop);
+			float blendTime = HasReplacementAnimation() ? GetReplacementAnimation()->GetCustomBlendTime(this, a_bIsEcho ? CustomBlendType::kEcho : CustomBlendType::kLoop, bHasVariants, bBetweenVariants) : (a_bIsEcho ? a_echoDuration : Settings::fDefaultBlendTimeOnLoop);
 			if (a_clipGenerator->animationControl->playbackSpeed > 0.f) {
 				blendTime /= a_clipGenerator->animationControl->playbackSpeed;
 			}
-			QueueReplacementAnimation(newReplacementAnim, blendTime, a_bIsEcho ? QueuedReplacement::Type::kRestart : QueuedReplacement::Type::kLoop, a_bIsEcho ? AnimationLogEntry::Event::kEchoReplace : AnimationLogEntry::Event::kLoopReplace, variant);
+			QueueReplacementAnimation(newReplacementAnim, blendTime, a_bIsEcho ? QueuedReplacement::Type::kRestart : QueuedReplacement::Type::kLoop, a_bIsEcho ? AnimationLogEntry::Event::kEchoReplace : AnimationLogEntry::Event::kLoopReplace, variant, blendTime == 0.f);
 			return true;
 		}
 	}

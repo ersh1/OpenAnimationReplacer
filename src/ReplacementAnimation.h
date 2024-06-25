@@ -56,7 +56,7 @@ public:
 	bool GetInterruptible() const;
 	bool GetReplaceOnLoop() const;
 	bool GetReplaceOnEcho() const;
-	float GetCustomBlendTime(ActiveClip* a_activeClip, CustomBlendType a_type, bool a_bBetweenVariants = false) const;
+	float GetCustomBlendTime(ActiveClip* a_activeClip, CustomBlendType a_type, bool a_bCheckWithinSequence = false, bool a_bIsBetweenVariants = false) const;
 	void SetDisabled(bool a_bDisable) { _bDisabled = a_bDisable; }
 	std::string_view GetAnimPath() const { return _path; }
 	std::string_view GetProjectName() const { return _projectName; }

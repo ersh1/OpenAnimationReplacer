@@ -143,7 +143,16 @@ bool ActiveSynchronizedAnimation::ShouldSynchronizedClipReplacementBeActive() co
 		}
 	}
 
-	return true;
+	// just check if there's any replacement animation
+	ReadLocker locker(_clipDataLock);
+
+	for (const auto& [clipGenerator, clipData] : _clipData) {
+		if (clipData->replacementAnimation != nullptr) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 bool ActiveSynchronizedAnimation::IsFromActiveGraph(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator) const
@@ -228,9 +237,10 @@ void ActiveSynchronizedAnimation::Initialize()
 	if (CheckRequiresActiveGraphTracking()) {
 		if (const auto syncInfo = GetUniqueSyncInfo()) {  // get sync info of the non-player character
 			_trackedClipGenerator = syncInfo->synchronizedClipGenerator;
-			_bIsReplacementActive = ShouldSynchronizedClipReplacementBeActive();
 		}
 	}
+
+	_bIsReplacementActive = ShouldSynchronizedClipReplacementBeActive();
 
 	_bInitialized = true;
 }

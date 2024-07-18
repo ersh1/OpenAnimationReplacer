@@ -35,7 +35,7 @@ void ActiveSynchronizedAnimation::OnSynchronizedClipPreActivate(RE::BSSynchroniz
 	activeClip->SetSynchronizedParent(a_synchronizedClipGenerator);
 
 	if (const auto synchronizedClipData = GetSynchronizedClipData(a_synchronizedClipGenerator)) {
-		activeClip->OnActivateSynchronized(a_synchronizedClipGenerator, synchronizedClipData->replacements, _bIsReplacementActive ? synchronizedClipData->replacementAnimation : nullptr, _variant);
+		activeClip->OnActivateSynchronized(a_synchronizedClipGenerator, synchronizedClipData->replacements, _bIsReplacementActive ? synchronizedClipData->replacementAnimation : nullptr, synchronizedClipData->variant);
 
 		auto& animationLog = AnimationLog::GetSingleton();
 		const auto event = (activeClip->IsOriginal() || !_bIsReplacementActive) ? AnimationLogEntry::Event::kActivateSynchronized : AnimationLogEntry::Event::kActivateReplaceSynchronized;
@@ -219,17 +219,20 @@ void ActiveSynchronizedAnimation::Initialize()
 			ReplacementAnimation* replacementAnimation = nullptr;
 			AnimationReplacements* replacements = OpenAnimationReplacer::GetSingleton().GetReplacements(actorSyncInfo.character, actorSyncInfo.synchronizedClipGenerator->clipGenerator->animationBindingIndex);
 
+			Variant* variant = nullptr;
+
 			if (replacements) {
 				replacementAnimation = replacements->EvaluateSynchronizedConditionsAndGetReplacementAnimation(sourceRefHandle.get().get(), targetRefHandle.get().get(), actorSyncInfo.synchronizedClipGenerator->clipGenerator);
 				if (replacementAnimation) {
 					// handle variants
-					if (!_variant && replacementAnimation->HasVariants()) {
-						replacementAnimation->GetIndex(_variant);
+					if (!_variantRandomWeight && replacementAnimation->HasVariants()) {
+						_variantRandomWeight = Utils::GetRandomFloat(0.f, 1.f);  // saving the random value will ensure we get the same variant for all involved clips
+						replacementAnimation->GetIndex(variant, *_variantRandomWeight);
 					}
 				}
 			}
 
-			_clipData.emplace(actorSyncInfo.synchronizedClipGenerator, std::make_shared<SynchronizedClipData>(originalSynchronizedIndex, originalInternalClipIndex, &actorSyncInfo, replacements, replacementAnimation));
+			_clipData.emplace(actorSyncInfo.synchronizedClipGenerator, std::make_shared<SynchronizedClipData>(originalSynchronizedIndex, originalInternalClipIndex, &actorSyncInfo, replacements, replacementAnimation, variant));
 		}
 	}
 

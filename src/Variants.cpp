@@ -38,9 +38,14 @@ uint16_t Variants::GetVariantIndex(Variant*& a_outVariant) const
 	// no active clip, so only supports random variants
 	const float randomWeight = Utils::GetRandomFloat(0.f, 1.f);
 
+	return GetVariantIndex(a_outVariant, randomWeight);
+}
+
+uint16_t Variants::GetVariantIndex(Variant*& a_outVariant, float a_randomWeight) const
+{
 	ReadLocker locker(_lock);
 
-	const auto it = std::ranges::lower_bound(_cumulativeWeights, randomWeight);
+	const auto it = std::ranges::lower_bound(_cumulativeWeights, a_randomWeight);
 	const auto i = std::distance(_cumulativeWeights.begin(), it);
 	a_outVariant = _activeVariants[i];
 	return a_outVariant->GetIndex();

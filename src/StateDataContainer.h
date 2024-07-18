@@ -7,7 +7,6 @@
 #include <unordered_set>
 
 class ActiveClip;
-using DestroyedCallback = std::function<void(ActiveClip* a_destroyedClip)>;
 
 class StateDataContainerEntry
 {
@@ -47,16 +46,14 @@ private:
 	bool CheckRelevantClips(ActiveClip* a_activeClip) const;
 	bool HasAnyActiveClips() const;
 
-	void AddActiveClip(ActiveClip* a_activeClip);
-	void RemoveActiveClip(ActiveClip* a_activeClip);
+	void AddActiveClip(std::shared_ptr<ActiveClip>& a_activeClip);
 
 	RE::ObjectRefHandle _refHandle;
 	std::unique_ptr<Conditions::IStateData> _data;
 
 	mutable SharedLock _clipsLock;
-	std::unordered_set<ActiveClip*> _activeClips{};
-	std::unordered_set<ActiveClip*> _relevantClips{};
-	std::unordered_map<ActiveClip*, std::shared_ptr<DestroyedCallback>> _registeredCallbacks;
+	std::set<std::weak_ptr<ActiveClip>, std::owner_less<std::weak_ptr<ActiveClip>>> _activeClips{};
+	std::set<std::weak_ptr<ActiveClip>, std::owner_less<std::weak_ptr<ActiveClip>>> _relevantClips{};
 
 	uint32_t _lastUpdateTimestamp = 0;
 	mutable float _timeSinceLastAccess = 0.f;

@@ -61,6 +61,7 @@ public:
 	}
 
 	uint16_t GetVariantIndex(Variant*& a_outVariant) const;
+	uint16_t GetVariantIndex(Variant*& a_outVariant, float a_randomWeight) const;
 	uint16_t GetVariantIndex(ActiveClip* a_activeClip, Variant*& a_outVariant) const;
 	void UpdateVariantCache();
 

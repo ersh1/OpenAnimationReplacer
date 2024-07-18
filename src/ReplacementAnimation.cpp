@@ -109,6 +109,15 @@ uint16_t ReplacementAnimation::GetIndex(Variant*& a_outVariant) const
 	return std::get<uint16_t>(_index);
 }
 
+uint16_t ReplacementAnimation::GetIndex(Variant*& a_outVariant, float a_randomWeight) const
+{
+	if (HasVariants()) {
+		return std::get<Variants>(_index).GetVariantIndex(a_outVariant, a_randomWeight);
+	}
+
+	return std::get<uint16_t>(_index);
+}
+
 uint16_t ReplacementAnimation::GetIndex(ActiveClip* a_activeClip, Variant*& a_outVariant) const
 {
 	if (HasVariants()) {

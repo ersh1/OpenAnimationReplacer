@@ -754,7 +754,9 @@ void OpenAnimationReplacer::LoadAnimation(RE::hkbCharacter* a_character, uint16_
 	const auto clipGenerator = reinterpret_cast<RE::hkbClipGenerator*>(&dummyClipGenerator);
 
 	RE::AnimationFileManagerSingleton::GetSingleton()->Queue(*reinterpret_cast<RE::hkbContext*>(&a_character), clipGenerator, nullptr);
-	//RE::AnimationFileManagerSingleton::GetSingleton()->Unk_02(*reinterpret_cast<RE::hkbContext*>(&a_character), clipGenerator, nullptr);
+	//RE::AnimationFileManagerSingleton::GetSingleton()->Load(*reinterpret_cast<RE::hkbContext*>(&a_character), clipGenerator, nullptr);
+	//RE::AnimationFileManagerSingleton::GetSingleton()->Unk_04(*reinterpret_cast<RE::hkbContext*>(&a_character), a_animationIndex);
+	//RE::AnimationFileManagerSingleton::GetSingleton()->Unk_05(*reinterpret_cast<RE::hkbContext*>(&a_character), a_animationIndex);
 }
 
 void OpenAnimationReplacer::UnloadAnimation(RE::hkbCharacter* a_character, uint16_t a_animationIndex)

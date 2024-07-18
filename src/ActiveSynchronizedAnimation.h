@@ -28,8 +28,8 @@ protected:
 	struct SynchronizedClipData
 	{
 		SynchronizedClipData() = default;
-		SynchronizedClipData(uint16_t a_originalSynchronizedIndex, uint16_t a_originalInternalClipIndex, RE::BGSSynchronizedAnimationInstance::ActorSyncInfo const* a_syncInfo, AnimationReplacements* a_replacements, ReplacementAnimation* a_replacementAnimation) :
-			originalSynchronizedIndex(a_originalSynchronizedIndex), originalInternalClipIndex(a_originalInternalClipIndex), syncInfo(a_syncInfo), replacements(a_replacements), replacementAnimation(a_replacementAnimation)
+		SynchronizedClipData(uint16_t a_originalSynchronizedIndex, uint16_t a_originalInternalClipIndex, RE::BGSSynchronizedAnimationInstance::ActorSyncInfo const* a_syncInfo, AnimationReplacements* a_replacements, ReplacementAnimation* a_replacementAnimation, Variant* a_variant) :
+			originalSynchronizedIndex(a_originalSynchronizedIndex), originalInternalClipIndex(a_originalInternalClipIndex), syncInfo(a_syncInfo), replacements(a_replacements), replacementAnimation(a_replacementAnimation), variant(a_variant)
 		{}
 
 		[[nodiscard]] constexpr bool Matches(const RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator) const { return syncInfo->synchronizedClipGenerator == a_synchronizedClipGenerator; }
@@ -39,6 +39,7 @@ protected:
 		RE::BGSSynchronizedAnimationInstance::ActorSyncInfo const* syncInfo = nullptr;
 		AnimationReplacements* replacements = nullptr;
 		ReplacementAnimation* replacementAnimation = nullptr;
+		Variant* variant = nullptr;
 	};
 
 	void Initialize();
@@ -64,7 +65,7 @@ protected:
 	bool _bIsAtEnd = false;
 	bool _bTransitioning = false;
 
-	Variant* _variant = nullptr;
+	std::optional<float> _variantRandomWeight = std::nullopt;
 };
 
 // a special case where some mod uses SendAnimationEvent to trigger a synchronized clip. This doesn't create a BGSSynchronizedAnimationInstance at all.

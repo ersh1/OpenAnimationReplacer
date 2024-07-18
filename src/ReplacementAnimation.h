@@ -47,6 +47,7 @@ public:
 	bool IsDisabled() const;
 
 	uint16_t GetIndex(Variant*& a_outVariant) const;
+	uint16_t GetIndex(Variant*& a_outVariant, float a_randomWeight) const;
 	uint16_t GetIndex(ActiveClip* a_activeClip, Variant*& a_outVariant) const;
 	uint16_t GetOriginalIndex() const { return _originalIndex; }
 	int32_t GetPriority() const;

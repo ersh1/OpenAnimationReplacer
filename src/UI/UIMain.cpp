@@ -3336,9 +3336,9 @@ namespace UI
 			return false;
 		}
 
-		if (a_condition->GetConditionType() == Conditions::ConditionType::kPreset) {
-			return true;
-		}
+		//if (a_condition->GetConditionType() == Conditions::ConditionType::kPreset) {
+		//	return true;
+		//}
 
 		if (const auto numComponents = a_condition->GetNumComponents(); numComponents > 0) {
 			for (uint32_t i = 0; i < numComponents; i++) {

@@ -122,8 +122,6 @@ public:
 
 	StateDataContainer<const Conditions::ICondition*> conditionStateData;
 
-	void RegisterDestroyedCallback(std::weak_ptr<DestroyedCallback>& a_callback);
-
 protected:
 	bool OnLoopOrEcho(RE::hkbClipGenerator* a_clipGenerator, bool a_bIsEcho, float a_echoDuration = 0.f);
 	void RemoveNonAnnotationTriggersFromClipTriggerArray(RE::hkRefPtr<RE::hkbClipTriggerArray>& a_clipTriggerArray);
@@ -158,7 +156,4 @@ protected:
 	// interruptible anim blending
 	float _lastGameTime = 0.f;
 	std::deque<std::unique_ptr<BlendingClip>> _blendingClipGenerators{};
-
-	ExclusiveLock _callbacksLock;
-	std::vector<std::weak_ptr<DestroyedCallback>> _destroyedCallbacks;
 };

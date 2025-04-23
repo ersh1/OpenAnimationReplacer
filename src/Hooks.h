@@ -2,6 +2,7 @@
 #include "OpenAnimationReplacer.h"
 
 #include <windows.h>
+#include <xbyak.h>
 
 namespace Hooks
 {
@@ -28,15 +29,17 @@ namespace Hooks
 			// Hook synchronized clip related stuff
 			REL::Relocation<uintptr_t> BSSynchronizedClipGeneratorVtbl{ RE::VTABLE_BSSynchronizedClipGenerator[0] };
 			_BSSynchronizedClipGenerator_Activate = BSSynchronizedClipGeneratorVtbl.write_vfunc(0x4, BSSynchronizedClipGenerator_Activate);
+			_BSSynchronizedClipGenerator_Update = BSSynchronizedClipGeneratorVtbl.write_vfunc(0x5, BSSynchronizedClipGenerator_Update);
 			_BSSynchronizedClipGenerator_Deactivate = BSSynchronizedClipGeneratorVtbl.write_vfunc(0x7, BSSynchronizedClipGenerator_Deactivate);
 
 			REL::Relocation<uintptr_t> BGSSynchronizedAnimationInstanceVtbl{ RE::VTABLE_BGSSynchronizedAnimationInstance[0] };
 			_BGSSynchronizedAnimationInstance_dtor = BGSSynchronizedAnimationInstanceVtbl.write_vfunc(0x0, BGSSynchronizedAnimationInstance_dtor);
+			_BGSSynchronizedAnimationInstance_OnDeactivate = BGSSynchronizedAnimationInstanceVtbl.write_vfunc(0x7, BGSSynchronizedAnimationInstance_OnDeactivate);
+			_BGSSynchronizedAnimationInstance_Func9 = BGSSynchronizedAnimationInstanceVtbl.write_vfunc(0x9, BGSSynchronizedAnimationInstance_Func9);
 
-			// Potentially reset random condition results on loop, and re-evaluate conditions
-			const REL::Relocation<uintptr_t> loopHook{ REL::VariantID(58603, 59253, 0xA46DC0) };  // A0C270, A30A80, A46DC0  hkbClipGenerator::Update
+			const REL::Relocation<uintptr_t> createSynchronizedAnimationInstanceHook{ REL::VariantID(32049, 32803, 0x4FD300) };  // 4ED090, 505C10, 4FD300  BGSSynchronizedAnimationInstance is created
 			SKSE::AllocTrampoline(14);
-			_hkbClipGenerator_computeBeginAndEndLocalTime = trampoline.write_call<5>(loopHook.address() + 0x145, hkbClipGenerator_computeBeginAndEndLocalTime);  // A0C3B5
+			_BGSSynchronizedAnimationInstance_Init = trampoline.write_call<5>(createSynchronizedAnimationInstanceHook.address() + REL::VariantOffset(0x1DE, 0x1D7, 0x1DE).offset(), BGSSynchronizedAnimationInstance_Init);
 
 			// Parse/add replacement animations
 			const REL::Relocation<uintptr_t> bshkbAnimationGraphHook{ REL::VariantID(63028, 63846, 0xB414B0) };  // B06670, B24E00, B414B0 -  called by an internal BShkbAnimationGraph function on creation
@@ -68,6 +71,14 @@ namespace Hooks
 			_hkbBehaviorGraph_Update = hkbBehaviorGraphVtbl.write_vfunc(0x5, hkbBehaviorGraph_Update);
 			_hkbBehaviorGraph_Generate = hkbBehaviorGraphVtbl.write_vfunc(0x17, hkbBehaviorGraph_Generate);
 
+			// Hook animation events
+			REL::Relocation<uintptr_t> TESObjectREFR_IAnimationGraphManagerHolderVtbl{ RE::VTABLE_TESObjectREFR[3] };
+			_TESObjectREFR_IAnimationGraphManagerHolder_NotifyAnimationGraph = TESObjectREFR_IAnimationGraphManagerHolderVtbl.write_vfunc(0x1, TESObjectREFR_IAnimationGraphManagerHolder_NotifyAnimationGraph);
+			REL::Relocation<uintptr_t> Character_IAnimationGraphManagerHolderVtbl{ RE::VTABLE_Character[3] };
+			_Character_IAnimationGraphManagerHolder_NotifyAnimationGraph = Character_IAnimationGraphManagerHolderVtbl.write_vfunc(0x1, Character_IAnimationGraphManagerHolder_NotifyAnimationGraph);
+			REL::Relocation<uintptr_t> PlayerCharacter_IAnimationGraphManagerHolderVtbl{ RE::VTABLE_PlayerCharacter[3] };
+			_PlayerCharacter_IAnimationGraphManagerHolder_NotifyAnimationGraph = PlayerCharacter_IAnimationGraphManagerHolderVtbl.write_vfunc(0x1, PlayerCharacter_IAnimationGraphManagerHolder_NotifyAnimationGraph);
+
 			PatchSynchronizedClips();
 			PatchUnsignedAnimationBindingIndex();
 		}
@@ -80,12 +91,18 @@ namespace Hooks
 		static void hkbClipGenerator_Deactivate(RE::hkbClipGenerator* a_this, const RE::hkbContext& a_context);
 		static void hkbClipGenerator_Generate(RE::hkbClipGenerator* a_this, const RE::hkbContext& a_context, const RE::hkbGeneratorOutput** a_activeChildrenOutput, RE::hkbGeneratorOutput& a_output, float a_timeOffset);
 		static void hkbClipGenerator_StartEcho(RE::hkbClipGenerator* a_this, float a_echoDuration);
-		static void hkbClipGenerator_computeBeginAndEndLocalTime(RE::hkbClipGenerator* a_this, float a_timestep, float& a_outBeginLocalTime, float& a_outEndLocalTime, int32_t& a_outLoops, bool& a_outEndOfClip);
 		static void BSSynchronizedClipGenerator_Activate(RE::BSSynchronizedClipGenerator* a_this, const RE::hkbContext& a_context);
+		static void BSSynchronizedClipGenerator_Update(RE::BSSynchronizedClipGenerator* a_this, const RE::hkbContext& a_context, float a_timestep);
 		static void BSSynchronizedClipGenerator_Deactivate(RE::BSSynchronizedClipGenerator* a_this, const RE::hkbContext& a_context);
 		static void BGSSynchronizedAnimationInstance_dtor(RE::BGSSynchronizedAnimationInstance* a_this);
+		static void BGSSynchronizedAnimationInstance_OnDeactivate(RE::BGSSynchronizedAnimationInstance* a_this);
+		static void BGSSynchronizedAnimationInstance_Func9(RE::BGSSynchronizedAnimationInstance* a_this);
+		static void BGSSynchronizedAnimationInstance_Init(RE::BGSSynchronizedAnimationInstance* a_this);
 		static void hkbBehaviorGraph_Update(RE::hkbBehaviorGraph* a_this, const RE::hkbContext& a_context, float a_timestep);
 		static void hkbBehaviorGraph_Generate(RE::hkbBehaviorGraph* a_this, const RE::hkbContext& a_context, const RE::hkbGeneratorOutput** a_activeChildrenOutput, RE::hkbGeneratorOutput& a_output, float a_timeOffset);
+		static bool TESObjectREFR_IAnimationGraphManagerHolder_NotifyAnimationGraph(RE::IAnimationGraphManagerHolder* a_this, const RE::BSFixedString& a_eventName);
+		static bool Character_IAnimationGraphManagerHolder_NotifyAnimationGraph(RE::IAnimationGraphManagerHolder* a_this, const RE::BSFixedString& a_eventName);
+		static bool PlayerCharacter_IAnimationGraphManagerHolder_NotifyAnimationGraph(RE::IAnimationGraphManagerHolder* a_this, const RE::BSFixedString& a_eventName);
 
 		static void LoadClips(RE::hkbCharacterStringData* a_stringData, RE::hkbAnimationBindingSet* a_bindingSet, void* a_assetLoader, RE::hkbBehaviorGraph* a_rootBehavior, const char* a_animationPath, RE::BSTHashMap<RE::BSFixedString, uint32_t>* a_annotationToEventIdMap);
 		static bool CreateSynchronizedClips(RE::hkbBehaviorGraph* a_behaviorGraph, RE::hkbCharacter* a_character, RE::BSTHashMap<RE::BSFixedString, uint32_t>* a_annotationToEventIdMap);
@@ -100,12 +117,18 @@ namespace Hooks
 		static inline REL::Relocation<decltype(hkbClipGenerator_Deactivate)> _hkbClipGenerator_Deactivate;
 		static inline REL::Relocation<decltype(hkbClipGenerator_Generate)> _hkbClipGenerator_Generate;
 		static inline REL::Relocation<decltype(hkbClipGenerator_StartEcho)> _hkbClipGenerator_StartEcho;
-		static inline REL::Relocation<decltype(hkbClipGenerator_computeBeginAndEndLocalTime)> _hkbClipGenerator_computeBeginAndEndLocalTime;
 		static inline REL::Relocation<decltype(BSSynchronizedClipGenerator_Activate)> _BSSynchronizedClipGenerator_Activate;
+		static inline REL::Relocation<decltype(BSSynchronizedClipGenerator_Update)> _BSSynchronizedClipGenerator_Update;
 		static inline REL::Relocation<decltype(BSSynchronizedClipGenerator_Deactivate)> _BSSynchronizedClipGenerator_Deactivate;
 		static inline REL::Relocation<decltype(BGSSynchronizedAnimationInstance_dtor)> _BGSSynchronizedAnimationInstance_dtor;
+		static inline REL::Relocation<decltype(BGSSynchronizedAnimationInstance_OnDeactivate)> _BGSSynchronizedAnimationInstance_OnDeactivate;
+		static inline REL::Relocation<decltype(BGSSynchronizedAnimationInstance_Func9)> _BGSSynchronizedAnimationInstance_Func9;
+		static inline REL::Relocation<decltype(BGSSynchronizedAnimationInstance_Init)> _BGSSynchronizedAnimationInstance_Init;
 		static inline REL::Relocation<decltype(hkbBehaviorGraph_Update)> _hkbBehaviorGraph_Update;
 		static inline REL::Relocation<decltype(hkbBehaviorGraph_Generate)> _hkbBehaviorGraph_Generate;
+		static inline REL::Relocation<decltype(TESObjectREFR_IAnimationGraphManagerHolder_NotifyAnimationGraph)> _TESObjectREFR_IAnimationGraphManagerHolder_NotifyAnimationGraph;
+		static inline REL::Relocation<decltype(Character_IAnimationGraphManagerHolder_NotifyAnimationGraph)> _Character_IAnimationGraphManagerHolder_NotifyAnimationGraph;
+		static inline REL::Relocation<decltype(PlayerCharacter_IAnimationGraphManagerHolder_NotifyAnimationGraph)> _PlayerCharacter_IAnimationGraphManagerHolder_NotifyAnimationGraph;
 
 		static inline REL::Relocation<decltype(LoadClips)> _LoadClips;
 		static inline REL::Relocation<decltype(CreateSynchronizedClips)> _CreateSynchronizedClips;

@@ -1,7 +1,10 @@
 #pragma once
 
 #include "API/OpenAnimationReplacerAPI-Conditions.h"
+#include "Havok/Havok.h"
 #include "MergeMapperPluginAPI.h"
+
+#include <unordered_set>
 
 namespace Utils
 {
@@ -27,6 +30,14 @@ namespace Utils
 
 	[[nodiscard]] bool CompareStringsIgnoreCase(std::string_view a_lhs, std::string_view a_rhs);
 	[[nodiscard]] bool ContainsStringIgnoreCase(std::string_view a_string, std::string_view a_substring);
+	[[nodiscard]] size_t FindStringIgnoreCase(std::string_view a_string, std::string_view a_substring);
+
+	[[nodiscard]] bool CheckPathLength(std::filesystem::path a_path);
+	[[nodiscard]] bool Exists(std::filesystem::path a_path);
+	[[nodiscard]] bool IsDirectory(std::filesystem::path a_path);
+	[[nodiscard]] bool IsDirectory(const std::filesystem::directory_entry& a_entry);
+	[[nodiscard]] bool IsRegularFile(std::filesystem::path a_path);
+	[[nodiscard]] bool IsRegularFile(const std::filesystem::directory_entry& a_entry);
 
 	[[nodiscard]] std::string GetFormNameString(const RE::TESForm* a_form);
 	[[nodiscard]] std::string GetFormKeywords(RE::TESForm* a_form);
@@ -42,6 +53,15 @@ namespace Utils
 		}
 
 		return nullptr;
+	}
+
+	[[nodiscard]] inline RE::ActorHandle GetHandleFromHkbCharacter(RE::hkbCharacter* a_hkbCharacter)
+	{
+		if (const auto actor = GetActorFromHkbCharacter(a_hkbCharacter)) {
+			return actor->GetHandle();
+		}
+
+		return RE::ActorHandle();
 	}
 
 	[[nodiscard]] inline RE::hkbCharacterStringData* GetStringDataFromHkbCharacter(RE::hkbCharacter* a_hkbCharacter)
@@ -107,6 +127,11 @@ namespace Utils
 	bool ConditionHasRandomResult(Conditions::ICondition* a_condition);
 	bool ConditionSetHasRandomResult(Conditions::ConditionSet* a_conditionSet);
 
+	bool ConditionHasPresetCondition(Conditions::ICondition* a_condition);
+	bool ConditionSetHasPresetCondition(Conditions::ConditionSet* a_conditionSet);
+
+	bool ConditionHasStateComponentWithSharedScope(Conditions::ICondition* a_condition);
+
 	bool GetCurrentTarget(RE::Actor* a_actor, TargetType a_targetType, RE::TESObjectREFRPtr& a_outPtr);
 	bool GetTarget(RE::Actor* a_actor, RE::TESObjectREFRPtr& a_outPtr);
 	bool GetCombatTarget(RE::Actor* a_actor, RE::TESObjectREFRPtr& a_outPtr);
@@ -135,4 +160,54 @@ namespace Utils
 			return form->Is(T::FORMTYPE) ? static_cast<T*>(form) : nullptr;
 		}
 	}
+
+	RE::BGSSynchronizedAnimationInstance::ActorSyncInfo* GetLeadActorSyncInfo(RE::BGSSynchronizedAnimationInstance* a_synchronizedAnimationInstance, bool a_bFirstPerson);
+	RE::BGSSynchronizedAnimationInstance::ActorSyncInfo* GetSupportActorSyncInfo(RE::BGSSynchronizedAnimationInstance* a_synchronizedAnimationInstance);
+
+	uint32_t GetAnimationGraphIndex(const RE::BSAnimationGraphManager* a_graphManager, const RE::BSTEventSource<RE::BSAnimationGraphEvent>* a_eventSource);
+
+	RE::NiPointer<RE::TESObjectREFR> GetConsoleRefr();
+
+	bool DoesUserConfigExist(std::string_view a_path);
+	void DeleteUserConfig(std::string_view a_path);
+
+	[[nodiscard]] RE::hkVector4 NormalizeHkVector4(const RE::hkVector4& a_vector);
+	[[nodiscard]] inline RE::hkVector4 NiPointToHkVector(const RE::NiPoint3& pt) { return { pt.x, pt.y, pt.z, 0 }; }
+	[[nodiscard]] inline RE::NiPoint3 HkVectorToNiPoint(const RE::hkVector4& a_vec) { return { a_vec.quad.m128_f32[0], a_vec.quad.m128_f32[1], a_vec.quad.m128_f32[2] }; }
+
+	[[nodiscard]] inline RE::NiPoint3 Mix(const RE::NiPoint3& a_vecA, const RE::NiPoint3& a_vecB, float a_alpha) { return a_vecA * (1.f - a_alpha) + a_vecB * a_alpha; }
+	[[nodiscard]] RE::hkVector4 Mix(const RE::hkVector4& a_vecA, const RE::hkVector4& a_vecB, float a_alpha);
+
+	[[nodiscard]] bool GetSurfaceNormal(RE::TESObjectREFR* a_refr, RE::hkVector4& a_outVector, bool a_bUseNavmesh);
+
+	template <class T>
+	class UniqueQueue
+	{
+	public:
+		void push(const T& a_value)
+		{
+			if (!_set.contains(a_value)) {
+				_queue.push(a_value);
+				_set.emplace(a_value);
+			}
+		}
+
+		void pop()
+		{
+			if (!_queue.empty()) {
+				_set.erase(_queue.front());
+				_queue.pop();
+			}
+		}
+
+		[[nodiscard]] T front() { return _queue.front(); }
+
+		[[nodiscard]] T back() { return _queue.back(); }
+
+		bool empty() const { return _queue.empty(); }
+
+	private:
+		std::queue<T> _queue;
+		std::set<T, std::owner_less<T>> _set;
+	};
 }

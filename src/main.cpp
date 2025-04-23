@@ -9,6 +9,7 @@
 #include "ModAPI.h"
 
 #include "MergeMapperPluginAPI.h"
+#include "TrueHUDAPI.h"
 
 void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
 {
@@ -30,6 +31,11 @@ void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
 		} else {
 			logger::info("MergeMapper not detected");
 		}
+
+		if (Settings::bEnableDebugDraws && !Settings::g_trueHUD) {
+			Settings::g_trueHUD = reinterpret_cast<TRUEHUD_API::IVTrueHUD4*>(TRUEHUD_API::RequestPluginAPI(TRUEHUD_API::InterfaceVersion::V4));
+		}
+
 		if (!OpenAnimationReplacer::GetSingleton().AreFactoriesInitialized()) {
 			OpenAnimationReplacer::GetSingleton().InitFactories();
 		}

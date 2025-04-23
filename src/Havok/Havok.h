@@ -243,10 +243,20 @@ namespace RE
 	public:
 		class hkbDefaultSynchronizedScene : public hkReferencedObject
 		{
+		public:
 			inline static constexpr auto RTTI = RTTI_BSSynchronizedClipGenerator__hkbDefaultSynchronizedScene;
 			inline static constexpr auto VTABLE = VTABLE_BSSynchronizedClipGenerator__hkbDefaultSynchronizedScene;
 
 			~hkbDefaultSynchronizedScene() override;  // 00
+
+			// add
+			virtual bool AreAllClipsActivated();          // 03
+			virtual bool IsDoneReorientingSupportChar();  // 04
+			virtual float GetUnk18();                     // 05
+			virtual void UpdateUnk94(float a1);           // 06
+			virtual void OnSynchronizedClipDeactivate();  // 07
+			virtual void OnSynchronizedClipActivate();    // 08
+			virtual void Unk_09(void);                    // 09
 
 			// members
 			BSReadWriteLock lock;  // 10
@@ -269,8 +279,7 @@ namespace RE
 		~BSSynchronizedClipGenerator() override;  // 00
 
 		// members
-		uint32_t unk48;
-		uint32_t unk4C;
+		uint64_t pad48;                                             // 48
 		hkbClipGenerator* clipGenerator;                            // 50
 		hkStringPtr syncAnimPrefix;                                 // 58
 		bool syncClipIgnoreMarkPlacement;                           // 60
@@ -280,21 +289,21 @@ namespace RE
 		bool reorientSupportChar;                                   // 6D
 		bool applyMotionFromRoot;                                   // 6E
 		class BGSSynchronizedAnimationInstance* synchronizedScene;  // 70
-		uint32_t unk78;
-		uint32_t unk7C;
-		hkQsTransform startingWorldFromModel;                                        // 80
-		hkQsTransform worldFromModelWithRootMotion;                                  // B0
-		hkQsTransform unkTransform;                                                  // E0
-		float getToMarkProgress;                                                     // 110
-		hkaAnimationBinding* binding;                                                // 118
-		hkPointerMap<int32_t, int32_t>* eventWithPrefixIdToEventWithoutPrefixIdMap;  // 120  hkPointerMap<int, int>*
-		uint16_t synchronizedAnimationBindingIndex;                                  // 128
-		bool doneReorientingSupportChar;                                             // 12A
-		bool unk12B;                                                                 // 12B
-		bool unk12C;                                                                 // 12C
+		uint32_t unk78;                                             // 78
+		uint32_t unk7C;                                             // 7C
+		hkQsTransform startMarkWS;                                  // 80
+		hkQsTransform endMarkWS;                                    // B0
+		hkQsTransform startMarkMS;                                  // E0
+		float currentLerp;                                          // 110
+		hkaAnimationBinding* localSyncBinding;                      // 118
+		hkPointerMap<int32_t, int32_t>* eventMap;                   // 120  hkPointerMap<int, int>*
+		uint16_t animationBindingIndex;                             // 128
+		bool atMark;                                                // 12A
+		bool allCharactersInScene;                                  // 12B
+		bool allCharactersAtMarks;                                  // 12C
 	};
 	static_assert(sizeof(BSSynchronizedClipGenerator) == 0x130);
-	static_assert(offsetof(BSSynchronizedClipGenerator, synchronizedAnimationBindingIndex) == 0x128);
+	static_assert(offsetof(BSSynchronizedClipGenerator, animationBindingIndex) == 0x128);
 
 	namespace BSSynchronizedClipGeneratorUtils
 	{
@@ -332,35 +341,42 @@ namespace RE
 	class BGSSynchronizedAnimationInstance : public BSSynchronizedClipGenerator::hkbSynchronizedAnimationScene
 	{
 	public:
-		struct SynchronizedAnimationRef
+		struct ActorSyncInfo
 		{
-			ActorHandle refHandle;                          // 00
-			uint32_t pad04;                                 // 04
-			BSSynchronizedClipGenerator* synchronizedClip;  // 08
-			hkbCharacter* character;                        // 10
+			ActorHandle refHandle;                                   // 00
+			uint32_t pad04;                                          // 04
+			BSSynchronizedClipGenerator* synchronizedClipGenerator;  // 08
+			hkbCharacter* character;                                 // 10
 		};
-		static_assert(sizeof(SynchronizedAnimationRef) == 0x18);
+		static_assert(sizeof(ActorSyncInfo) == 0x18);
 
 		inline static constexpr auto RTTI = RTTI_BGSSynchronizedAnimationInstance;
 		inline static constexpr auto VTABLE = VTABLE_BGSSynchronizedAnimationInstance;
 
 		~BGSSynchronizedAnimationInstance() override;  // 00
 
-		bool HasRef(const RE::ObjectRefHandle& a_handle)
+		bool HasRef(const ObjectRefHandle& a_handle)
 		{
 			using func_t = decltype(&BGSSynchronizedAnimationInstance::HasRef);
 			REL::Relocation<func_t> func{ REL::VariantID(32031, 32784, 0x4FB080) };  // 4EAE10, 503680, 4FB080
 			return func(this, a_handle);
 		}
 
-		float unk18;                                      // 18
-		uint32_t numCharacters;                           // 1C
-		BSTSmallArray<SynchronizedAnimationRef, 3> refs;  // 20
-		BSTSmallArray<ObjectRefHandle, 2> refHandles;     // 78
-		uint32_t numActiveClips;                          // 90
-		uint32_t unk94;                                   // 94
-		uint32_t lastTimestampMs;                         // 98
-		uint32_t pad9C;                                   // 9C
+		ActorHandle& GetLeadRef(ActorHandle& a_outHandle)
+		{
+			using func_t = decltype(&BGSSynchronizedAnimationInstance::GetLeadRef);
+			REL::Relocation<func_t> func{ REL::VariantID(32032, 32785, 0x4FB140) };  // 4EAED0, 503680, 4FB140
+			return func(this, a_outHandle);
+		}
+
+		float unk18;                                     // 18  // nothing reads this?
+		uint32_t numActors;                              // 1C
+		BSTSmallArray<ActorSyncInfo, 3> actorSyncInfos;  // 20
+		BSTSmallArray<ObjectRefHandle, 2> refHandles;    // 78
+		uint32_t numActivated;                           // 90
+		uint32_t currentGenerator;                       // 94  // Generate calls a function that constantly cycles this from 0 to numActivated, on 0 sets unk18. nothing else seems to access them
+		uint32_t lastTimestampMs;                        // 98
+		uint32_t pad9C;                                  // 9C
 	};
 	static_assert(sizeof(BGSSynchronizedAnimationInstance) == 0xA0);
 
@@ -535,7 +551,195 @@ namespace RE
 		void* userData;             // 70
 	};
 	static_assert(offsetof(hkMemoryRouter, heap) == 0x58);
+
+	// used a bunch of RE from fenix31415's commonlib fork (https://github.com/fenix31415/CommonLibSSE/) as it's not merged into NG yet
+	template <typename Data>
+	class BSTInterpolatorData
+	{
+	public:
+		template <typename T>
+		class InterpolatorDataPointer
+		{
+			enum
+			{
+				kManaged = 1 << 0
+			};
+
+			void* ptr;
+
+		public:
+			InterpolatorDataPointer() :
+				ptr(nullptr) {}
+
+			T* data()
+			{
+				return reinterpret_cast<T*>(reinterpret_cast<std::uintptr_t>(ptr) & ~kManaged);
+			}
+
+			const T* data() const
+			{
+				return reinterpret_cast<const T*>(reinterpret_cast<std::uintptr_t>(ptr) & ~kManaged);
+			}
+		};
+
+		const float* times() const
+		{
+			return reinterpret_cast<const float*>(&data.data()[size]);
+		}
+
+		const Data* checkpoints() const
+		{
+			return data.data();
+		}
+
+		Data* checkpoints()
+		{
+			return data.data();
+		}
+
+		std::pair<float, Data> operator[](size_t ind) const
+		{
+			return { times()[ind], checkpoints()[ind] };
+		}
+
+		// members
+		InterpolatorDataPointer<Data> data;  // 00 - data[0..size-1] contains points/quats, &data[size] contains times
+		uint32_t size;                       // 08
+		uint32_t padC;                       // 0C
+	};
+
+	class AnimationClipDataSingleton :
+		public BSTSingletonSDM<AnimationClipDataSingleton>
+	{
+	public:
+		inline static auto RTTI = RTTI_AnimationClipDataSingleton;
+		inline static auto VTABLE = VTABLE_AnimationClipDataSingleton;
+
+		class BoundAnimationData
+		{
+		public:
+			BSTInterpolatorData<NiPoint3> translation;   // 00
+			BSTInterpolatorData<hkQuaternion> rotation;  // 10
+			float duration;                              // 20
+			uint32_t pad24;                              // 24
+		};
+		static_assert(sizeof(BoundAnimationData) == 0x28);
+
+		struct ClipTriggerData
+		{
+			BSFixedString name;
+			float time;
+			uint32_t padC;
+		};
+		static_assert(sizeof(ClipTriggerData) == 0x10);
+
+		class ClipData
+		{
+		public:
+			bool GetEventTime(const BSFixedString& a_eventName, float& a_outTime)
+			{
+				using func_t = decltype(&AnimationClipDataSingleton::ClipData::GetEventTime);
+				REL::Relocation<func_t> func{ RELOCATION_ID(31803, 32577) };
+				return func(this, a_eventName, a_outTime);
+			}
+
+			// members
+			float motionSpeed;               // 00
+			uint16_t bound_data_ind;         // 04
+			uint16_t numTriggers;            // 06
+			ClipTriggerData triggerData[1];  // 08 -- actually [numTriggers]
+		};
+		static_assert(sizeof(ClipData) == 0x18);
+
+		class AnimationClipData
+		{
+		public:
+			ClipData* clipGeneratorData;
+			BoundAnimationData* boundAnimationData;
+		};
+		static_assert(sizeof(AnimationClipData) == 0x10);
+
+		class AnimationData : public BSIntrusiveRefCounted
+		{
+		public:
+			uint32_t pad04;                             // 04
+			BSTHashMap<BSFixedString, ClipData> clips;  // 08
+			BSTArray<BoundAnimationData> boundDatas;    // 38
+			BSTArray<BSFixedString> hkxFiles;           // 50
+		};
+		static_assert(sizeof(AnimationData) == 0x68);
+
+		virtual ~AnimationClipDataSingleton();  // 00
+
+		[[nodiscard]] static AnimationClipDataSingleton* GetSingleton()
+		{
+			REL::Relocation<AnimationClipDataSingleton**> singleton{ RELOCATION_ID(515414, 401553) };
+			return *singleton;
+		}
+
+		bool GetClipInformation(const BSFixedString& a_projectName, const BSFixedString& a_clipName, AnimationClipData& a_outClipInformation)
+		{
+			using func_t = decltype(&AnimationClipDataSingleton::GetClipInformation);
+			REL::Relocation<func_t> func{ RELOCATION_ID(31799, 32573) };
+			return func(this, a_projectName, a_clipName, a_outClipInformation);
+		}
+
+		// members
+		//uint64_t unk08;                            // 08
+		BSTHashMap<BSFixedString, NiPointer<AnimationData>> animDatas;  // 10
+		BSTArray<BSFixedString> hkxFiles;                               // 40
+		uint64_t unk58;                                                 // 58
+		uint64_t unk60;                                                 // 60
+		uint64_t unk68;                                                 // 68
+		uint64_t unk70;                                                 // 70
+		uint64_t unk78;                                                 // 78
+		uint64_t unk80;                                                 // 80
+	};
+	static_assert(sizeof(AnimationClipDataSingleton) == 0x88);
+
+	class AnimationSetDataSingleton :
+		public BSTSingletonSDM<AnimationSetDataSingleton>
+	{
+	public:
+		struct AnimationSetData
+		{
+			BSTSmallArray<BSFixedString> triggerEvents;  // 00
+			BSTArray<void*> variableExpressions;         // 18
+			uint64_t counter30;                          // 30
+			void* unk38;                                 // array? it seems to be a pointer to array contents, a few CRCs
+			uint64_t counter40;                          // 40
+			uint64_t counter48;                          // 48
+			BSTArray<void*>* cacheInfos;                 // 50, pointer to array of CRCs? list of anim files?
+			uint64_t unk58;                              // always 0?
+			uint64_t unk60;                              // always 0?
+			uint64_t counter68;                          // all 4 counters have the same value. seem relative to the amount of data in unk38
+			BSTArray<void*> attackEntries;               // 70
+		};
+		static_assert(sizeof(AnimationSetData) == 0x88);
+
+		[[nodiscard]] static AnimationSetDataSingleton* GetSingleton()
+		{
+			REL::Relocation<AnimationSetDataSingleton**> singleton{ RELOCATION_ID(515415, 401554) };
+			return *singleton;
+		}
+
+		// members
+		BSTHashMap<BSFixedString, BSTArray<AnimationSetData>*> hashMap;  // 08
+	};
+	static_assert(sizeof(AnimationSetDataSingleton) == 0x38);
+
+	struct PathingData
+	{
+		NiPoint3 unk00;
+		uint32_t unk0C;
+		BSNavmeshInfo* navmeshInfo;              // can get BSNavmesh with GetBSNavmesh_1410D7C40
+		BSTArray<BSNavmeshInfo*>* navmeshInfos;  // array of same type as unk10? can be null, possibly only filled in queries and not in the stored one in aiprocess
+		PathingCell* unk20;
+		uint16_t navmeshTriangleId;
+		uint8_t unk2A;
+		uint8_t unk2B;
+	};
 }
 
-inline RE::hkMemoryRouter& hkGetMemoryRouter() { return *(RE::hkMemoryRouter*)(uintptr_t)SKSE::WinAPI::TlsGetValue(g_dwTlsIndex); }
+inline RE::hkMemoryRouter& hkGetMemoryRouter() { return *(RE::hkMemoryRouter*)(uintptr_t)REX::W32::TlsGetValue(g_dwTlsIndex); }
 inline void* hkHeapAlloc(int numBytes) { return hkGetMemoryRouter().heap->BlockAlloc(numBytes); }

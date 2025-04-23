@@ -1,8 +1,9 @@
 #include "Hooks.h"
 
+#include "AnimationEventLog.h"
+
 #include <xbyak/xbyak.h>
 
-#include "Jobs.h"
 #include "Offsets.h"
 #include "OpenAnimationReplacer.h"
 #include "UI/UIManager.h"
@@ -30,6 +31,9 @@ namespace Hooks
 	{
 		OpenAnimationReplacer::gameTimeCounter += g_deltaTime;
 		OpenAnimationReplacer::GetSingleton().RunJobs();
+		if (!RE::UI::GetSingleton()->GameIsPaused()) {
+			OpenAnimationReplacer::GetSingleton().RunStateDataUpdates();
+		}
 		_Nullsub();
 	}
 
@@ -82,18 +86,18 @@ namespace Hooks
 	{
 		const auto activeClip = OpenAnimationReplacer::GetSingleton().GetActiveClip(a_this);
 		if (activeClip && activeClip->IsBlending()) {
-			activeClip->PreGenerate(a_this, a_context, a_output);
+			//activeClip->PreGenerate(a_this, a_context, a_output);
 
 			// if the animation is not fully loaded yet, call generate with our fake clip generator containing the previous animation instead - this avoids seeing the reference pose for a frame
 			if (a_this->userData != 0xC) {
-				_hkbClipGenerator_Generate(activeClip->GetBlendFromClipGenerator(), a_context, a_activeChildrenOutput, a_output, a_timeOffset);
+				_hkbClipGenerator_Generate(activeClip->GetLastBlendingClipGenerator(), a_context, a_activeChildrenOutput, a_output, a_timeOffset);
 				return;
 			}
 		}
 
 		_hkbClipGenerator_Generate(a_this, a_context, a_activeChildrenOutput, a_output, a_timeOffset);
 
-		if (activeClip && activeClip->IsBlending()) {
+		if (activeClip) {
 			activeClip->OnGenerate(a_this, a_context, a_output);
 		}
 	}
@@ -118,32 +122,31 @@ namespace Hooks
 		}
 	}
 
-	void HavokHooks::hkbClipGenerator_computeBeginAndEndLocalTime(RE::hkbClipGenerator* a_this, const float a_timestep, float& a_outBeginLocalTime, float& a_outEndLocalTime, int32_t& a_outLoops, bool& a_outEndOfClip)
+	void HavokHooks::BSSynchronizedClipGenerator_Activate(RE::BSSynchronizedClipGenerator* a_this, const RE::hkbContext& a_context)
 	{
-		_hkbClipGenerator_computeBeginAndEndLocalTime(a_this, a_timestep, a_outBeginLocalTime, a_outEndLocalTime, a_outLoops, a_outEndOfClip);
+		ActiveSynchronizedAnimation* activeSynchronizedAnimation = OpenAnimationReplacer::GetSingleton().GetActiveSynchronizedAnimation(a_this->synchronizedScene);
 
-		if (a_this->mode == RE::hkbClipGenerator::PlaybackMode::kModeLooping && a_outLoops > 0) {
-			// if we're here, the animation just looped
-			// recheck conditions to see if we should replace the animation
-			if (const auto activeClip = OpenAnimationReplacer::GetSingleton().GetActiveClip(a_this)) {
-				if (!activeClip->OnLoop(a_this)) {
-					auto& animationLog = AnimationLog::GetSingleton();
-					constexpr auto event = AnimationLogEntry::Event::kLoop;
-					if (animationLog.ShouldLogAnimations() && animationLog.ShouldLogAnimationsForActiveClip(activeClip, event)) {
-						animationLog.LogAnimation(event, activeClip, activeClip->GetCharacter());
-					}
-				}
-			}
+		if (activeSynchronizedAnimation) {
+			activeSynchronizedAnimation->OnSynchronizedClipPreActivate(a_this, a_context);
+		} else {
+			ActiveScenelessSynchronizedClip* activeScenelessSynchronizedClip = OpenAnimationReplacer::GetSingleton().AddOrGetActiveScenelessSynchronizedClip(a_this, a_context);
+			activeScenelessSynchronizedClip->OnSynchronizedClipActivate(a_this, a_context);
+		}
+
+		_BSSynchronizedClipGenerator_Activate(a_this, a_context);
+
+		if (activeSynchronizedAnimation) {
+			activeSynchronizedAnimation->OnSynchronizedClipPostActivate(a_this, a_context);
 		}
 	}
 
-	void HavokHooks::BSSynchronizedClipGenerator_Activate(RE::BSSynchronizedClipGenerator* a_this, const RE::hkbContext& a_context)
+	void HavokHooks::BSSynchronizedClipGenerator_Update(RE::BSSynchronizedClipGenerator* a_this, const RE::hkbContext& a_context, float a_timestep)
 	{
-		const auto activeSynchronizedAnimation = OpenAnimationReplacer::GetSingleton().AddOrGetActiveSynchronizedAnimation(a_this->synchronizedScene, a_context);
+		OpenAnimationReplacer::GetSingleton().OnSynchronizedClipPreUpdate(a_this, a_context, a_timestep);
 
-		activeSynchronizedAnimation->OnSynchronizedClipActivate(a_this, a_context);
+		_BSSynchronizedClipGenerator_Update(a_this, a_context, a_timestep);
 
-		_BSSynchronizedClipGenerator_Activate(a_this, a_context);
+		OpenAnimationReplacer::GetSingleton().OnSynchronizedClipPostUpdate(a_this, a_context, a_timestep);
 	}
 
 	void HavokHooks::BSSynchronizedClipGenerator_Deactivate(RE::BSSynchronizedClipGenerator* a_this, const RE::hkbContext& a_context)
@@ -158,6 +161,35 @@ namespace Hooks
 		OpenAnimationReplacer::GetSingleton().RemoveActiveSynchronizedAnimation(a_this);
 
 		_BGSSynchronizedAnimationInstance_dtor(a_this);
+	}
+
+	void HavokHooks::BGSSynchronizedAnimationInstance_OnDeactivate(RE::BGSSynchronizedAnimationInstance* a_this)
+	{
+		if (const auto activeSynchronizedAnimation = OpenAnimationReplacer::GetSingleton().GetActiveSynchronizedAnimation(a_this)) {
+			if (activeSynchronizedAnimation->IsTransitioning()) {
+				return;
+			}
+		}
+
+		_BGSSynchronizedAnimationInstance_OnDeactivate(a_this);
+	}
+
+	void HavokHooks::BGSSynchronizedAnimationInstance_Func9(RE::BGSSynchronizedAnimationInstance* a_this)
+	{
+		if (const auto activeSynchronizedAnimation = OpenAnimationReplacer::GetSingleton().GetActiveSynchronizedAnimation(a_this)) {
+			if (activeSynchronizedAnimation->IsTransitioning()) {
+				return;
+			}
+		}
+
+		_BGSSynchronizedAnimationInstance_Func9(a_this);
+	}
+
+	void HavokHooks::BGSSynchronizedAnimationInstance_Init(RE::BGSSynchronizedAnimationInstance* a_this)
+	{
+		_BGSSynchronizedAnimationInstance_Init(a_this);
+
+		OpenAnimationReplacer::GetSingleton().AddOrGetActiveSynchronizedAnimation(a_this);
 	}
 
 	void HavokHooks::hkbBehaviorGraph_Update(RE::hkbBehaviorGraph* a_this, const RE::hkbContext& a_context, float a_timestep)
@@ -176,6 +208,36 @@ namespace Hooks
 		if (const auto activeAnimationPreview = OpenAnimationReplacer::GetSingleton().GetActiveAnimationPreview(a_context.character->behaviorGraph.get())) {
 			activeAnimationPreview->OnGenerate(a_this, a_context, a_output);
 		}
+	}
+
+	bool HavokHooks::TESObjectREFR_IAnimationGraphManagerHolder_NotifyAnimationGraph(RE::IAnimationGraphManagerHolder* a_this, const RE::BSFixedString& a_eventName)
+	{
+		const bool result = _TESObjectREFR_IAnimationGraphManagerHolder_NotifyAnimationGraph(a_this, a_eventName);
+
+		auto& animationEventLog = AnimationEventLog::GetSingleton();
+		animationEventLog.TryAddEvent(a_this, a_eventName, result);
+
+		return result;
+	}
+
+	bool HavokHooks::Character_IAnimationGraphManagerHolder_NotifyAnimationGraph(RE::IAnimationGraphManagerHolder* a_this, const RE::BSFixedString& a_eventName)
+	{
+		const bool result = _Character_IAnimationGraphManagerHolder_NotifyAnimationGraph(a_this, a_eventName);
+
+		auto& animationEventLog = AnimationEventLog::GetSingleton();
+		animationEventLog.TryAddEvent(a_this, a_eventName, result);
+
+		return result;
+	}
+
+	bool HavokHooks::PlayerCharacter_IAnimationGraphManagerHolder_NotifyAnimationGraph(RE::IAnimationGraphManagerHolder* a_this, const RE::BSFixedString& a_eventName)
+	{
+		const bool result = _PlayerCharacter_IAnimationGraphManagerHolder_NotifyAnimationGraph(a_this, a_eventName);
+
+		auto& animationEventLog = AnimationEventLog::GetSingleton();
+		animationEventLog.TryAddEvent(a_this, a_eventName, result);
+
+		return result;
 	}
 
 	void HavokHooks::LoadClips(RE::hkbCharacterStringData* a_stringData, RE::hkbAnimationBindingSet* a_bindingSet, void* a_assetLoader, RE::hkbBehaviorGraph* a_rootBehavior, const char* a_animationPath, RE::BSTHashMap<RE::BSFixedString, uint32_t>* a_annotationToEventIdMap)
@@ -300,7 +362,7 @@ namespace Hooks
 
 	void HavokHooks::OnCreateSynchronizedClipBinding(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, RE::hkbCharacter* a_character)
 	{
-		a_synchronizedClipGenerator->synchronizedAnimationBindingIndex -= OpenAnimationReplacer::GetSingleton().GetSynchronizedClipsIDOffset(a_character);
+		a_synchronizedClipGenerator->animationBindingIndex -= OpenAnimationReplacer::GetSingleton().GetSynchronizedClipsIDOffset(a_character);
 	}
 
 	void HavokHooks::PatchUnsignedAnimationBindingIndex()

@@ -33,16 +33,16 @@ namespace OAR_API::Animations
 		[[nodiscard]] virtual ReplacementAnimationInfo GetCurrentReplacementAnimationInfo(RE::hkbClipGenerator* a_clipGenerator) noexcept = 0;
 
 		/// <summary>
-		///	Clears all random float results used in conditions and variants in active clips for a clip generator.
+		///	Clears all condition state data related to a clip generator.
 		///	</summary>
-		/// <param name="a_clipGenerator">The clip generator to clear the random float results for.</param>
-		virtual void ClearRandomFloats(RE::hkbClipGenerator* a_clipGenerator) noexcept = 0;
+		/// <param name="a_clipGenerator">The clip generator to clear related condition state data for.</param>
+		virtual void ClearConditionStateData(RE::hkbClipGenerator* a_clipGenerator) noexcept = 0;
 
 		/// <summary>
-		///	Clears all random float results used in conditions and variants in active clips for a refr.
+		///	Clears all condition state data related to a refr.
 		///	</summary>
-		/// <param name="a_refr">The refr to clear the random float results for.</param>
-		virtual void ClearRandomFloats(RE::TESObjectREFR* a_refr) noexcept = 0;
+		/// <param name="a_refr">The refr to clear related condition state data for.</param>
+		virtual void ClearConditionStateData(RE::TESObjectREFR* a_refr) noexcept = 0;
 	};
 
 	using IAnimationsInterface = IAnimationsInterface1;

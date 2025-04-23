@@ -143,22 +143,35 @@ namespace Jobs
 		}
 	};
 
+	struct ReloadReplacerModConfigJob : GenericJob
+	{
+		ReloadReplacerModConfigJob(ReplacerMod* a_replacerMod) :
+			replacerMod(a_replacerMod) {}
+
+		ReplacerMod* replacerMod;
+
+		void Run() override
+		{
+			replacerMod->ReloadConfig();
+		}
+	};
+
 	struct BeginPreviewAnimationJob : GenericJob
 	{
-		BeginPreviewAnimationJob(RE::TESObjectREFR* a_refr, const ReplacementAnimation* a_replacementAnimation, std::optional<uint16_t> a_variantIndex = std::nullopt) :
+		BeginPreviewAnimationJob(RE::TESObjectREFR* a_refr, const ReplacementAnimation* a_replacementAnimation, Variant* a_variant = nullptr) :
 			refr(a_refr),
 			replacementAnimation(a_replacementAnimation),
-			variantIndex(a_variantIndex) {}
+			variant(a_variant) {}
 
-		BeginPreviewAnimationJob(RE::TESObjectREFR* a_refr, const ReplacementAnimation* a_replacementAnimation, std::string_view a_syncAnimationPrefix, std::optional<uint16_t> a_variantIndex = std::nullopt) :
+		BeginPreviewAnimationJob(RE::TESObjectREFR* a_refr, const ReplacementAnimation* a_replacementAnimation, std::string_view a_syncAnimationPrefix, Variant* a_variant = nullptr) :
 			refr(a_refr),
 			replacementAnimation(a_replacementAnimation),
 			syncAnimationPrefix(a_syncAnimationPrefix),
-			variantIndex(a_variantIndex) {}
+			variant(a_variant) {}
 
 		RE::TESObjectREFR* refr;
 		const ReplacementAnimation* replacementAnimation;
-		std::optional<uint16_t> variantIndex;
+		Variant* variant;
 		std::string syncAnimationPrefix{};
 
 		void Run() override;
@@ -174,26 +187,18 @@ namespace Jobs
 		void Run() override;
 	};
 
-	struct RemoveSharedRandomFloatJob : LatentJob
+	struct RemoveConditionPresetJob : GenericJob
 	{
-		RemoveSharedRandomFloatJob(float a_delay, SubMod* a_subMod, RE::hkbBehaviorGraph* a_behaviorGraph) :
-			LatentJob(a_delay),
-			subMod(a_subMod),
-			behaviorGraph(a_behaviorGraph) {}
+		RemoveConditionPresetJob(ReplacerMod* a_replacerMod, std::string_view a_conditionPresetName) :
+			replacerMod(a_replacerMod),
+			conditionPresetName(a_conditionPresetName) {}
 
-		SubMod* subMod;
-		RE::hkbBehaviorGraph* behaviorGraph;
+		ReplacerMod* replacerMod;
+		std::string conditionPresetName;
 
-		bool Run(float a_deltaTime) override
+		void Run() override
 		{
-			_timeRemaining -= a_deltaTime;
-
-			if (_timeRemaining > 0.f) {
-				return false;
-			}
-
-			subMod->ClearSharedRandom(behaviorGraph);
-			return true;
+			replacerMod->RemoveConditionPreset(conditionPresetName);
 		}
 	};
 }

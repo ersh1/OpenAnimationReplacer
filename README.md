@@ -13,7 +13,7 @@ A SKSE framework plugin that replaces animations depending on configurable condi
   - Add the environment variable `VCPKG_ROOT` with the value as the path to the folder containing vcpkg
 - [Visual Studio Community 2019](https://visualstudio.microsoft.com/)
   - Desktop development with C++
-- [CommonLibSSENG](https://github.com/ersh1/CommonLibSSE/tree/ng)
+- [CommonLibSSENG](https://github.com/alandtse/CommonLibVR/tree/ng)
   - Add this as as an environment variable `CommonLibSSEPath`
 
 ## User Requirements

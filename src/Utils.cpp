@@ -2,6 +2,8 @@
 
 #include "BaseConditions.h"
 #include "Offsets.h"
+#include "Settings.h"
+
 #include <ranges>
 
 namespace Utils
@@ -93,6 +95,69 @@ namespace Utils
 		return it != a_string.end();
 	}
 
+	size_t FindStringIgnoreCase(std::string_view a_string, std::string_view a_substring)
+	{
+		const auto it = std::ranges::search(a_string, a_substring, [](const char a_a, const char a_b) {
+			return std::tolower(a_a) == std::tolower(a_b);
+		}).begin();
+
+		if (it != a_string.end()) {
+			return std::distance(a_string.begin(), it);
+		}
+
+		return std::string::npos;
+	}
+
+	bool CheckPathLength(std::filesystem::path a_path)
+	{
+		auto absolutePath = a_path;
+		if (a_path.is_relative()) {
+			auto currentPath = std::filesystem::current_path();
+			absolutePath = currentPath / a_path;
+		}
+
+		return absolutePath.wstring().size() < MAX_PATH;
+	}
+
+	bool Exists(std::filesystem::path a_path)
+	{
+		return std::filesystem::exists(a_path);
+	}
+
+	bool IsDirectory(std::filesystem::path a_path)
+	{
+		//DWORD attributes = GetFileAttributesW(a_path.c_str());
+		//return (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY));
+
+		/*if (!CheckPathLength(a_path)) {
+			return false;
+		}*/
+
+		return std::filesystem::is_directory(a_path);
+	}
+
+	bool IsDirectory(const std::filesystem::directory_entry& a_entry)
+	{
+		return IsDirectory(a_entry.path());
+	}
+
+	bool IsRegularFile(std::filesystem::path a_path)
+	{
+		//DWORD attributes = GetFileAttributesW(a_path.c_str());
+		//return (attributes != INVALID_FILE_ATTRIBUTES && !(attributes & FILE_ATTRIBUTE_DIRECTORY));
+
+		/*if (!CheckPathLength(a_path)) {
+			return false;
+		}*/
+
+		return std::filesystem::is_regular_file(a_path);
+	}
+
+	bool IsRegularFile(const std::filesystem::directory_entry& a_entry)
+	{
+		return IsRegularFile(a_entry.path());
+	}
+
 	std::string GetFormNameString(const RE::TESForm* a_form)
 	{
 		if (a_form) {
@@ -175,12 +240,13 @@ namespace Utils
 
 	bool ConditionHasRandomResult(Conditions::ICondition* a_condition)
 	{
-		for (uint32_t i = 0; i < a_condition->GetNumComponents(); ++i) {
-			if (!a_condition->IsDisabled()) {
+		if (!a_condition->IsDisabled()) {
+			if (CompareStringsIgnoreCase(a_condition->GetName(), "Random"sv)) {
+				return true;
+			}
+
+			for (uint32_t i = 0; i < a_condition->GetNumComponents(); ++i) {
 				if (const auto component = a_condition->GetComponent(i)) {
-					if (component->GetType() == Conditions::ConditionComponentType::kRandom) {
-						return true;
-					}
 					if (component->GetType() == Conditions::ConditionComponentType::kMulti) {
 						const auto multiComponent = static_cast<Conditions::IMultiConditionComponent*>(component);
 						if (const auto conditionSet = multiComponent->GetConditions()) {
@@ -208,6 +274,64 @@ namespace Utils
 
 			if (result == RE::BSVisit::BSVisitControl::kStop) {
 				return true;
+			}
+		}
+
+		return false;
+	}
+
+	bool ConditionHasPresetCondition(Conditions::ICondition* a_condition)
+	{
+		if (!a_condition->IsDisabled()) {
+			if (a_condition->GetConditionType() == Conditions::ConditionType::kPreset) {
+				return true;
+			}
+
+			for (uint32_t i = 0; i < a_condition->GetNumComponents(); ++i) {
+				if (const auto component = a_condition->GetComponent(i)) {
+					if (component->GetType() == Conditions::ConditionComponentType::kMulti) {
+						const auto multiComponent = static_cast<Conditions::IMultiConditionComponent*>(component);
+						if (const auto conditionSet = multiComponent->GetConditions()) {
+							if (ConditionSetHasPresetCondition(conditionSet)) {
+								return true;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return false;
+	}
+
+	bool ConditionSetHasPresetCondition(Conditions::ConditionSet* a_conditionSet)
+	{
+		if (a_conditionSet) {
+			const auto result = a_conditionSet->ForEachCondition([&](auto& a_childCondition) {
+				if (ConditionHasPresetCondition(a_childCondition.get())) {
+					return RE::BSVisit::BSVisitControl::kStop;
+				}
+				return RE::BSVisit::BSVisitControl::kContinue;
+			});
+
+			if (result == RE::BSVisit::BSVisitControl::kStop) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	bool ConditionHasStateComponentWithSharedScope(Conditions::ICondition* a_condition)
+	{
+		for (uint32_t i = 0; i < a_condition->GetNumComponents(); ++i) {
+			if (const auto component = a_condition->GetComponent(i)) {
+				if (component->GetType() == Conditions::ConditionComponentType::kState) {
+					const auto stateComponent = static_cast<Conditions::IConditionStateComponent*>(component);
+					if (stateComponent->GetStateDataScope() > Conditions::StateDataScope::kLocal) {
+						return true;
+					}
+				}
 			}
 		}
 
@@ -277,6 +401,10 @@ namespace Utils
 
 	bool GetTarget([[maybe_unused]] RE::Actor* a_actor, RE::TESObjectREFRPtr& a_outPtr)
 	{
+		if (const auto target = Actor_GetTarget(a_actor)) {
+			return target;
+		}
+
 		if (const auto process = a_actor->GetActorRuntimeData().currentProcess) {
 			return RE::LookupReferenceByHandle(process->target, a_outPtr);
 		}
@@ -419,12 +547,116 @@ namespace Utils
 		if (g_mergeMapperInterface) {
 			const auto [newModName, newFormID] = g_mergeMapperInterface->GetNewFormID(a_modName.data(), a_localFormID);
 			formID = RE::TESDataHandler::GetSingleton()->LookupFormID(newFormID, newModName);
-			if ((newModName != a_modName) || (newFormID != a_localFormID))
+			if ((newModName != a_modName) || (newFormID != a_localFormID)) {
 				logger::info("Mergemapper searched for 0x{:x}~{} and found 0x{:x}~{}; returning formid 0x{:x}", a_localFormID, a_modName, newFormID, newModName, formID);
+			}
 		} else {
 			formID = RE::TESDataHandler::GetSingleton()->LookupFormID(a_localFormID, a_modName);
 		}
 
 		return formID ? RE::TESForm::LookupByID(formID) : nullptr;
+	}
+
+	uint32_t GetAnimationGraphIndex(const RE::BSAnimationGraphManager* a_graphManager, const RE::BSTEventSource<RE::BSAnimationGraphEvent>* a_eventSource)
+	{
+		if (a_graphManager) {
+			for (uint32_t index = 0; index < a_graphManager->graphs.size(); ++index) {
+				const auto& animationGraph = a_graphManager->graphs[index];
+				const auto eventSource = animationGraph->GetEventSource<RE::BSAnimationGraphEvent>();
+				if (a_eventSource == eventSource) {
+					return index;
+				}
+			}
+		}
+
+		return 0;
+	}
+
+	RE::NiPointer<RE::TESObjectREFR> GetConsoleRefr()
+	{
+		static REL::Relocation<RE::ObjectRefHandle*> selectedRef{ RELOCATION_ID(519394, AE_CHECK(SKSE::RUNTIME_SSE_1_6_1130, 405935, 504099)) };
+		return selectedRef->get();
+	}
+
+	bool DoesUserConfigExist(std::string_view a_path)
+	{
+		std::filesystem::path jsonPath(a_path);
+		jsonPath = jsonPath / "user.json"sv;
+
+		return Utils::IsRegularFile(jsonPath);
+	}
+
+	void DeleteUserConfig(std::string_view a_path)
+	{
+		std::filesystem::path jsonPath(a_path);
+		jsonPath = jsonPath / "user.json"sv;
+
+		if (Utils::IsRegularFile(jsonPath)) {
+			std::filesystem::remove(jsonPath);
+		}
+	}
+
+	RE::hkVector4 NormalizeHkVector4(const RE::hkVector4& a_vector)
+	{
+		const auto dot = _mm_dp_ps(a_vector.quad, a_vector.quad, 0xFF);
+		const auto length = _mm_sqrt_ps(dot);
+		return _mm_div_ps(a_vector.quad, length);
+	}
+
+	RE::hkVector4 Mix(const RE::hkVector4& a_vecA, const RE::hkVector4& a_vecB, float a_alpha)
+	{
+		RE::hkVector4 d = a_vecB - a_vecA;
+		return a_vecA + d * a_alpha;
+	}
+
+	bool GetSurfaceNormal(RE::TESObjectREFR* a_refr, RE::hkVector4& a_outVector, bool a_bUseNavmesh)
+	{
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				// try navmesh first
+				if (a_bUseNavmesh) {
+					RE::PathingData pathingData;
+					Pathing_DataCtor1(*g_pathingSingleton, pathingData, actor);
+					if (pathingData.navmeshInfo) {
+						RE::BSTSmartPointer<RE::BSNavmesh> navmesh;
+						if (BSNavmeshInfo_GetBSNavmesh(pathingData.navmeshInfo, navmesh)) {
+							if (pathingData.navmeshTriangleId != 0xFFFF) {
+								const auto& triangle = navmesh->triangles[pathingData.navmeshTriangleId];
+								const auto& A = navmesh->vertices[triangle.vertices[0]].location;
+								const auto& B = navmesh->vertices[triangle.vertices[1]].location;
+								const auto& C = navmesh->vertices[triangle.vertices[2]].location;
+
+								// calculate surface normal
+								const auto edge1 = B - A;
+								const auto edge2 = C - A;
+								const auto normal = edge1.UnitCross(edge2);
+
+								if (Settings::bEnableDebugDraws && Settings::g_trueHUD) {
+									Settings::g_trueHUD->DrawLine(A, B);
+									Settings::g_trueHUD->DrawLine(B, C);
+									Settings::g_trueHUD->DrawLine(C, A);
+
+									const auto center = (A + B + C) / 3.f;
+									Settings::g_trueHUD->DrawArrow(center, center + normal * 50.f);
+								}
+
+								a_outVector = NiPointToHkVector(normal);
+								return true;
+							}
+						}
+					}
+					PathingData_dtor(&pathingData);
+				}
+
+				// fallback to character controller
+				if (const auto charController = actor->GetCharController()) {
+					//a_outVector = charController->supportNorm;
+					a_outVector = charController->surfaceInfo.surfaceNormal;
+					return true;
+				}
+			}
+		}
+
+		return false;
 	}
 }

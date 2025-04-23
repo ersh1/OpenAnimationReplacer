@@ -12,6 +12,26 @@
 #include <future>
 #include <ranges>
 
+bool OpenAnimationReplacer::StateDataUpdate(float a_deltaTime)
+{
+	return _conditionStateData.UpdateData(a_deltaTime);
+}
+
+bool OpenAnimationReplacer::StateDataOnLoopOrEcho(RE::ObjectRefHandle a_refHandle, ActiveClip* a_activeClip, bool a_bIsEcho)
+{
+	return _conditionStateData.OnLoopOrEcho(a_refHandle, a_activeClip, a_bIsEcho);
+}
+
+bool OpenAnimationReplacer::StateDataClearRefrData(RE::ObjectRefHandle a_refHandle)
+{
+	return _conditionStateData.ClearRefrData(a_refHandle);
+}
+
+void OpenAnimationReplacer::StateDataClearData()
+{
+	_conditionStateData.Clear();
+}
+
 void OpenAnimationReplacer::OnDataLoaded()
 {
 	if (Settings::bShowWelcomeBanner) {
@@ -147,7 +167,6 @@ void OpenAnimationReplacer::InitializeReplacementAnimations(RE::hkbCharacterStri
 		projectData->ForEach([](auto a_animationReplacements) {
 			a_animationReplacements->TestInterruptible();
 			a_animationReplacements->TestReplaceOnEcho();
-			a_animationReplacements->TestKeepRandomResultsOnLoop();
 			a_animationReplacements->SortByPriority();
 		});
 	}
@@ -172,6 +191,17 @@ ActiveClip* OpenAnimationReplacer::GetActiveClip(RE::hkbClipGenerator* a_clipGen
 
 	if (const auto search = _activeClips.find(a_clipGenerator); search != _activeClips.end()) {
 		return search->second.get();
+	}
+
+	return nullptr;
+}
+
+std::shared_ptr<ActiveClip> OpenAnimationReplacer::GetActiveClipSharedPtr(RE::hkbClipGenerator* a_clipGenerator) const
+{
+	ReadLocker locker(_activeClipsLock);
+
+	if (const auto search = _activeClips.find(a_clipGenerator); search != _activeClips.end()) {
+		return search->second;
 	}
 
 	return nullptr;
@@ -227,7 +257,7 @@ ActiveClip* OpenAnimationReplacer::AddOrGetActiveClip(RE::hkbClipGenerator* a_cl
 
 	auto [newClipIt, result] = _activeClips.try_emplace(a_clipGenerator, nullptr);
 	if (result) {
-		newClipIt->second = std::make_unique<ActiveClip>(a_clipGenerator, a_context.character, a_context.behavior);
+		newClipIt->second = std::make_shared<ActiveClip>(a_clipGenerator, a_context.character, a_context.behavior);
 	}
 
 	a_bOutAdded = result;
@@ -236,11 +266,41 @@ ActiveClip* OpenAnimationReplacer::AddOrGetActiveClip(RE::hkbClipGenerator* a_cl
 
 void OpenAnimationReplacer::RemoveActiveClip(RE::hkbClipGenerator* a_clipGenerator)
 {
-	WriteLocker locker(_activeClipsLock);
+	std::shared_ptr<ActiveClip> activeClip = nullptr;
 
-	if (const auto search = _activeClips.find(a_clipGenerator); search != _activeClips.end()) {
-		if (const auto& activeClip = search->second; !activeClip->IsTransitioning()) {
-			_activeClips.erase(search);
+	{
+		WriteLocker locker(_activeClipsLock);
+
+		if (const auto search = _activeClips.find(a_clipGenerator); search != _activeClips.end()) {
+			if (!search->second->IsTransitioning()) {
+				activeClip = search->second;  // keep it alive until we release the lock
+				_activeClips.erase(search);
+			}
+		}
+	}
+}
+
+void OpenAnimationReplacer::ForEachActiveClip(const std::function<void(ActiveClip*)>& a_func) const
+{
+	ReadLocker locker(_activeClipsLock);
+
+	for (auto& activeClip : _activeClips | std::views::values) {
+		a_func(activeClip.get());
+	}
+}
+
+void OpenAnimationReplacer::OnActiveClipLoopOrEcho(ActiveClip* a_activeClip, bool a_bIsEcho)
+{
+	const auto refr = a_activeClip->GetRefr();
+
+	WriteLocker locker(_stateDataLock);
+
+	for (auto it = _registeredStateDatas.begin(); it != _registeredStateDatas.end();) {
+		const auto registeredStateDataContainer = *it;
+		if (!registeredStateDataContainer->StateDataOnLoopOrEcho(refr->GetHandle(), a_activeClip, a_bIsEcho)) {
+			it = _registeredStateDatas.erase(it);
+		} else {
+			++it;
 		}
 	}
 }
@@ -259,16 +319,27 @@ ActiveSynchronizedAnimation* OpenAnimationReplacer::GetActiveSynchronizedAnimati
 	return nullptr;
 }
 
-ActiveSynchronizedAnimation* OpenAnimationReplacer::AddOrGetActiveSynchronizedAnimation(RE::BGSSynchronizedAnimationInstance* a_synchronizedAnimationInstance, const RE::hkbContext& a_context)
+ActiveSynchronizedAnimation* OpenAnimationReplacer::AddOrGetActiveSynchronizedAnimation(RE::BGSSynchronizedAnimationInstance* a_synchronizedAnimationInstance)
 {
 	WriteLocker locker(_activeSynchronizedAnimationsLock);
 
 	auto [newClipIt, result] = _activeSynchronizedAnimations.try_emplace(a_synchronizedAnimationInstance, nullptr);
 	if (result) {
-		newClipIt->second = std::make_unique<ActiveSynchronizedAnimation>(a_synchronizedAnimationInstance, a_context);
+		newClipIt->second = std::make_unique<ActiveSynchronizedAnimation>(a_synchronizedAnimationInstance);
 	}
 
 	return newClipIt->second.get();
+}
+
+ActiveSynchronizedAnimation* OpenAnimationReplacer::GetActiveSynchronizedAnimation(RE::BGSSynchronizedAnimationInstance* a_synchronizedAnimationInstance)
+{
+	ReadLocker locker(_activeSynchronizedAnimationsLock);
+
+	if (const auto search = _activeSynchronizedAnimations.find(a_synchronizedAnimationInstance); search != _activeSynchronizedAnimations.end()) {
+		return search->second.get();
+	}
+
+	return nullptr;
 }
 
 void OpenAnimationReplacer::RemoveActiveSynchronizedAnimation(RE::BGSSynchronizedAnimationInstance* a_synchronizedAnimationInstance)
@@ -278,16 +349,75 @@ void OpenAnimationReplacer::RemoveActiveSynchronizedAnimation(RE::BGSSynchronize
 	_activeSynchronizedAnimations.erase(a_synchronizedAnimationInstance);
 }
 
-void OpenAnimationReplacer::OnSynchronizedClipDeactivate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context)
+void OpenAnimationReplacer::OnSynchronizedClipPreUpdate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context, float a_timestep)
 {
 	ReadLocker locker(_activeSynchronizedAnimationsLock);
 
 	if (const auto synchronizedAnimationInstance = a_synchronizedClipGenerator->synchronizedScene) {
-		auto search = _activeSynchronizedAnimations.find(synchronizedAnimationInstance);
-		if (search != _activeSynchronizedAnimations.end()) {
-			search->second->OnSynchronizedClipDeactivate(a_synchronizedClipGenerator, a_context);
+		if (const auto search = _activeSynchronizedAnimations.find(synchronizedAnimationInstance); search != _activeSynchronizedAnimations.end()) {
+			search->second->OnSynchronizedClipPreUpdate(a_synchronizedClipGenerator, a_context, a_timestep);
 		}
 	}
+}
+
+void OpenAnimationReplacer::OnSynchronizedClipPostUpdate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context, float a_timestep)
+{
+	ReadLocker locker(_activeSynchronizedAnimationsLock);
+
+	if (const auto synchronizedAnimationInstance = a_synchronizedClipGenerator->synchronizedScene) {
+		if (const auto search = _activeSynchronizedAnimations.find(synchronizedAnimationInstance); search != _activeSynchronizedAnimations.end()) {
+			search->second->OnSynchronizedClipPostUpdate(a_synchronizedClipGenerator, a_context, a_timestep);
+		}
+	}
+}
+
+void OpenAnimationReplacer::OnSynchronizedClipDeactivate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context)
+{
+	{
+		ReadLocker locker(_activeSynchronizedAnimationsLock);
+		if (const auto synchronizedAnimationInstance = a_synchronizedClipGenerator->synchronizedScene) {
+			if (const auto search = _activeSynchronizedAnimations.find(synchronizedAnimationInstance); search != _activeSynchronizedAnimations.end()) {
+				search->second->OnSynchronizedClipDeactivate(a_synchronizedClipGenerator, a_context);
+
+				return;
+			}
+		}
+	}
+
+	if (const auto scenelessClip = GetActiveScenelessSynchronizedClip(a_synchronizedClipGenerator, a_context)) {
+		scenelessClip->OnSynchronizedClipDeactivate(a_synchronizedClipGenerator, a_context);
+		RemoveScenelessSynchronizedClip(a_synchronizedClipGenerator);
+	}
+}
+
+ActiveScenelessSynchronizedClip* OpenAnimationReplacer::GetActiveScenelessSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, [[maybe_unused]] const RE::hkbContext& a_context) const
+{
+	ReadLocker locker(_activeSynchronizedAnimationsLock);
+
+	if (const auto search = _activeScenelessSynchronizedClips.find(a_synchronizedClipGenerator); search != _activeScenelessSynchronizedClips.end()) {
+		return search->second.get();
+	}
+
+	return nullptr;
+}
+
+ActiveScenelessSynchronizedClip* OpenAnimationReplacer::AddOrGetActiveScenelessSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, [[maybe_unused]] const RE::hkbContext& a_context)
+{
+	WriteLocker locker(_activeSynchronizedAnimationsLock);
+
+	auto [newClipIt, result] = _activeScenelessSynchronizedClips.try_emplace(a_synchronizedClipGenerator, nullptr);
+	if (result) {
+		newClipIt->second = std::make_unique<ActiveScenelessSynchronizedClip>(a_synchronizedClipGenerator);
+	}
+
+	return newClipIt->second.get();
+}
+
+void OpenAnimationReplacer::RemoveScenelessSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator)
+{
+	WriteLocker locker(_activeSynchronizedAnimationsLock);
+
+	_activeScenelessSynchronizedClips.erase(a_synchronizedClipGenerator);
 }
 
 ActiveAnimationPreview* OpenAnimationReplacer::GetActiveAnimationPreview(RE::hkbBehaviorGraph* a_behaviorGraph) const
@@ -301,11 +431,11 @@ ActiveAnimationPreview* OpenAnimationReplacer::GetActiveAnimationPreview(RE::hkb
 	return nullptr;
 }
 
-void OpenAnimationReplacer::AddActiveAnimationPreview(RE::hkbBehaviorGraph* a_behaviorGraph, const ReplacementAnimation* a_replacementAnimation, std::string_view a_syncAnimationPrefix, std::optional<uint16_t> a_variantIndex /* = std::nullopt*/)
+void OpenAnimationReplacer::AddActiveAnimationPreview(RE::hkbBehaviorGraph* a_behaviorGraph, const ReplacementAnimation* a_replacementAnimation, std::string_view a_syncAnimationPrefix, Variant* a_variant)
 {
 	WriteLocker locker(_activeAnimationPreviewsLock);
 
-	_activeAnimationPreviews[a_behaviorGraph] = std::make_unique<ActiveAnimationPreview>(a_behaviorGraph, a_replacementAnimation, a_syncAnimationPrefix, a_variantIndex);
+	_activeAnimationPreviews[a_behaviorGraph] = std::make_unique<ActiveAnimationPreview>(a_behaviorGraph, a_replacementAnimation, a_syncAnimationPrefix, a_variant);
 }
 
 void OpenAnimationReplacer::RemoveActiveAnimationPreview(RE::hkbBehaviorGraph* a_behaviorGraph)
@@ -345,36 +475,22 @@ bool OpenAnimationReplacer::ShouldOriginalAnimationReplaceOnEcho(RE::hkbCharacte
 	return false;
 }
 
-bool OpenAnimationReplacer::ShouldOriginalAnimationKeepRandomResultsOnLoop(RE::hkbCharacter* a_character, uint16_t a_originalIndex) const
-{
-	if (a_originalIndex != static_cast<uint16_t>(-1) && a_character) {
-		if (const auto stringData = Utils::GetStringDataFromHkbCharacter(a_character)) {
-			if (const auto replacerProjectData = GetReplacerProjectData(stringData)) {
-				if (const auto animationReplacements = replacerProjectData->GetAnimationReplacements(a_originalIndex)) {
-					return animationReplacements->ShouldOriginalKeepRandomResultsOnLoop();
-				}
-			}
-		}
-	}
-
-	return false;
-}
-
 void OpenAnimationReplacer::CreateReplacerMods()
 {
+	logger::info("Creating replacer mods...");
+
 	// parse the meshes directory for all the mods/submods, create objects
 	Locker parseLocker(_parseLock);
 
-	logger::info("Creating replacer mods...");
 	auto startTime = std::chrono::high_resolution_clock::now();
 
 	if (!AreFactoriesInitialized()) {
 		InitFactories();
 	}
 
-	auto factoriesInitedTime = std::chrono::high_resolution_clock::now();
-
 	constexpr auto meshesPath = "data\\meshes\\"sv;
+	/*const auto currentPath = std::filesystem::current_path();
+	const auto meshesPath = "\\\\?\\" + currentPath.string() + "\\data\\meshes\\";*/
 
 	Parsing::ParseResults parseResults;
 	logger::info("Parsing data\\meshes for replacer mods...");
@@ -416,7 +532,7 @@ void OpenAnimationReplacer::CreateReplacerMods()
 
 	auto endTime = std::chrono::high_resolution_clock::now();
 
-	logger::info("Time spent creating replacer mods...:");
+	logger::info("Time spent creating replacer mods:");
 	logger::info("  Parsing: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfParsingTime - startTime).count());
 	logger::info("  Adding mods: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfModsTime - endOfParsingTime).count());
 	logger::info("  Adding legacy mods: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfLegacyModsTime - endOfModsTime).count());
@@ -433,6 +549,8 @@ void OpenAnimationReplacer::CreateReplacementAnimations([[maybe_unused]] const c
 	logger::info("Creating replacement animations for {}...", a_path);
 	auto startTime = std::chrono::high_resolution_clock::now();
 
+	/*const auto currentPath = std::filesystem::current_path();
+	const auto meshesPath = "\\\\?\\" + currentPath.string() + "\\data\\meshes\\";*/
 	constexpr auto meshesPath = "data\\meshes\\"sv;
 	const auto projectPath = std::filesystem::path(meshesPath) / a_path;
 
@@ -471,6 +589,7 @@ void OpenAnimationReplacer::CreateReplacementAnimations([[maybe_unused]] const c
 	auto endOfParsingTime = std::chrono::high_resolution_clock::now();
 
 	for (auto& subMod : subModsToUpdate) {
+		subMod->HandleDeprecatedSettings();
 		subMod->UpdateAnimations();
 	}
 
@@ -635,7 +754,9 @@ void OpenAnimationReplacer::LoadAnimation(RE::hkbCharacter* a_character, uint16_
 	const auto clipGenerator = reinterpret_cast<RE::hkbClipGenerator*>(&dummyClipGenerator);
 
 	RE::AnimationFileManagerSingleton::GetSingleton()->Queue(*reinterpret_cast<RE::hkbContext*>(&a_character), clipGenerator, nullptr);
-	//RE::AnimationFileManagerSingleton::GetSingleton()->Unk_02(*reinterpret_cast<RE::hkbContext*>(&a_character), clipGenerator, nullptr);
+	//RE::AnimationFileManagerSingleton::GetSingleton()->Load(*reinterpret_cast<RE::hkbContext*>(&a_character), clipGenerator, nullptr);
+	//RE::AnimationFileManagerSingleton::GetSingleton()->Unk_04(*reinterpret_cast<RE::hkbContext*>(&a_character), a_animationIndex);
+	//RE::AnimationFileManagerSingleton::GetSingleton()->Unk_05(*reinterpret_cast<RE::hkbContext*>(&a_character), a_animationIndex);
 }
 
 void OpenAnimationReplacer::UnloadAnimation(RE::hkbCharacter* a_character, uint16_t a_animationIndex)
@@ -756,6 +877,26 @@ void OpenAnimationReplacer::InitFactories()
 	_conditionFactories.emplace("PLAYER", []() { return std::make_unique<PLAYERCondition>(); });
 	_conditionFactories.emplace("LightLevel", []() { return std::make_unique<LightLevelCondition>(); });
 	_conditionFactories.emplace("LocationHasKeyword", []() { return std::make_unique<LocationHasKeywordCondition>(); });
+	_conditionFactories.emplace("LifeState", []() { return std::make_unique<LifeStateCondition>(); });
+	_conditionFactories.emplace("SitSleepState", []() { return std::make_unique<SitSleepStateCondition>(); });
+	_conditionFactories.emplace("XOR", []() { return std::make_unique<XORCondition>(); });
+	_conditionFactories.emplace("PRESET", []() { return std::make_unique<PRESETCondition>(); });
+	_conditionFactories.emplace("MOUNT", []() { return std::make_unique<MOUNTCondition>(); });
+	_conditionFactories.emplace("IsAttackTypeKeyword", []() { return std::make_unique<IsAttackTypeKeywordCondition>(); });
+	_conditionFactories.emplace("IsAttackTypeFlag", []() { return std::make_unique<IsAttackTypeFlagCondition>(); });
+	_conditionFactories.emplace("MovementSurfaceAngle", []() { return std::make_unique<MovementSurfaceAngleCondition>(); });
+	_conditionFactories.emplace("LocationCleared", []() { return std::make_unique<LocationClearedCondition>(); });
+	_conditionFactories.emplace("IsSummoned", []() { return std::make_unique<IsSummonedCondition>(); });
+	_conditionFactories.emplace("IsEquippedHasEnchantment", []() { return std::make_unique<IsEquippedHasEnchantmentCondition>(); });
+	_conditionFactories.emplace("IsEquippedHasEnchantmentWithKeyword", []() { return std::make_unique<IsEquippedHasEnchantmentWithKeywordCondition>(); });
+	_conditionFactories.emplace("IsOnStairs", []() { return std::make_unique<IsOnStairsCondition>(); });
+	_conditionFactories.emplace("SurfaceMaterial", []() { return std::make_unique<SurfaceMaterialCondition>(); });
+	_conditionFactories.emplace("IsOverEncumbered", []() { return std::make_unique<IsOverEncumberedCondition>(); });
+	_conditionFactories.emplace("IsTrespassing", []() { return std::make_unique<IsTrespassingCondition>(); });
+	_conditionFactories.emplace("IsGuard", []() { return std::make_unique<IsGuardCondition>(); });
+	_conditionFactories.emplace("IsCrimeSearching", []() { return std::make_unique<IsCrimeSearchingCondition>(); });
+	_conditionFactories.emplace("IsCombatSearching", []() { return std::make_unique<IsCombatSearchingCondition>(); });
+	_conditionFactories.emplace("IdleTime", []() { return std::make_unique<IdleTimeCondition>(); });
 
 	// Hidden factories - not visible for selection in the UI, used for mapping legacy names to new conditions etc
 	_hiddenConditionFactories.emplace("IsEquippedRight", []() { return std::make_unique<IsEquippedCondition>(false); });
@@ -876,6 +1017,128 @@ bool OpenAnimationReplacer::IsCustomCondition(std::string_view a_conditionName) 
 	return _customConditionFactories.contains(a_conditionName.data());
 }
 
+Conditions::IStateData* OpenAnimationReplacer::GetConditionStateData(const Conditions::IConditionStateComponent* a_conditionStateComponent, RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod)
+{
+	if (a_refr) {
+		switch (a_conditionStateComponent->GetStateDataScope()) {
+		case Conditions::StateDataScope::kLocal:
+			if (a_clipGenerator) {
+				if (const auto activeClip = GetActiveClip(a_clipGenerator)) {
+					return activeClip->conditionStateData.AccessStateData({ a_refr->GetHandle(), a_conditionStateComponent->GetParentCondition() }, a_clipGenerator);
+				}
+			}
+			break;
+		case Conditions::StateDataScope::kSubMod:
+			if (a_parentSubMod) {
+				const auto parentSubMod = static_cast<SubMod*>(a_parentSubMod);
+				return parentSubMod->conditionStateData.AccessStateData({ a_refr->GetHandle(), a_conditionStateComponent->GetParentCondition() }, a_clipGenerator);
+			}
+			break;
+		case Conditions::StateDataScope::kReplacerMod:
+			if (a_parentSubMod) {
+				const auto parentSubMod = static_cast<SubMod*>(a_parentSubMod);
+				if (const auto parentReplacerMod = parentSubMod->GetParentMod()) {
+					return parentReplacerMod->conditionStateData.AccessStateData({ a_refr->GetHandle(), std::string(a_conditionStateComponent->GetParentCondition()->GetName()) }, a_clipGenerator);
+				}
+			}
+			break;
+		case Conditions::StateDataScope::kReference:
+			return _conditionStateData.AccessStateData({ a_refr->GetHandle(), std::string(a_conditionStateComponent->GetParentCondition()->GetName()) }, a_clipGenerator);
+		}
+	}
+
+	return nullptr;
+}
+
+Conditions::IStateData* OpenAnimationReplacer::AddConditionStateData(Conditions::IStateData* a_conditionStateData, const Conditions::IConditionStateComponent* a_conditionStateComponent, RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod)
+{
+	if (a_refr) {
+		switch (a_conditionStateComponent->GetStateDataScope()) {
+		case Conditions::StateDataScope::kLocal:
+			if (a_clipGenerator) {
+				if (const auto activeClip = GetActiveClip(a_clipGenerator)) {
+					if (const auto stateData = activeClip->conditionStateData.AddStateData({ a_refr->GetHandle(), a_conditionStateComponent->GetParentCondition() }, a_conditionStateData, a_clipGenerator)) {
+						activeClip->RegisterStateDataContainer();
+						return stateData;
+					}
+				}
+			}
+			break;
+		case Conditions::StateDataScope::kSubMod:
+			if (a_parentSubMod) {
+				const auto parentSubMod = static_cast<SubMod*>(a_parentSubMod);
+				if (const auto stateData = parentSubMod->conditionStateData.AddStateData({ a_refr->GetHandle(), a_conditionStateComponent->GetParentCondition() }, a_conditionStateData, a_clipGenerator)) {
+					parentSubMod->RegisterStateDataContainer();
+					return stateData;
+				}
+			}
+			break;
+		case Conditions::StateDataScope::kReplacerMod:
+			if (a_parentSubMod) {
+				const auto parentSubMod = static_cast<SubMod*>(a_parentSubMod);
+				if (const auto parentReplacerMod = parentSubMod->GetParentMod()) {
+					if (const auto stateData = parentReplacerMod->conditionStateData.AddStateData({ a_refr->GetHandle(), std::string(a_conditionStateComponent->GetParentCondition()->GetName()) }, a_conditionStateData, a_clipGenerator)) {
+						parentReplacerMod->RegisterStateDataContainer();
+						return stateData;
+					}
+				}
+			}
+			break;
+		case Conditions::StateDataScope::kReference:
+			if (const auto stateData = _conditionStateData.AddStateData({ a_refr->GetHandle(), std::string(a_conditionStateComponent->GetParentCondition()->GetName()) }, a_conditionStateData, a_clipGenerator)) {
+				RegisterStateDataContainer();
+				return stateData;
+			}
+		}
+	}
+
+	return nullptr;
+}
+
+VariantStateData* OpenAnimationReplacer::GetVariantStateData(RE::TESObjectREFR* a_refr, const Variants* a_variants, ActiveClip* a_activeClip) const
+{
+	const auto refHandle = a_refr->GetHandle();
+	return static_cast<VariantStateData*>(a_variants->GetParentSubMod()->GetParentMod()->variantStateData.AccessStateData(refHandle, a_activeClip->GetClipGenerator(), a_variants));
+}
+
+VariantStateData* OpenAnimationReplacer::AddVariantStateData(VariantStateData* a_variantStateData, RE::TESObjectREFR* a_refr, const Variants* a_variants, ActiveClip* a_activeClip)
+{
+	const auto refHandle = a_refr->GetHandle();
+	if (const auto replacerMod = a_variants->GetParentSubMod()->GetParentMod()) {
+		if (const auto stateData = replacerMod->variantStateData.AddStateData(refHandle, a_variantStateData, a_activeClip->GetClipGenerator(), a_variants)) {
+			replacerMod->RegisterStateDataContainer();
+			return static_cast<VariantStateData*>(stateData);
+		}
+	}
+
+	return nullptr;
+}
+
+void OpenAnimationReplacer::ClearConditionStateDataForRefr(RE::TESObjectREFR* a_refr)
+{
+	WriteLocker locker(_stateDataLock);
+
+	for (auto it = _registeredStateDatas.begin(); it != _registeredStateDatas.end();) {
+		const auto registeredStateDataContainer = *it;
+		if (!registeredStateDataContainer->StateDataClearRefrData(a_refr->GetHandle())) {
+			it = _registeredStateDatas.erase(it);
+		} else {
+			++it;
+		}
+	}
+}
+
+void OpenAnimationReplacer::ClearAllConditionStateData()
+{
+	WriteLocker locker(_stateDataLock);
+
+	for (const auto& registeredStateData : _registeredStateDatas) {
+		registeredStateData->StateDataClearData();
+	}
+
+	_registeredStateDatas.clear();
+}
+
 void OpenAnimationReplacer::LoadKeywords() const
 {
 	kywd_weapTypeWarhammer = RE::TESForm::LookupByID<RE::BGSKeyword>(0x6D930);
@@ -893,27 +1156,64 @@ void OpenAnimationReplacer::RunJobs()
 
 	_jobs.clear();
 
-	// we have no latent jobs right now so skip this
-	/*for (auto it = _latentJobs.begin(); it != _latentJobs.end();) {
-		if (it->get()->Run(g_deltaTime)) {
-			it = _latentJobs.erase(it);
+	// we have none of the following right now so skip this
+	//for (auto it = _latentJobs.begin(); it != _latentJobs.end();) {
+	//	if (it->get()->Run(g_deltaTime)) {
+	//		it = _latentJobs.erase(it);
+	//	} else {
+	//		++it;
+	//	}
+	//}
+
+	//for (auto it = _weakLatentJobs.begin(); it != _weakLatentJobs.end();) {
+	//	auto p = it->lock();
+	//	if (p) {
+	//		if (p->Run(g_deltaTime)) {
+	//			it = _weakLatentJobs.erase(it);
+	//		} else {
+	//			++it;
+	//		}
+	//	} else {
+	//		// remove if weak pointer is invalid
+	//		it = _weakLatentJobs.erase(it);
+	//	}
+	//}
+}
+
+void OpenAnimationReplacer::RegisterStateData(IStateDataContainerHolder* a_obj)
+{
+	WriteLocker locker(_stateDataLock);
+
+	_registeredStateDatas.emplace(a_obj);
+}
+
+void OpenAnimationReplacer::UnregisterStateData(IStateDataContainerHolder* a_obj)
+{
+	WriteLocker locker(_stateDataLock);
+
+	_registeredStateDatas.erase(a_obj);
+}
+
+void OpenAnimationReplacer::RunStateDataUpdates()
+{
+	WriteLocker locker(_stateDataLock);
+
+	for (auto it = _registeredStateDatas.begin(); it != _registeredStateDatas.end();) {
+		const auto registeredStateDataContainer = *it;
+		if (!registeredStateDataContainer->StateDataUpdate(g_deltaTime)) {
+			it = _registeredStateDatas.erase(it);
 		} else {
 			++it;
 		}
-	}*/
+	}
+}
 
-	for (auto it = _weakLatentJobs.begin(); it != _weakLatentJobs.end();) {
-		auto p = it->lock();
-		if (p) {
-			if (p->Run(g_deltaTime)) {
-				it = _weakLatentJobs.erase(it);
-			} else {
-				++it;
-			}
-		} else {
-			// remove if weak pointer is invalid
-			it = _weakLatentJobs.erase(it);
-		}
+void OpenAnimationReplacer::ForEachRegisteredStateData(std::function<void(IStateDataContainerHolder*)> a_func) const
+{
+	ReadLocker locker(_stateDataLock);
+
+	for (const auto& registeredStateDataContainer : _registeredStateDatas) {
+		a_func(registeredStateDataContainer);
 	}
 }
 
@@ -961,10 +1261,15 @@ RE::Character* OpenAnimationReplacer::CreateDummyCharacter(RE::TESNPC* a_baseFor
 
 void OpenAnimationReplacer::AddModParseResult(Parsing::ModParseResult& a_parseResult)
 {
+	if (!a_parseResult.bSuccess) {
+		return;
+	}
+
 	// Get replacer mod or create it if it doesn't exist
 	auto replacerMod = GetReplacerMod(a_parseResult.path);
 	if (!replacerMod) {
-		auto newReplacerMod = std::make_unique<ReplacerMod>(a_parseResult.path, a_parseResult.name, a_parseResult.author, a_parseResult.description, false);
+		auto newReplacerMod = std::make_unique<ReplacerMod>(false);
+		newReplacerMod->LoadParseResult(a_parseResult);
 		replacerMod = newReplacerMod.get();
 		AddReplacerMod(a_parseResult.path, newReplacerMod);
 	}
@@ -978,7 +1283,7 @@ void OpenAnimationReplacer::AddModParseResult(Parsing::ModParseResult& a_parseRe
 void OpenAnimationReplacer::AddSubModParseResult(ReplacerMod* a_replacerMod, Parsing::SubModParseResult& a_parseResult)
 {
 	if (!a_replacerMod->HasSubMod(a_parseResult.path)) {
-		auto newSubMod = std::make_unique<SubMod>();
+		auto newSubMod = std::make_unique<SubMod>(a_replacerMod);
 		newSubMod->SetAnimationFiles(a_parseResult.animationFiles);
 		newSubMod->LoadParseResult(a_parseResult);
 		a_replacerMod->AddSubMod(newSubMod);

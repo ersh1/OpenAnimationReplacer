@@ -12,10 +12,10 @@ namespace UI
 
 	void UIAnimationLog::DrawImpl()
 	{
-		SetWindowDimensions(0.f, 30.f, Settings::fAnimationLogWidth, -1.f, WindowAlignment::kTopRight, ImVec2(Settings::fAnimationLogWidth, -1), ImVec2(Settings::fAnimationLogWidth, -1));
+		SetWindowDimensions(Settings::fAnimationLogsOffsetX, Settings::fAnimationLogsOffsetY, Settings::fAnimationLogWidth, 0.f, WindowAlignment::kTopRight, ImVec2(Settings::fAnimationLogWidth, -1), ImVec2(Settings::fAnimationLogWidth, -1), ImGuiCond_Always);
 		ForceSetWidth(Settings::fAnimationLogWidth);
 
-		constexpr ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
+		constexpr ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings;
 
 		if (ImGui::Begin("Animation Log", nullptr, windowFlags)) {
 			if (UIManager::GetSingleton().GetRefrToEvaluate() != nullptr) {
@@ -35,6 +35,9 @@ namespace UI
 				ImGui::TextWrapped("No reference selected. Type in a FormID in the main window, or select a reference in the console.");
 				ImGui::PopStyleColor();
 			}
+			if (IsInteractable()) {
+				DrawFilterPanel();
+			}
 		}
 		ImGui::End();
 	}
@@ -47,6 +50,27 @@ namespace UI
 	void UIAnimationLog::OnClose()
 	{
 		AnimationLog::GetSingleton().SetLogAnimations(false);
+	}
+
+	bool UIAnimationLog::IsInteractable() const
+	{
+		// draw filter panel only when the main UI is open
+		return UIManager::GetSingleton().bShowMain;
+	}
+
+	void UIAnimationLog::DrawFilterPanel() const
+	{
+		auto& animationLog = AnimationLog::GetSingleton();
+
+		// filtering
+		const auto& style = ImGui::GetStyle();
+		const float helpMarkerWidth = ImGui::CalcTextSize("(?)").x + style.ItemSpacing.x * 2;
+		const float filterWidth = (ImGui::GetContentRegionAvail().x - style.FramePadding.x * 2 - helpMarkerWidth * 2);
+
+		ImGui::SetNextItemWidth(filterWidth);
+		ImGui::InputTextWithHint("##filter", "Filter... (Affects new entries)", &animationLog.filter);
+		ImGui::SameLine();
+		UICommon::HelpMarker("Type a part of the log event type / animation name / path / mod name / submod name to filter the log results. You can use regex.");
 	}
 
 	void UIAnimationLog::DrawLogEntry(AnimationLogEntry& a_logEntry) const
@@ -105,6 +129,11 @@ namespace UI
 		case Event::kInterrupt:
 			UICommon::TextUnformattedColored(UICommon::LOG_INTERRUPTED_COLOR, "Interrupted");
 			break;
+		case Event::kPairedMismatch:
+			UICommon::TextUnformattedColored(UICommon::LOG_INTERRUPTED_COLOR, "Interrupted");
+			ImGui::SameLine();
+			UICommon::TextUnformattedColored(UICommon::LOG_SYNCHRONIZED_COLOR, "(Paired Mismatch)");
+			break;
 		}
 
 		if (a_logEntry.bVariant) {
@@ -115,6 +144,12 @@ namespace UI
 		if (a_logEntry.event < Event::kInterrupt && a_logEntry.bInterruptible) {
 			ImGui::SameLine();
 			UICommon::TextUnformattedColored(UICommon::LOG_INTERRUPTED_COLOR, "(Interruptible)");
+		}
+
+		if (a_logEntry.count > 1) {
+			ImGui::SameLine();
+			const auto text = std::format("x{} ", a_logEntry.count);
+			ImGui::TextUnformatted(text.data());
 		}
 
 		const std::string projectText = std::format("Project: {} ", a_logEntry.projectName);

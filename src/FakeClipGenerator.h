@@ -1,4 +1,5 @@
 #pragma once
+#include "Variants.h"
 
 // a fake clip generator to blend from when transitioning between replacer animations of the same clip (on interrupt etc), or to preview animations
 // replicates the relevant parts of hkbClipGenerator so we basically can do the same thing as the update function does, to progress the clip naturally just like the game does
@@ -9,7 +10,8 @@ class FakeClipGenerator
 {
 public:
 	FakeClipGenerator(RE::hkbClipGenerator* a_clipGenerator);
-	FakeClipGenerator(RE::hkbBehaviorGraph* a_behaviorGraph, const ReplacementAnimation* a_replacementAnimation, std::string_view a_syncAnimationPrefix, std::optional<uint16_t> a_variantIndex = std::nullopt);
+	FakeClipGenerator(RE::hkbClipGenerator* a_clipGenerator, bool a_bProcessTriggersOnUpdate);
+	FakeClipGenerator(RE::hkbBehaviorGraph* a_behaviorGraph, const ReplacementAnimation* a_replacementAnimation, std::string_view a_syncAnimationPrefix, Variant* a_variant = nullptr);
 	~FakeClipGenerator();
 
 	void Activate(const RE::hkbContext& a_context);
@@ -25,7 +27,7 @@ public:
 	uint64_t pad38 = 0;
 	uint64_t pad40 = 0;
 	uint64_t pad48 = 0;
-	uint64_t pad50 = 0;
+	RE::hkRefPtr<RE::hkbClipTriggerArray> triggers;                            // 050
 	float cropStartAmountLocalTime = 0.f;                                      // 058
 	float cropEndAmountLocalTime = 0.f;                                        // 05C
 	float startTime = 0.f;                                                     // 060

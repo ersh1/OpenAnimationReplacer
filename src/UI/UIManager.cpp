@@ -1,5 +1,7 @@
 #include "UIManager.h"
 
+#include "UIAnimationEventLog.h"
+
 #include "UIAnimationLog.h"
 #include "UIAnimationQueue.h"
 #include "UIErrorBanner.h"
@@ -9,7 +11,6 @@
 #include <dxgi.h>
 #include <imgui.h>
 #include <imgui_impl_dx11.h>
-#include <imgui_impl_win32.h>
 
 namespace UI
 {
@@ -21,18 +22,27 @@ namespace UI
 
 		const auto renderManager = RE::BSGraphics::Renderer::GetSingleton();
 
-		const auto device = renderManager->GetRuntimeData().forwarder;
-		const auto context = renderManager->GetRuntimeData().context;
-		const auto swapChain = renderManager->GetRuntimeData().renderWindows[0].swapChain;
+		const auto device = reinterpret_cast<ID3D11Device*>(renderManager->GetRuntimeData().forwarder);
+		const auto context = reinterpret_cast<ID3D11DeviceContext*>(renderManager->GetRuntimeData().context);
+		const auto swapChain = reinterpret_cast<IDXGISwapChain*>(renderManager->GetRuntimeData().renderWindows[0].swapChain);
 
 		DXGI_SWAP_CHAIN_DESC sd{};
 		swapChain->GetDesc(&sd);
+
+		RECT rect{};
+		if (GetClientRect(sd.OutputWindow, &rect) == TRUE) {
+			_userData.screenScaleRatio = { static_cast<float>(sd.BufferDesc.Width) / static_cast<float>(rect.right), static_cast<float>(sd.BufferDesc.Height) / static_cast<float>(rect.bottom) };
+		} else {
+			_userData.screenScaleRatio = { 1.0f, 1.0f };
+		}
 
 		ImGui::CreateContext();
 
 		auto& io = ImGui::GetIO();
 
+		io.DisplaySize = { static_cast<float>(sd.BufferDesc.Width), static_cast<float>(sd.BufferDesc.Height) };
 		io.ConfigWindowsMoveFromTitleBarOnly = true;
+		io.UserData = &_userData;
 		io.IniFilename = Settings::imguiIni.data();
 		io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
 
@@ -326,24 +336,11 @@ namespace UI
 		}
 	}
 
-	RE::TESObjectREFR* UIManager::GetConsoleRefr()
-	{
-		if (const auto ui = RE::UI::GetSingleton()) {
-			if (const auto console = ui->GetMenu<RE::Console>(RE::Console::MENU_NAME)) {
-				if (const auto ref = console->GetSelectedRef()) {
-					return ref.get();
-				}
-			}
-		}
-
-		return nullptr;
-	}
-
 	RE::TESObjectREFR* UIManager::GetRefrToEvaluate()
 	{
-		const auto newConsoleRefr = GetConsoleRefr();
-		if (newConsoleRefr != _consoleRefr) {
-			_consoleRefr = newConsoleRefr;
+		const auto newConsoleRefr = Utils::GetConsoleRefr();
+		if (newConsoleRefr.get() != _consoleRefr) {
+			_consoleRefr = newConsoleRefr.get();
 			AnimationLog::GetSingleton().ClearAnimationLog();
 		}
 
@@ -597,6 +594,7 @@ namespace UI
 		_windows{
 			std::make_unique<UIMain>(),
 			std::make_unique<UIAnimationLog>(),
+			std::make_unique<UIAnimationEventLog>(),
 			std::make_unique<UIAnimationQueue>(),
 			std::make_unique<UIErrorBanner>(),
 			std::make_unique<UIWelcomeBanner>()

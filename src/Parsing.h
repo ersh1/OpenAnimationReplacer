@@ -2,6 +2,7 @@
 
 #include "Conditions.h"
 #include "ReplacementAnimation.h"
+#include "Settings.h"
 
 #include <future>
 
@@ -9,46 +10,53 @@ struct ReplacementAnimData
 {
 	struct Variant
 	{
-		Variant(std::string_view a_filename) :
-			filename(a_filename) {}
-
-		Variant(std::string_view a_filename, float a_weight) :
+		Variant(std::string_view a_filename, bool a_bDisabled, float a_weight, int32_t a_order, bool a_bPlayOnce) :
 			filename(a_filename),
-			weight(a_weight) {}
-
-		Variant(std::string_view a_filename, bool a_bDisabled) :
-			filename(a_filename),
-			bDisabled(a_bDisabled) {}
-
-		Variant(std::string_view a_filename, float a_weight, bool a_bDisabled) :
-			filename(a_filename),
+			bDisabled(a_bDisabled),
 			weight(a_weight),
-			bDisabled(a_bDisabled) {}
+			order(a_order),
+			bPlayOnce(a_bPlayOnce)
+		{}
 
 		std::string filename;
-		float weight = 1.f;
 		bool bDisabled = false;
+		float weight = 1.f;
+		int32_t order = -1;
+		bool bPlayOnce = false;
 	};
 
 	ReplacementAnimData(std::string_view a_projectName, std::string_view a_path, bool a_bDisabled) :
 		projectName(a_projectName),
 		path(a_path),
-		bDisabled(a_bDisabled) {}
+		bDisabled(a_bDisabled)
+	{}
 
-	ReplacementAnimData(std::string_view a_projectName, std::string_view a_path, bool a_bDisabled, std::optional<std::vector<Variant>>& a_variants) :
+	ReplacementAnimData(std::string_view a_projectName, std::string_view a_path, bool a_bDisabled, std::optional<std::vector<Variant>>& a_variants, std::optional<VariantMode> a_variantMode, std::optional<Conditions::StateDataScope> a_variantStateScope, bool a_bBlendBetweenVariants, bool a_bResetRandomOnLoopOrEcho, bool a_bSharePlayedHistory) :
 		projectName(a_projectName),
 		path(a_path),
 		bDisabled(a_bDisabled),
-		variants(std::move(a_variants)) {}
+		variants(std::move(a_variants)),
+		variantMode(a_variantMode),
+		variantStateScope(a_variantStateScope),
+		bBlendBetweenVariants(a_bBlendBetweenVariants),
+		bResetRandomOnLoopOrEcho(a_bResetRandomOnLoopOrEcho),
+		bSharePlayedHistory(a_bSharePlayedHistory)
+	{}
 
 	ReplacementAnimData(const ReplacementAnimation* a_replacementAnimation) :
 		projectName(a_replacementAnimation->GetProjectName()),
-		path(a_replacementAnimation->GetAnimPath()) {}
+		path(a_replacementAnimation->GetAnimPath())
+	{}
 
 	std::string projectName;
 	std::string path;
 	bool bDisabled = false;
 	std::optional<std::vector<Variant>> variants = std::nullopt;
+	std::optional<VariantMode> variantMode = std::nullopt;
+	std::optional<Conditions::StateDataScope> variantStateScope = std::nullopt;
+	bool bBlendBetweenVariants = true;
+	bool bResetRandomOnLoopOrEcho = true;
+	bool bSharePlayedHistory = false;
 };
 
 namespace Parsing
@@ -64,8 +72,8 @@ namespace Parsing
 	enum class DeserializeMode : uint8_t
 	{
 		kFull = 0,
-		kNameDescriptionOnly,
-		kWithoutNameDescription
+		kInfoOnly,
+		kDataOnly
 	};
 
 	struct ConditionsTxtFile
@@ -100,10 +108,16 @@ namespace Parsing
 		bool bIgnoreDontConvertAnnotationsToTriggersFlag = false;
 		bool bTriggersFromAnnotationsOnly = false;
 		bool bInterruptible = false;
+		bool bCustomBlendTimeOnInterrupt = false;
+		float blendTimeOnInterrupt = Settings::fDefaultBlendTimeOnInterrupt;
 		bool bReplaceOnLoop = true;
+		bool bCustomBlendTimeOnLoop = false;
+		float blendTimeOnLoop = Settings::fDefaultBlendTimeOnLoop;
 		bool bReplaceOnEcho = false;
-		bool bKeepRandomResultsOnLoop = false;
-		bool bShareRandomResults = false;
+		bool bCustomBlendTimeOnEcho = false;
+		float blendTimeOnEcho = Settings::fDefaultBlendTimeOnEcho;
+		bool bKeepRandomResultsOnLoop_DEPRECATED = false;
+		bool bShareRandomResults_DEPRECATED = false;
 		std::unique_ptr<Conditions::ConditionSet> conditionSet;
 		std::unique_ptr<Conditions::ConditionSet> synchronizedConditionSet;
 		std::vector<ReplacementAnimationFile> animationFiles;
@@ -121,6 +135,10 @@ namespace Parsing
 		std::string name;
 		std::string author;
 		std::string description;
+
+		std::vector<std::unique_ptr<Conditions::ConditionPreset>> conditionPresets;
+
+		ConfigSource configSource = ConfigSource::kAuthor;
 	};
 
 	struct ParseResults
@@ -133,7 +151,7 @@ namespace Parsing
 	};
 
 	[[nodiscard]] std::unique_ptr<Conditions::ConditionSet> ParseConditionsTxt(const std::filesystem::path& a_txtPath);
-	[[nodiscard]] bool DeserializeMod(const std::filesystem::path& a_jsonPath, ModParseResult& a_outParseResult);
+	[[nodiscard]] bool DeserializeMod(const std::filesystem::path& a_jsonPath, DeserializeMode a_deserializeMode, ModParseResult& a_outParseResult);
 	[[nodiscard]] bool DeserializeSubMod(std::filesystem::path a_jsonPath, DeserializeMode a_deserializeMode, SubModParseResult& a_outParseResult);
 	bool SerializeJson(std::filesystem::path a_jsonPath, const rapidjson::Document& a_doc);
 	[[nodiscard]] std::string SerializeJsonToString(const rapidjson::Document& a_doc);
@@ -152,4 +170,6 @@ namespace Parsing
 	[[nodiscard]] std::optional<ReplacementAnimationFile> ParseReplacementAnimationEntry(std::string_view a_fullPath);
 	[[nodiscard]] std::optional<ReplacementAnimationFile> ParseReplacementAnimationVariants(std::string_view a_fullVariantsPath);
 	[[nodiscard]] std::vector<ReplacementAnimationFile> ParseAnimationsInDirectory(const std::filesystem::directory_entry& a_directory, bool a_bIsLegacy = false);
+
+	[[nodiscard]] bool IsPathValid(std::filesystem::path a_path);
 }

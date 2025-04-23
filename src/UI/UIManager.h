@@ -2,6 +2,7 @@
 
 #include "Settings.h"
 
+#include "ImGui/imgui_impl_win32.h"
 #include "UIWindow.h"
 
 namespace UI
@@ -55,7 +56,6 @@ namespace UI
 
 		bool bInitialized = false;
 
-		static RE::TESObjectREFR* GetConsoleRefr();
 		RE::TESObjectREFR* GetRefrToEvaluate();
 		void SetRefrToEvaluate(RE::TESObjectREFR* a_refr);
 
@@ -92,6 +92,8 @@ namespace UI
 		mutable SharedLock _inputEventLock;
 		std::vector<KeyEvent> _keyEventQueue{};
 		bool _bFocusLost = false;
+
+		OAR_ImGuiUserData _userData;
 
 		UIManager();
 		virtual ~UIManager() noexcept = default;

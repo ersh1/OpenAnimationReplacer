@@ -38,9 +38,17 @@ namespace UI
 		constexpr ImVec4 LOG_INTERRUPTED_COLOR(0.8f, 0.5f, 0.25f, 1.f);
 		constexpr ImVec4 LOG_VARIANT_COLOR(0.8f, 0.4f, 0.8f, 1.f);
 		constexpr ImVec4 LOG_SYNCHRONIZED_COLOR(0.64f, 0.3f, 1.f, 1.f);
+		constexpr ImVec4 EVENT_LOG_PAYLOAD_COLOR(0.5f, 0.7f, 1.f, 1.f);
+		constexpr ImVec4 EVENT_LOG_TIME_COLOR_SHORT(0.4f, 0.8f, 0.4f, 1.f);
+		constexpr ImVec4 EVENT_LOG_TIME_COLOR_MEDIUM(0.8f, 0.8f, 0.4f, 1.f);
+		constexpr ImVec4 EVENT_LOG_TIME_COLOR_LONG(0.8f, 0.4f, 0.4f, 1.f);
+		constexpr ImVec4 EVENT_LOG_TRIGGERED_TRANSITION_COLOR(0.5f, 0.7f, 1.f, 1.f);
 		constexpr ImVec4 DEFAULT_CONDITION_COLOR(1.f, 1.f, 1.f, 1.f);
 		constexpr ImVec4 CUSTOM_CONDITION_COLOR(0.5f, 0.7f, 1.f, 1.f);
 		constexpr ImVec4 INVALID_CONDITION_COLOR(1.f, 0.3f, 0.3f, 1.f);
+		constexpr ImVec4 CONDITION_PRESET_COLOR(0.f, 0.9f, 0.76f, 1.f);
+		constexpr ImVec4 CONDITION_PRESET_BORDER_COLOR(0.f, 0.53f, 0.5f, 1.f);
+		constexpr ImVec4 CONDITION_SHARED_STATE_BORDER_COLOR(0.45f, 0.45f, 0.22f, 1.00f);
 		constexpr ImVec4 YELLOW_COLOR(1.f, 1.f, 0.f, 1.f);
 		constexpr ImVec4 BLACK_COLOR(0.f, 0.f, 0.f, 1.f);
 
@@ -96,7 +104,7 @@ namespace UI
 		void ButtonWithConfirmationModal(std::string_view a_label, std::string_view a_confirmation, const std::function<void()>& a_func, const ImVec2& a_buttonSize = ImVec2(0, 0));
 
 		// modified from imgui with added text
-		bool ArrowButtonText(const char* a_label, ImGuiDir a_dir, const ImVec2& a_sizeArg = ImVec2(0, 0), ImGuiButtonFlags a_flags = ImGuiButtonFlags_None);
+		bool ArrowButtonText(const char* a_label, ImGuiDir a_dir, bool a_bArrowOnRight, const ImVec2& a_sizeArg = ImVec2(0, 0), ImGuiButtonFlags a_flags = ImGuiButtonFlags_None);
 		bool PopupToggleButton(const char* a_label, const char* a_popupId, const ImVec2& a_sizeArg = ImVec2(0, 0));
 
 		// modified from imgui_stdlib with added support for a max length

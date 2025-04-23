@@ -19,8 +19,8 @@ namespace OAR_API
 
 			// InterfaceVersion1
 			[[nodiscard]] ReplacementAnimationInfo GetCurrentReplacementAnimationInfo(RE::hkbClipGenerator* a_clipGenerator) noexcept override;
-			void ClearRandomFloats(RE::hkbClipGenerator* a_clipGenerator) noexcept override;
-			void ClearRandomFloats(RE::TESObjectREFR* a_refr) noexcept override;
+			void ClearConditionStateData(RE::hkbClipGenerator* a_clipGenerator) noexcept override;
+			void ClearConditionStateData(RE::TESObjectREFR* a_refr) noexcept override;
 
 		private:
 			AnimationsInterface() = default;
@@ -100,6 +100,6 @@ namespace Conditions
 		constexpr REL::Version GetRequiredVersion() const override { return { 0, 0, 0 }; }
 
 	protected:
-		bool EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator) const override { return false; }
+		bool EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const override { return false; }
 	};
 }

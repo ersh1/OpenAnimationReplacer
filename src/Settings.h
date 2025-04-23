@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Simpleini.h>
+#include "TrueHUDAPI.h"
 
 struct Settings
 {
@@ -14,16 +14,6 @@ struct Settings
 	static void Initialize();
 	static void ReadSettings();
 	static void WriteSettings();
-
-	static void ReadBoolSetting(const CSimpleIniA& a_ini, const char* a_sectionName, const char* a_settingName, bool& a_setting);
-	static void ReadFloatSetting(const CSimpleIniA& a_ini, const char* a_sectionName, const char* a_settingName, float& a_setting);
-	static void ReadUInt16Setting(const CSimpleIniA& a_ini, const char* a_sectionName, const char* a_settingName, uint16_t& a_setting);
-	static void ReadUInt32Setting(const CSimpleIniA& a_ini, const char* a_sectionName, const char* a_settingName, uint32_t& a_setting);
-
-	static void WriteBoolSetting(const char* a_sectionName, const char* a_settingName, const bool& a_setting);
-	static void WriteFloatSetting(const char* a_sectionName, const char* a_settingName, const float& a_setting);
-	static void WriteUInt16Setting(const char* a_sectionName, const char* a_settingName, const uint16_t& a_setting);
-	static void WriteUInt32Setting(const char* a_sectionName, const char* a_settingName, const uint32_t& a_setting);
 
 	// General
 	static inline uint16_t uAnimationLimit = 0x7FFF;
@@ -53,6 +43,15 @@ struct Settings
 	static inline bool bAnimationLogOnlyActiveGraph = true;
 	static inline bool bAnimationLogWriteToTextLog = false;
 
+	static inline bool bEnableAnimationEventLog = false;
+	static inline bool bAnimationLogOrderDescending = true;
+	static inline float fAnimationEventLogWidth = 500.f;
+	static inline float fAnimationEventLogHeight = 600.f;
+	static inline bool bAnimationEventLogWriteToTextLog = false;
+
+	static inline float fAnimationLogsOffsetX = 0.f;
+	static inline float fAnimationLogsOffsetY = 30.f;
+
 	// Workarounds
 	static inline bool bLegacyKeepRandomResultsByDefault = true;
 
@@ -60,14 +59,20 @@ struct Settings
 	static inline bool bDisablePreloading = false;
 	static inline bool bIncreaseAnimationLimit = false;
 
+	// Debug
+	static inline bool bEnableDebugDraws = false;
+
 	// Internal
-	static inline float fBlendTimeOnInterrupt = 0.3f;
-	static inline float fBlendTimeOnLoop = 0.3f;
-	static inline float fSharedRandomLifetime = 0.5f;
-	static inline float fQueueFadeTime = 1.f;
-	static inline uint32_t uQueueMinSize = 10;
-	static inline float fAnimationLogEntryFadeTime = 0.5f;
-	static inline float fWelcomeBannerFadeTime = 1.f;
+	constexpr static inline float fDefaultBlendTimeOnInterrupt = 0.3f;
+	constexpr static inline float fDefaultBlendTimeOnLoop = 0.3f;
+	constexpr static inline float fDefaultBlendTimeOnEcho = 0.1f;
+	constexpr static inline float fStateDataLifetime = 0.5f;
+	constexpr static inline float fSequentialVariantLifetime = 0.5f;
+	constexpr static inline float fQueueFadeTime = 1.f;
+	constexpr static inline uint32_t uQueueMinSize = 10;
+	constexpr static inline float fAnimationLogEntryFadeTime = 0.5f;
+	constexpr static inline float fAnimationEventLogEntryColorTimeLong = 1.f;
+	constexpr static inline float fWelcomeBannerFadeTime = 1.f;
 
 	static inline uint16_t maxAnimLimitDefault = 0x7FFF;
 	static inline uint16_t maxAnimLimitIncreased = 0xFFFE;
@@ -80,4 +85,6 @@ struct Settings
 
 	constexpr static inline std::string_view synchronizedClipSourcePrefix = "NPC";
 	constexpr static inline std::string_view synchronizedClipTargetPrefix = "2_";
+
+	static inline TRUEHUD_API::IVTrueHUD4* g_trueHUD = nullptr;
 };

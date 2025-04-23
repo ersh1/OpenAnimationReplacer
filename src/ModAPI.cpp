@@ -15,7 +15,7 @@ namespace OAR_API
 					info.projectName = replacementAnimation->GetProjectName();
 
 					if (replacementAnimation->HasVariants()) {
-						replacementAnimation->ForEachVariant([&](const ReplacementAnimation::Variant& a_variant) {
+						replacementAnimation->ForEachVariant([&](const Variant& a_variant) {
 							if (a_variant.GetIndex() == activeClip->GetCurrentIndex()) {
 								info.variantFilename = a_variant.GetFilename();
 								return RE::BSVisit::BSVisitControl::kStop;
@@ -36,19 +36,16 @@ namespace OAR_API
 			return info;
 		}
 
-		void AnimationsInterface::ClearRandomFloats(RE::hkbClipGenerator* a_clipGenerator) noexcept
+		void AnimationsInterface::ClearConditionStateData(RE::hkbClipGenerator* a_clipGenerator) noexcept
 		{
 			if (const auto clip = OpenAnimationReplacer::GetSingleton().GetActiveClip(a_clipGenerator)) {
-				clip->ClearRandomFloats();
+				OpenAnimationReplacer::GetSingleton().ClearConditionStateDataForRefr(clip->GetRefr());
 			}
 		}
 
-		void AnimationsInterface::ClearRandomFloats(RE::TESObjectREFR* a_refr) noexcept
+		void AnimationsInterface::ClearConditionStateData(RE::TESObjectREFR* a_refr) noexcept
 		{
-			const auto clips = OpenAnimationReplacer::GetSingleton().GetActiveClipsForRefr(a_refr);
-			for (auto& clip : clips) {
-				clip->ClearRandomFloats();
-			}
+			OpenAnimationReplacer::GetSingleton().ClearConditionStateDataForRefr(a_refr);
 		}
 	}
 
@@ -109,9 +106,9 @@ namespace OAR_API
 			return new ::Conditions::ComparisonConditionComponent(a_parentCondition, a_name, a_description);
 		}
 
-		::Conditions::IConditionComponent* RandomConditionComponentFactory(const ::Conditions::ICondition* a_parentCondition, const char* a_name, const char* a_description)
+		::Conditions::IConditionComponent* ConditionStateComponentFactory(const ::Conditions::ICondition* a_parentCondition, const char* a_name, const char* a_description)
 		{
-			return new ::Conditions::RandomConditionComponent(a_parentCondition, a_name, a_description);
+			return new ::Conditions::ConditionStateComponent(a_parentCondition, a_name, a_description);
 		}
 
 		::Conditions::ConditionComponentFactory ConditionsInterface::GetConditionComponentFactory(::Conditions::ConditionComponentType a_componentType) noexcept
@@ -133,8 +130,8 @@ namespace OAR_API
 				return &BoolConditionComponentFactory;
 			case ::Conditions::ConditionComponentType::kComparison:
 				return &ComparisonConditionComponentFactory;
-			case ::Conditions::ConditionComponentType::kRandom:
-				return &RandomConditionComponentFactory;
+			case ::Conditions::ConditionComponentType::kState:
+				return &ConditionStateComponentFactory;
 			}
 
 			return nullptr;

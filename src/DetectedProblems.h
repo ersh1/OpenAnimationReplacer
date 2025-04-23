@@ -22,8 +22,11 @@ public:
 	void MarkOutdatedVersion();
 	void AddMissingPluginName(std::string_view a_pluginName, REL::Version a_pluginVersion);
 	void AddInvalidPluginName(std::string_view a_pluginName, REL::Version a_pluginVersion);
-	void CheckForSubModsSharingPriority();
-	void CheckForSubModsWithInvalidConditions();
+	bool CheckForSubModsSharingPriority();
+	bool CheckForSubModsWithInvalidConditions();
+	bool CheckForReplacerModsWithInvalidConditions();
+
+	bool CheckForProblems();
 
 	[[nodiscard]] Severity GetProblemSeverity() const;
 	[[nodiscard]] std::string_view GetProblemMessage() const;
@@ -46,6 +49,10 @@ public:
 	void ForEachSubModWithInvalidConditions(const std::function<void(const SubMod*)>& a_func) const;
 	[[nodiscard]] size_t NumSubModsWithInvalidConditions() const { return _subModsWithInvalidConditions.size(); }
 
+	[[nodiscard]] bool HasReplacerModsWithInvalidConditions() const { return !_replacerModsWithInvalidConditions.empty(); }
+	void ForEachReplacerModWithInvalidConditions(const std::function<void(const ReplacerMod*)>& a_func) const;
+	[[nodiscard]] size_t NumReplacerModsWithInvalidConditions() const { return _replacerModsWithInvalidConditions.size(); }
+
 private:
 	DetectedProblems() = default;
 	DetectedProblems(const DetectedProblems&) = delete;
@@ -60,6 +67,7 @@ private:
 	std::set<std::pair<std::string, REL::Version>> _invalidPlugins;
 	std::map<int32_t, std::set<const SubMod*>> _subModsSharingPriority;
 	std::set<const SubMod*> _subModsWithInvalidConditions;
+	std::set<const ReplacerMod*> _replacerModsWithInvalidConditions;
 
 	mutable SharedLock _dataLock;
 };

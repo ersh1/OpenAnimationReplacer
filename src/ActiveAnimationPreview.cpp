@@ -4,11 +4,11 @@
 #include "Offsets.h"
 #include "OpenAnimationReplacer.h"
 
-ActiveAnimationPreview::ActiveAnimationPreview(RE::hkbBehaviorGraph* a_behaviorGraph, const ReplacementAnimation* a_replacementAnimation, std::string_view a_syncAnimationPrefix, std::optional<uint16_t> a_variantIndex /* = std::nullopt*/) :
+ActiveAnimationPreview::ActiveAnimationPreview(RE::hkbBehaviorGraph* a_behaviorGraph, const ReplacementAnimation* a_replacementAnimation, std::string_view a_syncAnimationPrefix, Variant* a_variant) :
 	_behaviorGraph(a_behaviorGraph),
 	_replacementAnimation(a_replacementAnimation)
 {
-	_previewClipGenerator = std::make_unique<FakeClipGenerator>(a_behaviorGraph, a_replacementAnimation, a_syncAnimationPrefix, a_variantIndex);
+	_previewClipGenerator = std::make_unique<FakeClipGenerator>(a_behaviorGraph, a_replacementAnimation, a_syncAnimationPrefix, a_variant);
 }
 
 void ActiveAnimationPreview::OnUpdate([[maybe_unused]] RE::hkbBehaviorGraph* a_behaviorGraph, const RE::hkbContext& a_context, float a_timestep)

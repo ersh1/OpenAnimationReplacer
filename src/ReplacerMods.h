@@ -5,8 +5,6 @@
 #include "Parsing.h"
 #include "ReplacementAnimation.h"
 
-#include <unordered_set>
-
 namespace Jobs
 {
 	struct RemoveSharedRandomFloatJob;
@@ -19,22 +17,30 @@ enum class ConditionEditMode : int
 	kAuthor = 2
 };
 
-class SubMod
+class SubMod : public IStateDataContainerHolder
 {
 public:
-	SubMod()
+	SubMod(ReplacerMod* a_parentMod) :
+		_parentMod(a_parentMod)
 	{
 		_conditionSet = std::make_unique<Conditions::ConditionSet>(this);
 	}
+
+	bool StateDataUpdate(float a_deltaTime) override;
+	bool StateDataOnLoopOrEcho(RE::ObjectRefHandle a_refHandle, ActiveClip* a_activeClip, bool a_bIsEcho) override;
+	bool StateDataClearRefrData(RE::ObjectRefHandle a_refHandle) override;
+	void StateDataClearData() override;
 
 	bool AddReplacementAnimation(std::string_view a_animPath, uint16_t a_originalIndex, class ReplacerProjectData* a_replacerProjectData, RE::hkbCharacterStringData* a_stringData);
 
 	void SetAnimationFiles(const std::vector<ReplacementAnimationFile>& a_animationFiles);
 	void LoadParseResult(const Parsing::SubModParseResult& a_parseResult);
 	void LoadReplacementAnimationDatas(const std::vector<ReplacementAnimData>& a_replacementAnimDatas);
+	void HandleDeprecatedSettings() const;
 
 	void ResetAnimations();
 	void UpdateAnimations() const;
+	void RestorePresetReferences();
 
 	Conditions::ConditionSet* GetConditionSet() const { return _conditionSet.get(); }
 	Conditions::ConditionSet* GetSynchronizedConditionSet() const { return _synchronizedConditionSet.get(); }
@@ -70,24 +76,21 @@ public:
 	bool IsInterruptible() const { return _bInterruptible; }
 	void SetInterruptible(bool a_bInterruptible) { _bInterruptible = a_bInterruptible; }
 
+	bool HasCustomBlendTime(CustomBlendType a_type) const;
+	float GetCustomBlendTime(CustomBlendType a_type) const;
+	void ToggleCustomBlendTime(CustomBlendType a_type, bool a_bEnable);
+	void SetCustomBlendTime(CustomBlendType a_type, float a_value);
+
 	bool IsReevaluatingOnLoop() const { return _bReplaceOnLoop; }
 	void SetReevaluatingOnLoop(bool a_bReplaceOnLoop) { _bReplaceOnLoop = a_bReplaceOnLoop; }
 
 	bool IsReevaluatingOnEcho() const { return _bReplaceOnEcho; }
 	void SetReevaluatingOnEcho(bool a_bReplaceOnEcho) { _bReplaceOnEcho = a_bReplaceOnEcho; }
 
-	bool IsKeepingRandomResultsOnLoop() const { return _bKeepRandomResultsOnLoop; }
-	void SetKeepRandomResultsOnLoop(bool a_bKeepRandomResultsOnLoop) { _bKeepRandomResultsOnLoop = a_bKeepRandomResultsOnLoop; }
-
-	bool IsSharingRandomResults() const { return _bShareRandomResults; }
-	void SetShareRandomResults(bool a_bShareRandomResults) { _bShareRandomResults = a_bShareRandomResults; }
-
 	bool IsDirty() const { return _bDirty || _conditionSet->IsDirtyRecursive() || (_synchronizedConditionSet && _synchronizedConditionSet->IsDirtyRecursive()); }
 	bool IsFromUserConfig() const { return _configSource == Parsing::ConfigSource::kUser; }
 	bool IsFromLegacyConfig() const { return _configSource >= Parsing::ConfigSource::kLegacy; }
 	bool IsFromLegacyActorBase() const { return _configSource == Parsing::ConfigSource::kLegacyActorBase; }
-	bool DoesUserConfigExist() const;
-	void DeleteUserConfig() const;
 	void SetDirty(bool a_bDirty) { _bDirty = a_bDirty; }
 
 	void SetDirtyRecursive(bool a_bDirty)
@@ -119,9 +122,7 @@ public:
 	void ForEachReplacementAnimation(const std::function<void(ReplacementAnimation*)>& a_func) const;
 	void ForEachReplacementAnimationFile(const std::function<void(const ReplacementAnimationFile&)>& a_func) const;
 
-	float GetSharedRandom(ActiveClip* a_activeClip, const Conditions::IRandomConditionComponent* a_randomComponent);
-	float GetVariantRandom(ActiveClip* a_activeClip);
-	void ClearSharedRandom(const RE::hkbBehaviorGraph* a_behaviorGraph);
+	StateDataContainer<const Conditions::ICondition*> conditionStateData;
 
 private:
 	friend class ReplacerMod;
@@ -139,10 +140,16 @@ private:
 	bool _bIgnoreDontConvertAnnotationsToTriggersFlag = false;
 	bool _bTriggersFromAnnotationsOnly = false;
 	bool _bInterruptible = false;
+	bool _bCustomBlendTimeOnInterrupt = false;
+	float _blendTimeOnInterrupt = Settings::fDefaultBlendTimeOnInterrupt;
 	bool _bReplaceOnLoop = true;
+	bool _bCustomBlendTimeOnLoop = false;
+	float _blendTimeOnLoop = Settings::fDefaultBlendTimeOnLoop;
 	bool _bReplaceOnEcho = false;
-	bool _bKeepRandomResultsOnLoop = false;
-	bool _bShareRandomResults = false;
+	bool _bCustomBlendTimeOnEcho = false;
+	float _blendTimeOnEcho = Settings::fDefaultBlendTimeOnEcho;
+	bool _bKeepRandomResultsOnLoop_DEPRECATED = false;
+	bool _bShareRandomResults_DEPRECATED = false;
 
 	std::unordered_map<std::filesystem::path, ReplacementAnimationFile, CaseInsensitivePathHash, CaseInsensitivePathEqual> _replacementAnimationFiles;
 
@@ -153,47 +160,30 @@ private:
 	mutable SharedLock _dataLock;
 	std::vector<ReplacerProjectData*> _replacerProjects;
 	std::vector<ReplacementAnimation*> _replacementAnimations;
-
-	struct SharedRandomFloats
-	{
-		SharedRandomFloats(SubMod* a_parentSubMod, RE::hkbBehaviorGraph* a_behaviorGraph) :
-			_parentSubMod(a_parentSubMod),
-			_behaviorGraph(a_behaviorGraph) {}
-
-		float GetRandomFloat(ActiveClip* a_activeClip, const Conditions::IRandomConditionComponent* a_randomComponent);
-		float GetVariantFloat(ActiveClip* a_activeClip);
-
-		void AddActiveClip(ActiveClip* a_activeClip);
-
-		void RemoveActiveClip(ActiveClip* a_activeClip);
-
-		SharedLock _randomLock;
-		std::unordered_map<const Conditions::IRandomConditionComponent*, float> _randomFloats{};
-		std::optional<float> _variantFloat = std::nullopt;
-
-		ExclusiveLock _clipLock;
-		std::unordered_map<ActiveClip*, std::shared_ptr<ActiveClip::DestroyedCallback>> _registeredCallbacks;
-
-		SubMod* _parentSubMod = nullptr;
-		RE::hkbBehaviorGraph* _behaviorGraph = nullptr;
-
-		std::shared_ptr<Jobs::RemoveSharedRandomFloatJob> _queuedRemovalJob = nullptr;
-	};
-
-	SharedLock _randomLock;
-	std::unordered_map<const RE::hkbBehaviorGraph*, SharedRandomFloats> _sharedRandomFloats{};
 };
 
 // this is a replacer mod, contains submods
-class ReplacerMod
+class ReplacerMod : public IStateDataContainerHolder
 {
 public:
+	ReplacerMod(bool a_bIsLegacy) :
+		_bIsLegacy(a_bIsLegacy)
+	{}
+
 	ReplacerMod(std::string_view a_path, std::string_view a_name, std::string_view a_author, std::string_view a_description, bool a_bIsLegacy) :
 		_name(a_name),
 		_author(a_author),
 		_description(a_description),
 		_bIsLegacy(a_bIsLegacy),
-		_path(a_path) {}
+		_path(a_path)
+	{}
+
+	bool StateDataUpdate(float a_deltaTime) override;
+	bool StateDataOnLoopOrEcho(RE::ObjectRefHandle a_refHandle, ActiveClip* a_activeClip, bool a_bIsEcho) override;
+	bool StateDataClearRefrData(RE::ObjectRefHandle a_refHandle) override;
+	void StateDataClearData() override;
+
+	void LoadParseResult(Parsing::ModParseResult& a_parseResult);
 
 	std::string_view GetName() const { return _name; }
 	void SetName(std::string_view a_name);
@@ -205,19 +195,35 @@ public:
 	std::string_view GetPath() const { return _path; }
 	bool IsLegacy() const { return _bIsLegacy; }
 
+	Parsing::ConfigSource GetConfigSource() const { return _configSource; }
+
 	bool IsDirty() const { return _bDirty; }
 	void SetDirty(bool a_bDirty) { _bDirty = a_bDirty; }
 
+	bool ReloadConfig();
 	void SaveConfig(ConditionEditMode a_editMode);
 	void Serialize(rapidjson::Document& a_doc) const;
 
 	void AddSubMod(std::unique_ptr<SubMod>& a_subMod);
-
 	bool HasSubMod(std::string_view a_path) const;
 	SubMod* GetSubMod(std::string_view a_path) const;
 	RE::BSVisit::BSVisitControl ForEachSubMod(const std::function<RE::BSVisit::BSVisitControl(SubMod*)>& a_func) const;
-
 	void SortSubMods();
+
+	void AddConditionPreset(std::unique_ptr<Conditions::ConditionPreset>& a_conditionPreset);
+	void RemoveConditionPreset(std::string_view a_name);
+	void LoadConditionPresets(std::vector<std::unique_ptr<Conditions::ConditionPreset>>& a_conditionPresets);
+	void RestorePresetReferences();
+	bool HasConditionPresets() const;
+	bool HasConditionPreset(std::string_view a_name) const;
+	Conditions::ConditionPreset* GetConditionPreset(std::string_view a_name) const;
+	RE::BSVisit::BSVisitControl ForEachConditionPreset(const std::function<RE::BSVisit::BSVisitControl(Conditions::ConditionPreset*)>& a_func) const;
+	void SortConditionPresets();
+
+	bool HasInvalidConditions() const;
+
+	StateDataContainer<std::string> conditionStateData;
+	VariantStateDataContainer variantStateData;
 
 private:
 	std::string _name;
@@ -225,9 +231,13 @@ private:
 	std::string _description;
 	bool _bIsLegacy = false;
 	std::string _path;
+	Parsing::ConfigSource _configSource = Parsing::ConfigSource::kAuthor;
 
 	mutable SharedLock _dataLock;
 	std::vector<std::unique_ptr<SubMod>> _subMods;
+
+	mutable SharedLock _presetsLock;
+	std::vector<std::unique_ptr<Conditions::ConditionPreset>> _conditionPresets;
 
 	bool _bDirty = false;
 };
@@ -243,10 +253,9 @@ public:
 	std::string_view GetOriginalPath() const { return _originalPath; }
 	bool IsOriginalInterruptible() const { return _bOriginalInterruptible; }
 	bool ShouldOriginalReplaceOnEcho() const { return _bOriginalReplaceOnEcho; }
-	bool ShouldOriginalKeepRandomResultsOnLoop() const { return _bOriginalKeepRandomResultsOnLoop; }
 
-	ReplacementAnimation* EvaluateConditionsAndGetReplacementAnimation(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const;
-	ReplacementAnimation* EvaluateSynchronizedConditionsAndGetReplacementAnimation(RE::TESObjectREFR* a_sourceRefr, RE::TESObjectREFR* a_targetRefr, RE::hkbClipGenerator* a_clipGenerator) const;
+	[[nodiscard]] ReplacementAnimation* EvaluateConditionsAndGetReplacementAnimation(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const;
+	[[nodiscard]] ReplacementAnimation* EvaluateSynchronizedConditionsAndGetReplacementAnimation(RE::TESObjectREFR* a_sourceRefr, RE::TESObjectREFR* a_targetRefr, RE::hkbClipGenerator* a_clipGenerator) const;
 
 	void AddReplacementAnimation(std::unique_ptr<ReplacementAnimation>& a_replacementAnimation);
 	void SortByPriority();
@@ -255,7 +264,6 @@ public:
 
 	void TestInterruptible();
 	void TestReplaceOnEcho();
-	void TestKeepRandomResultsOnLoop();
 
 	void MarkAsSynchronizedAnimation(bool a_bSynchronized);
 
@@ -269,7 +277,6 @@ protected:
 
 	bool _bOriginalInterruptible = false;
 	bool _bOriginalReplaceOnEcho = false;
-	bool _bOriginalKeepRandomResultsOnLoop = false;
 };
 
 // this is a class holding our data per behavior project

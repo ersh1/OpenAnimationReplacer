@@ -27,16 +27,16 @@ public:
 	uint64_t pad38 = 0;
 	uint64_t pad40 = 0;
 	uint64_t pad48 = 0;
-	RE::hkRefPtr<RE::hkbClipTriggerArray> triggers;                            // 050
-	float cropStartAmountLocalTime = 0.f;                                      // 058
-	float cropEndAmountLocalTime = 0.f;                                        // 05C
-	float startTime = 0.f;                                                     // 060
-	float playbackSpeed = 1.f;                                                 // 064
-	float enforcedDuration = 0.f;                                              // 068
-	float userControlledTimeFraction = 0.f;                                    // 06C
-	uint16_t animationBindingIndex;                                            // 070
+	RE::hkRefPtr<RE::hkbClipTriggerArray> triggers;                  // 050
+	float cropStartAmountLocalTime = 0.f;                            // 058
+	float cropEndAmountLocalTime = 0.f;                              // 05C
+	float startTime = 0.f;                                           // 060
+	float playbackSpeed = 1.f;                                       // 064
+	float enforcedDuration = 0.f;                                    // 068
+	float userControlledTimeFraction = 0.f;                          // 06C
+	uint16_t animationBindingIndex;                                  // 070
 	REX::EnumSet<RE::hkbClipGenerator::PlaybackMode, uint8_t> mode;  // 072
-	uint8_t flags = 0;                                                         // 073
+	uint8_t flags = 0;                                               // 073
 	uint32_t pad74 = 0;
 	uint64_t pad78 = 0;
 	uint64_t pad80 = 0;

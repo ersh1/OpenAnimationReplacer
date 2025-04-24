@@ -733,10 +733,24 @@ namespace Conditions
 
 					if (boolComponent->GetBoolValue()) {
 						// active effects only, do the same thing as the game does but check the inactive flag as well
-						if (auto activeEffects = magicTarget->GetActiveEffectList()) {
-							for (RE::ActiveEffect* activeEffect : *activeEffects) {
-								if (!activeEffect->flags.any(RE::ActiveEffect::Flag::kInactive)) {
-									if (activeEffect->GetBaseObject() == magicEffect) {
+						const auto matchesEffect = [&](RE::ActiveEffect* ae) -> bool {
+							return ae && !ae->flags.any(RE::ActiveEffect::Flag::kInactive) && ae->GetBaseObject() == magicEffect;
+						};
+
+						if (REL::Module::IsVR()) {  // VR must use a visitor since it doesn't have GetActiveEffectList
+							bool hasEffect = false;
+							magicTarget->VisitActiveEffects([&](RE::ActiveEffect* ae) {
+								if (matchesEffect(ae)) {
+									hasEffect = true;
+									return RE::BSContainer::ForEachResult::kStop;
+								}
+								return RE::BSContainer::ForEachResult::kContinue;
+							});
+							return hasEffect;
+						} else {
+							if (auto activeEffects = magicTarget->GetActiveEffectList()) {
+								for (auto* ae : *activeEffects) {
+									if (matchesEffect(ae)) {
 										return true;
 									}
 								}

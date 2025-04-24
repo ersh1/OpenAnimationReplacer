@@ -2194,7 +2194,7 @@ namespace Conditions
 
 	RE::BSString CurrentPackageProcedureTypeCondition::GetArgument() const
 	{
-		const auto packageProcedureType = static_cast<RE::PACKAGE_PROCEDURE_TYPE>(packageProcedureTypeComponent->GetNumericValue(nullptr));
+		const auto packageProcedureType = static_cast<RE::PACKAGE_TYPE>(packageProcedureTypeComponent->GetNumericValue(nullptr));
 
 		return GetPackageProcedureTypeName(packageProcedureType);
 	}
@@ -2203,7 +2203,7 @@ namespace Conditions
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
-				return GetPackageProcedureTypeName(GetPackageProcedureType(actor));
+				return GetPackageProcedureTypeName(GetPackageType(actor));
 			}
 		}
 
@@ -2214,14 +2214,14 @@ namespace Conditions
 	{
 		if (a_refr) {
 			if (auto actor = a_refr->As<RE::Actor>()) {
-				return GetPackageProcedureType(actor) == static_cast<RE::PACKAGE_PROCEDURE_TYPE>(packageProcedureTypeComponent->GetNumericValue(a_refr));
+				return GetPackageType(actor) == static_cast<RE::PACKAGE_TYPE>(packageProcedureTypeComponent->GetNumericValue(a_refr));
 			}
 		}
 
 		return false;
 	}
 
-	RE::PACKAGE_PROCEDURE_TYPE CurrentPackageProcedureTypeCondition::GetPackageProcedureType(RE::Actor* a_actor) const
+	RE::PACKAGE_TYPE CurrentPackageProcedureTypeCondition::GetPackageType(RE::Actor* a_actor) const
 	{
 		if (a_actor) {
 			if (const auto currentPackage = a_actor->GetCurrentPackage()) {
@@ -2229,10 +2229,10 @@ namespace Conditions
 			}
 		}
 
-		return RE::PACKAGE_PROCEDURE_TYPE::kNone;
+		return RE::PACKAGE_TYPE::kNone;
 	}
 
-	std::string_view CurrentPackageProcedureTypeCondition::GetPackageProcedureTypeName(RE::PACKAGE_PROCEDURE_TYPE a_type) const
+	std::string_view CurrentPackageProcedureTypeCondition::GetPackageProcedureTypeName(RE::PACKAGE_TYPE a_type) const
 	{
 		static auto map = GetEnumMap();
 		if (const auto it = map.find(static_cast<int32_t>(a_type)); it != map.end()) {

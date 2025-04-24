@@ -35,7 +35,7 @@ public:
 	float enforcedDuration = 0.f;                                              // 068
 	float userControlledTimeFraction = 0.f;                                    // 06C
 	uint16_t animationBindingIndex;                                            // 070
-	SKSE::stl::enumeration<RE::hkbClipGenerator::PlaybackMode, uint8_t> mode;  // 072
+	REX::EnumSet<RE::hkbClipGenerator::PlaybackMode, uint8_t> mode;  // 072
 	uint8_t flags = 0;                                                         // 073
 	uint32_t pad74 = 0;
 	uint64_t pad78 = 0;

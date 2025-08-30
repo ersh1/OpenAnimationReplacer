@@ -48,7 +48,6 @@ namespace OAR_API::Animations
 		///	Reloads all animations and mod configurations.
 		///	</summary>
 		virtual void ReloadAnimations() noexcept = 0;
-
 	};
 
 	using IAnimationsInterface = IAnimationsInterface1;

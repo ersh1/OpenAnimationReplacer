@@ -691,6 +691,23 @@ void OpenAnimationReplacer::ForEachSortedReplacerMod(const std::function<void(Re
 	}
 }
 
+void OpenAnimationReplacer::ReloadAnimations()
+{
+	_replacerMods.clear();
+	_legacyReplacerMod.reset();
+	_replacerModNameMap.clear();
+	_animationPathToSubModsMap.clear();
+	_processedDatas.clear();
+	_replacerProjectDatas.clear();
+	_activeClips.clear();
+	_activeSynchronizedAnimations.clear();
+	_activeScenelessSynchronizedClips.clear();
+	_clipsPendingNonAnnotationTriggersRemoval.clear();
+	_activeAnimationPreviews.clear();
+
+	CreateReplacerMods();
+}
+
 void OpenAnimationReplacer::SetSynchronizedClipsIDOffset(RE::hkbCharacterStringData* a_stringData, uint16_t a_offset)
 {
 	if (const auto search = _replacerProjectDatas.find(a_stringData); search != _replacerProjectDatas.end()) {

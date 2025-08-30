@@ -201,4 +201,9 @@ namespace Jobs
 			replacerMod->RemoveConditionPreset(conditionPresetName);
 		}
 	};
+
+	struct ReloadAnimationsJob : GenericJob
+	{
+		void Run() override;
+	};
 }

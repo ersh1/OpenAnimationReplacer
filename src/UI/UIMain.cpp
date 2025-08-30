@@ -596,6 +596,14 @@ namespace UI
 			}
 			ImGui::SameLine();
 			UICommon::HelpMarker("Enable to increase the animation limit to double the default value. Should generally work fine, but I might have missed some places to patch in the game code so this is still considered to be experimental. There's no benefit in enabling this if you're not going over the limit.");
+			ImGui::Spacing();
+			ImGui::Separator();
+
+			if (ImGui::Button("Reload animations")) {
+				OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::ReloadAnimationsJob>();
+			}
+			ImGui::SameLine();
+			UICommon::HelpMarker("Reload all animations mod config");
 		}
 
 		ImGui::End();

@@ -733,10 +733,24 @@ namespace Conditions
 
 					if (boolComponent->GetBoolValue()) {
 						// active effects only, do the same thing as the game does but check the inactive flag as well
-						if (auto activeEffects = magicTarget->GetActiveEffectList()) {
-							for (RE::ActiveEffect* activeEffect : *activeEffects) {
-								if (!activeEffect->flags.any(RE::ActiveEffect::Flag::kInactive)) {
-									if (activeEffect->GetBaseObject() == magicEffect) {
+						const auto matchesEffect = [&](RE::ActiveEffect* ae) -> bool {
+							return ae && !ae->flags.any(RE::ActiveEffect::Flag::kInactive) && ae->GetBaseObject() == magicEffect;
+						};
+
+						if (REL::Module::IsVR()) {  // VR must use a visitor since it doesn't have GetActiveEffectList
+							bool hasEffect = false;
+							magicTarget->VisitActiveEffects([&](RE::ActiveEffect* ae) {
+								if (matchesEffect(ae)) {
+									hasEffect = true;
+									return RE::BSContainer::ForEachResult::kStop;
+								}
+								return RE::BSContainer::ForEachResult::kContinue;
+							});
+							return hasEffect;
+						} else {
+							if (auto activeEffects = magicTarget->GetActiveEffectList()) {
+								for (auto* ae : *activeEffects) {
+									if (matchesEffect(ae)) {
 										return true;
 									}
 								}
@@ -2194,7 +2208,7 @@ namespace Conditions
 
 	RE::BSString CurrentPackageProcedureTypeCondition::GetArgument() const
 	{
-		const auto packageProcedureType = static_cast<RE::PACKAGE_PROCEDURE_TYPE>(packageProcedureTypeComponent->GetNumericValue(nullptr));
+		const auto packageProcedureType = static_cast<RE::PACKAGE_TYPE>(packageProcedureTypeComponent->GetNumericValue(nullptr));
 
 		return GetPackageProcedureTypeName(packageProcedureType);
 	}
@@ -2203,7 +2217,7 @@ namespace Conditions
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
-				return GetPackageProcedureTypeName(GetPackageProcedureType(actor));
+				return GetPackageProcedureTypeName(GetPackageType(actor));
 			}
 		}
 
@@ -2214,14 +2228,14 @@ namespace Conditions
 	{
 		if (a_refr) {
 			if (auto actor = a_refr->As<RE::Actor>()) {
-				return GetPackageProcedureType(actor) == static_cast<RE::PACKAGE_PROCEDURE_TYPE>(packageProcedureTypeComponent->GetNumericValue(a_refr));
+				return GetPackageType(actor) == static_cast<RE::PACKAGE_TYPE>(packageProcedureTypeComponent->GetNumericValue(a_refr));
 			}
 		}
 
 		return false;
 	}
 
-	RE::PACKAGE_PROCEDURE_TYPE CurrentPackageProcedureTypeCondition::GetPackageProcedureType(RE::Actor* a_actor) const
+	RE::PACKAGE_TYPE CurrentPackageProcedureTypeCondition::GetPackageType(RE::Actor* a_actor) const
 	{
 		if (a_actor) {
 			if (const auto currentPackage = a_actor->GetCurrentPackage()) {
@@ -2229,10 +2243,10 @@ namespace Conditions
 			}
 		}
 
-		return RE::PACKAGE_PROCEDURE_TYPE::kNone;
+		return RE::PACKAGE_TYPE::kNone;
 	}
 
-	std::string_view CurrentPackageProcedureTypeCondition::GetPackageProcedureTypeName(RE::PACKAGE_PROCEDURE_TYPE a_type) const
+	std::string_view CurrentPackageProcedureTypeCondition::GetPackageProcedureTypeName(RE::PACKAGE_TYPE a_type) const
 	{
 		static auto map = GetEnumMap();
 		if (const auto it = map.find(static_cast<int32_t>(a_type)); it != map.end()) {

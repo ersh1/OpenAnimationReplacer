@@ -100,9 +100,9 @@ extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
 	v.PluginVersion(Plugin::VERSION);
 	v.PluginName(Plugin::NAME);
 	v.AuthorName("Ersh");
-	v.UsesAddressLibrary(true);
+	v.UsesAddressLibrary();
 	v.CompatibleVersions({ SKSE::RUNTIME_SSE_LATEST });
-	v.HasNoStructUse(true);
+	v.UsesNoStructs();
 
 	return v;
 }();
@@ -114,7 +114,6 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 		Sleep(100);
 	}
 #endif
-	REL::Module::reset();  // Clib-NG bug workaround
 
 	// check if DAR is present
 	if (GetModuleHandle("DynamicAnimationReplacer.dll")) {

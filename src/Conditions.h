@@ -1445,8 +1445,8 @@ namespace Conditions
 
 	protected:
 		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
-		RE::PACKAGE_PROCEDURE_TYPE GetPackageProcedureType(RE::Actor* a_actor) const;
-		std::string_view GetPackageProcedureTypeName(RE::PACKAGE_PROCEDURE_TYPE a_type) const;
+		RE::PACKAGE_TYPE GetPackageType(RE::Actor* a_actor) const;
+		std::string_view GetPackageProcedureTypeName(RE::PACKAGE_TYPE a_type) const;
 
 		static std::map<int32_t, std::string_view> GetEnumMap();
 	};

@@ -80,6 +80,7 @@ public:
 	void ForEachReplacerProjectData(const std::function<void(RE::hkbCharacterStringData*, ReplacerProjectData*)>& a_func) const;
 	void ForEachReplacerMod(const std::function<void(ReplacerMod*)>& a_func) const;
 	void ForEachSortedReplacerMod(const std::function<void(ReplacerMod*)>& a_func) const;
+	void ReloadAnimations();
 
 	void SetSynchronizedClipsIDOffset(RE::hkbCharacterStringData* a_stringData, uint16_t a_offset);
 	[[nodiscard]] uint16_t GetSynchronizedClipsIDOffset(RE::hkbCharacterStringData* a_stringData) const;

@@ -47,6 +47,10 @@ namespace OAR_API
 		{
 			OpenAnimationReplacer::GetSingleton().ClearConditionStateDataForRefr(a_refr);
 		}
+		void AnimationsInterface::ReloadAnimations() noexcept
+		{
+			OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::ReloadAnimationsJob>();
+		}
 	}
 
 	namespace Conditions

@@ -27,4 +27,8 @@ namespace Jobs
 			}
 		}
 	}
+	void ReloadAnimationsJob::Run()
+	{
+		OpenAnimationReplacer::GetSingleton().ReloadAnimations();
+	}
 }

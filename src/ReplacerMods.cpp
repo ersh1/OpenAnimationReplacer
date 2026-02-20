@@ -764,7 +764,7 @@ void SubMod::Serialize(rapidjson::Document& a_doc, EditMode a_editMode) const
 				a_doc.AddMember(memberStr, value, allocator);
 			}
 		};
-		
+
 		writeFunctions(_functionSetOnActivate, Functions::FunctionSetType::kOnActivate);
 		writeFunctions(_functionSetOnDeactivate, Functions::FunctionSetType::kOnDeactivate);
 		writeFunctions(_functionSetOnTrigger, Functions::FunctionSetType::kOnTrigger);

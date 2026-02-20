@@ -152,7 +152,7 @@ namespace Components
 								bEdited = true;
 							}
 						}
-						
+
 						ImGui::PopID();
 
 						UI::UICommon::SecondColumn(a_firstColumnWidthPercent);
@@ -171,7 +171,7 @@ namespace Components
 								bEdited = true;
 							}
 						}
-						
+
 						ImGui::PopID();
 
 						UI::UICommon::SecondColumn(a_firstColumnWidthPercent);

@@ -4481,7 +4481,7 @@ namespace Conditions
 			if (const auto actor = a_refr->As<RE::Actor>()) {
 				if (auto cell = actor->parentCell) {
 					RE::NiPoint3 pos = actor->GetPosition();
-					
+
 					float waterHeight;
 					if (cell->GetWaterHeight(pos, waterHeight)) {
 						float distance = distanceNumericComponent->GetNumericValue(a_refr);

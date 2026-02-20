@@ -190,7 +190,7 @@ void ActiveClip::ReplaceActiveAnimation(RE::hkbClipGenerator* a_clipGenerator, c
 		// set to null before deactivation so it isn't destroyed when hkbClipGenerator::Deactivate is called (we continue using this animation control object in the fake clip generator)
 		a_clipGenerator->animationControl = nullptr;
 	}
-	
+
 	TransitioningReason transitioningReason = TransitioningReason::kDefault;
 	if (_queuedReplacement && _queuedReplacement->replacementAnimation == _currentReplacementAnimation && _queuedReplacement->variant) {
 		transitioningReason = _queuedReplacement->replacementEvent == AnimationLogEntry::Event::kEchoReplace ? TransitioningReason::kVariantEcho : TransitioningReason::kVariantLoop;

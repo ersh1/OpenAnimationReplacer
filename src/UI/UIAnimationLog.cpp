@@ -229,7 +229,7 @@ namespace UI
 		}
 
 		a_function();
-		
+
 		if (bPushedColor) {
 			ImGui::PopStyleColor();
 		}
@@ -258,7 +258,7 @@ namespace UI
 				ImGui::TextUnformatted(modText.data());
 
 				UICommon::SecondColumn(0.85f);
-								
+
 				SetColors(step.result, [&]() {
 					ImGui::TextUnformatted(GetTraceResultText(step.result).data());
 				});
@@ -283,8 +283,6 @@ namespace UI
 					ImGui::TreePop();
 				}
 			}
-
-			
 		}
 
 		ImGui::EndChild();

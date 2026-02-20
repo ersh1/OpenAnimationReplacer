@@ -135,7 +135,7 @@ namespace Conditions
 
 		// API version 3+ only
 		[[nodiscard]] virtual ConditionType GetConditionTypeImpl() const = 0;
-		
+
 	public:
 		[[nodiscard]] virtual EssentialState GetEssentialImpl() const = 0;
 		virtual void SetEssential(EssentialState a_essentialState) = 0;
@@ -424,7 +424,7 @@ namespace Conditions
 	protected:
 		std::unique_ptr<ICondition> _wrappedCondition = nullptr;
 
-	// API version 3+ only
+		// API version 3+ only
 	protected:
 		[[nodiscard]] ConditionType GetConditionTypeImpl() const override { return ConditionType::kCustom; }
 

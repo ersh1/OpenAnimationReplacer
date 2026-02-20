@@ -5,8 +5,8 @@
 
 #include "API/OpenAnimationReplacer-SharedTypes.h"
 
-#include <unordered_set>
 #include <rapidjson/document.h>
+#include <unordered_set>
 
 class ActiveClip;
 class SubMod;
@@ -293,7 +293,7 @@ public:
 		return static_cast<const Derived*>(this)->GetParentSubModImpl();
 	}
 
-	[[nodiscard]] bool IsDirtyRecursive() const 
+	[[nodiscard]] bool IsDirtyRecursive() const
 	{
 		return static_cast<const Derived*>(this)->IsDirtyRecursiveImpl();
 	}
@@ -303,7 +303,7 @@ public:
 		static_cast<Derived*>(this)->SetDirtyRecursiveImpl(a_bDirty);
 	}
 
-	void AddOnDirtyCallback(Callback a_callback) 
+	void AddOnDirtyCallback(Callback a_callback)
 	{
 		_onDirtyCallbacks.push_back(a_callback);
 	}

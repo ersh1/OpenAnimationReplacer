@@ -1,7 +1,7 @@
 #pragma once
 
-#include "BaseFunctions.h"
 #include "BaseConditions.h"
+#include "BaseFunctions.h"
 #include "Settings.h"
 #include "SharedTypes.h"
 #include "Variants.h"

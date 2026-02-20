@@ -3,8 +3,8 @@
 #include "API/OpenAnimationReplacer-ConditionTypes.h"
 #include "Conditions.h"
 #include "DetectedProblems.h"
-#include "ReplacerMods.h"
 #include "OpenAnimationReplacer.h"
+#include "ReplacerMods.h"
 
 namespace Jobs
 {

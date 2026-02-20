@@ -149,7 +149,7 @@ namespace Conditions
 				} else {
 					trace->TraceCondition(condition.get(), result);
 				}
-				
+
 				if (!bSuccess) {
 					return false;
 				}
@@ -190,7 +190,6 @@ namespace Conditions
 					} else {
 						trace->TraceCondition(condition.get(), result);
 					}
-					
 				}
 				if (bSuccess) {
 					bAnyMet = true;

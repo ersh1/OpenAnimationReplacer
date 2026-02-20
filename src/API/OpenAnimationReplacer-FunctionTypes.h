@@ -17,7 +17,7 @@ namespace Functions
 	struct Trigger;
 
 	class FunctionSet;
-	
+
 	using FunctionFactory = IFunction* (*)();
 	using FunctionComponentFactory = IFunctionComponent* (*)(const IFunction* a_parentFunction, const char* a_name, const char* a_description);
 
@@ -62,11 +62,12 @@ namespace Functions
 
 		Trigger() = default;
 
-		Trigger(const RE::BSString& a_event, const RE::BSString& a_payload) : 
+		Trigger(const RE::BSString& a_event, const RE::BSString& a_payload) :
 			event(a_event), payload(a_payload)
 		{}
 
-		bool operator<(const Trigger& a_other) const {
+		bool operator<(const Trigger& a_other) const
+		{
 			if (std::string_view(event.data()) == std::string_view(a_other.event.data())) {
 				return std::string_view(payload.data()) < std::string_view(a_other.payload.data());
 			}
@@ -84,7 +85,7 @@ namespace Functions
 
 		virtual bool Run(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod, Trigger* a_trigger = nullptr) const = 0;
 
-		virtual void Initialize(void* a_value) = 0;  // rapidjson::Value* a_value
+		virtual void Initialize(void* a_value) = 0;                                                                // rapidjson::Value* a_value
 		virtual void Serialize(void* a_value, void* a_allocator, IFunction* a_outerCustomFunction = nullptr) = 0;  // rapidjson::Value* a_value, rapidjson::Document::AllocatorType* a_allocator
 
 		virtual void PreInitialize() {}

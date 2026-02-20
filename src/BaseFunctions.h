@@ -117,7 +117,7 @@ namespace Functions
 
 		[[nodiscard]] const IFunction* GetParentFunction() const;
 		FunctionSetType GetFunctionSetType() const { return _type; }
-		
+
 	protected:
 		FunctionSetType _type = FunctionSetType::kNone;
 
@@ -129,7 +129,7 @@ namespace Functions
 	{
 	public:
 		MultiFunctionComponent(const IFunction* a_parentFunction, const char* a_name, const char* a_description = "") :
-			IMultiFunctionComponent(a_parentFunction, a_name, a_description) 
+			IMultiFunctionComponent(a_parentFunction, a_name, a_description)
 		{
 			functionSet = std::make_unique<FunctionSet>(this);
 		}
@@ -199,7 +199,7 @@ namespace Functions
 
 		void SetStaticRange(float a_min, float a_max) { value.SetStaticRange(a_min, a_max); }
 		void SetStaticInteger(bool a_bIsInteger) { value.SetStaticInteger(a_bIsInteger); }
-		void SetForcedType (Components::NumericValue::Type a_forcedType) { value.SetForcedType(a_forcedType); }
+		void SetForcedType(Components::NumericValue::Type a_forcedType) { value.SetForcedType(a_forcedType); }
 
 		Components::NumericValue value;
 	};

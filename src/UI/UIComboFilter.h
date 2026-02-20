@@ -1,9 +1,9 @@
 #pragma once
 
-#include "UICommon.h"
-#include "OpenAnimationReplacer.h"
 #include "API/OpenAnimationReplacer-ConditionTypes.h"
 #include "API/OpenAnimationReplacer-FunctionTypes.h"
+#include "OpenAnimationReplacer.h"
+#include "UICommon.h"
 
 // ImGui combo filter modified from https://github.com/khlorz/imgui-combo-filter/
 
@@ -459,4 +459,3 @@ namespace UI
 		std::vector<Info> _functionInfos{};
 	};
 }
-

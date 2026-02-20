@@ -1,11 +1,11 @@
 #pragma once
 
+#include "API/OpenAnimationReplacerAPI-Functions.h"
 #include "ActiveAnimationPreview.h"
 #include "ActiveClip.h"
 #include "ActiveSynchronizedAnimation.h"
 #include "Jobs.h"
 #include "ReplacerMods.h"
-#include "API/OpenAnimationReplacerAPI-Functions.h"
 
 #include <unordered_set>
 

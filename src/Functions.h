@@ -83,7 +83,7 @@ namespace Functions
 	{
 	public:
 		RANDOMFunctionComponent(const IFunction* a_parentFunction, const char* a_name, const char* a_description = "") :
-			MultiFunctionComponent(a_parentFunction, a_name, a_description) 
+			MultiFunctionComponent(a_parentFunction, a_name, a_description)
 		{
 			std::function<void()> fun = std::bind(&RANDOMFunctionComponent::UpdateWeightCache, this);
 			functionSet->AddOnDirtyCallback(fun);
@@ -100,7 +100,7 @@ namespace Functions
 
 	protected:
 		void UpdateWeightCache();
-		
+
 		mutable SharedLock _lock;
 		std::vector<IFunction*> _functions;
 		std::discrete_distribution<> _dist;

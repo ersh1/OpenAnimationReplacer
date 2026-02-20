@@ -1,6 +1,6 @@
 #pragma once
-#include "UIWindow.h"
 #include "UIComboFilter.h"
+#include "UIWindow.h"
 
 #include "OpenAnimationReplacer.h"
 #include <imgui_internal.h>

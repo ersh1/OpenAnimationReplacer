@@ -1,13 +1,12 @@
 #pragma once
 
-#include "Utils.h"
 #include "UI/UICommon.h"
+#include "Utils.h"
 
 #include "API/OpenAnimationReplacer-SharedTypes.h"
 
 #include <imgui_stdlib.h>
 #include <rapidjson/document.h>
-
 
 template <class T, class U>
 concept Derived = std::is_base_of_v<U, T>;
@@ -260,7 +259,8 @@ namespace Components
 			kNone = kTotal
 		};
 
-		NumericValue() {
+		NumericValue()
+		{
 			_graphVariableName.SetTextHint("Graph variable name...");
 		}
 

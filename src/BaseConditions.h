@@ -3,12 +3,11 @@
 #include <imgui_stdlib.h>
 #include <rapidjson/document.h>
 
+#include "API/OpenAnimationReplacer-ConditionTypes.h"
+#include "API/OpenAnimationReplacer-SharedTypes.h"
 #include "Containers.h"
 #include "SharedTypes.h"
 #include "Utils.h"
-#include "API/OpenAnimationReplacer-SharedTypes.h"
-#include "API/OpenAnimationReplacer-ConditionTypes.h"
-
 
 namespace Conditions
 {

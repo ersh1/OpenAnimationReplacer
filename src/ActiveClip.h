@@ -1,9 +1,9 @@
 #pragma once
 
 #include "AnimationLog.h"
+#include "Containers.h"
 #include "FakeClipGenerator.h"
 #include "ReplacementAnimation.h"
-#include "Containers.h"
 
 // a core class of OAR - holds additional data and logic about an active clip generator, created when a clip generator is activated and destroyed when it is deactivated
 class ActiveClip : public std::enable_shared_from_this<ActiveClip>, public IStateDataContainerHolder, public RE::BSTEventSink<RE::BSAnimationGraphEvent>

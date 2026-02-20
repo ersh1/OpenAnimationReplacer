@@ -248,12 +248,12 @@ namespace Functions
 
 				ImGui::SameLine();
 				UI::UICommon::HelpMarker("The weight of this function used for the weighted random selection (e.g. a function with a weight of 2 will be twice as likely to be picked than a function with a weight of 1)");
-				
+
 				++i;
 				return RE::BSVisit::BSVisitControl::kContinue;
 			});
 		}
-		
+
 		return bSetDirty;
 	}
 
@@ -440,7 +440,6 @@ namespace Functions
 						return true;
 					}
 				}
-
 			}
 		}
 

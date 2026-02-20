@@ -34,6 +34,9 @@ namespace Conditions
 		if (a_conditionName == "IsEquippedShout"sv) {
 			return "IsEquippedPower"sv;
 		}
+		if (a_conditionName == "CurrentPackageProcedureType"sv) {
+			return "CurrentPackageType"sv;
+		}
 
 		return a_conditionName;
 	}
@@ -98,27 +101,45 @@ namespace Conditions
 				requiredVersion = REL::Version(requiredVersionIt->value.GetString());
 			}
 
+			EssentialState essentialState = EssentialState::kEssential;
+			if (const auto essentialIt = object.FindMember("essential"); essentialIt != object.MemberEnd() && essentialIt->value.IsInt()) {
+				essentialState = static_cast<EssentialState>(essentialIt->value.GetInt());
+			}
+			bool bEssential = essentialState == EssentialState::kEssential;
+
 			std::string conditionName = conditionNameIt->value.GetString();
 
 			if (bHasRequiredPlugin && !requiredPluginName.empty()) {
 				// check if required plugin is loaded and is the required version or higher
 				if (!OpenAnimationReplacer::GetSingleton().IsPluginLoaded(requiredPluginName, requiredVersion)) {
-					DetectedProblems::GetSingleton().AddMissingPluginName(requiredPluginName, requiredVersion);
 					auto errorStr = std::format("Missing required plugin {} version {}!", requiredPluginName, requiredVersion.string("."));
-					logger::error("{}", errorStr);
-					return std::make_unique<InvalidCondition>(errorStr);
+					if (bEssential) {
+						DetectedProblems::GetSingleton().AddMissingPluginName(requiredPluginName, requiredVersion);
+						logger::error("{}", errorStr);
+						return std::make_unique<InvalidCondition>(errorStr);
+					} else {
+						auto condition = std::make_unique<InvalidNonEssentialCondition>(errorStr, conditionName, a_value);
+						condition->Initialize(&a_value);
+						return std::move(condition);
+					}
 				}
 			} else {
 				// no required plugin, compare required version with OAR conditions version
 				if (requiredVersion > Plugin::VERSION) {
-					DetectedProblems::GetSingleton().MarkOutdatedVersion();
 					auto errorStr = std::format("Condition {} requires a newer version of OAR! ({})", conditionName, requiredVersion.string("."));
-					logger::error("{}", errorStr);
-					return std::make_unique<InvalidCondition>(errorStr);
+					if (bEssential) {
+						DetectedProblems::GetSingleton().MarkOutdatedVersion();
+						logger::error("{}", errorStr);
+						return std::make_unique<InvalidCondition>(errorStr);
+					} else {
+						auto condition = std::make_unique<InvalidNonEssentialCondition>(errorStr, conditionName, a_value);
+						condition->Initialize(&a_value);
+						return std::move(condition);
+					}
 				}
 			}
 
-			if (auto condition = OpenAnimationReplacer::GetSingleton().CreateCondition(conditionName)) {
+			if (auto condition = OpenAnimationReplacer::GetSingleton().CreateCondition(CorrectLegacyConditionName(conditionName))) {
 				if (condition->IsDeprecated()) {
 					return ConvertDeprecatedCondition(condition, conditionName, a_value);
 				}
@@ -133,20 +154,32 @@ namespace Conditions
 
 			// at this point we failed to create a new condition even though the plugin is present and not outdated. This means that the plugin failed to initialize factories for whatever reason.
 			if (bHasRequiredPlugin) {
-				DetectedProblems::GetSingleton().AddInvalidPluginName(requiredPluginName, requiredVersion);
 				auto errorStr = std::format("Condition {} not found in plugin {}!", conditionName, requiredPluginName);
-				logger::error("{}", errorStr);
-				return std::make_unique<InvalidCondition>(errorStr);
+				if (bEssential) {
+					DetectedProblems::GetSingleton().AddInvalidPluginName(requiredPluginName, requiredVersion);
+					logger::error("{}", errorStr);
+					return std::make_unique<InvalidCondition>(errorStr);
+				} else {
+					auto condition = std::make_unique<InvalidNonEssentialCondition>(errorStr, conditionName, a_value);
+					condition->Initialize(&a_value);
+					return std::move(condition);
+				}
 			}
 
 			auto errorStr = std::format("Condition {} not found!", conditionName);
-			logger::error("{}", errorStr);
-			return std::make_unique<InvalidCondition>(errorStr);
+			if (bEssential) {
+				logger::error("{}", errorStr);
+				return std::make_unique<InvalidCondition>(errorStr);
+			} else {
+				auto condition = std::make_unique<InvalidNonEssentialCondition>(errorStr, conditionName, a_value);
+				condition->Initialize(&a_value);
+				return std::move(condition);
+			}
 		}
 
 		auto errorStr = "Condition name not found!";
 		logger::error("{}", errorStr);
-		;
+
 		return std::make_unique<InvalidCondition>(errorStr);
 	}
 
@@ -185,7 +218,7 @@ namespace Conditions
 
 		for (auto& conditionValue : serializedConditionSet.GetArray()) {
 			if (auto condition = CreateConditionFromJson(conditionValue)) {
-				newConditionSet->AddCondition(condition);
+				newConditionSet->Add(condition);
 			}
 		}
 
@@ -250,7 +283,7 @@ namespace Conditions
 						actorBaseCondition->Initialize(&serializedCondition);
 						actorBaseCondition->PostInitialize();
 
-						targetCondition->conditionsComponent->conditionSet->AddCondition(actorBaseCondition);
+						targetCondition->conditionsComponent->conditionSet->Add(actorBaseCondition);
 					} else {
 						auto isFormCondition = OpenAnimationReplacer::GetSingleton().CreateCondition("IsForm"sv);
 
@@ -262,7 +295,7 @@ namespace Conditions
 						isFormCondition->Initialize(&serializedCondition);
 						isFormCondition->PostInitialize();
 
-						targetCondition->conditionsComponent->conditionSet->AddCondition(isFormCondition);
+						targetCondition->conditionsComponent->conditionSet->Add(isFormCondition);
 					}
 				} else if (a_conditionName == "CurrentTargetFactionRank"sv) {
 					auto factionRankCondition = OpenAnimationReplacer::GetSingleton().CreateCondition("FactionRank"sv);
@@ -283,7 +316,7 @@ namespace Conditions
 					factionRankCondition->Initialize(&serializedCondition);
 					factionRankCondition->PostInitialize();
 
-					targetCondition->conditionsComponent->conditionSet->AddCondition(factionRankCondition);
+					targetCondition->conditionsComponent->conditionSet->Add(factionRankCondition);
 				} else if (a_conditionName == "CurrentTargetHasKeyword"sv) {
 					auto hasKeywordCondition = OpenAnimationReplacer::GetSingleton().CreateCondition("HasKeyword"sv);
 
@@ -295,7 +328,7 @@ namespace Conditions
 					hasKeywordCondition->Initialize(&serializedCondition);
 					hasKeywordCondition->PostInitialize();
 
-					targetCondition->conditionsComponent->conditionSet->AddCondition(hasKeywordCondition);
+					targetCondition->conditionsComponent->conditionSet->Add(hasKeywordCondition);
 				}
 
 				newCondition->PostInitialize();
@@ -305,6 +338,37 @@ namespace Conditions
 		}
 
 		return std::move(a_deprecatedCondition);
+	}
+
+	void InvalidNonEssentialCondition::Serialize(void* a_value, void* a_allocator, ICondition*)
+	{
+		auto& value = *static_cast<rapidjson::Value*>(a_value);
+		auto& allocator = *static_cast<rapidjson::Document::AllocatorType*>(a_allocator);
+
+		// just serialize back the json that was read
+		value.CopyFrom(_json, allocator);
+	}
+
+	RE::BSString InvalidNonEssentialCondition::GetName() const
+	{
+		std::string ret = "[Missing] " + _name;
+		return ret.data();
+	}
+
+	RE::BSString InvalidNonEssentialCondition::GetDescription() const
+	{
+		switch (GetEssential()) {
+		case EssentialState::kNonEssential_True:
+			return "The condition was not found, however it was marked as non-essential by the replacer mod author. It will be treated as if it evaluated to true."sv.data();
+		case EssentialState::kNonEssential_False:
+			return "The condition was not found, however it was marked as non-essential by the replacer mod author. It will be treated as if it evaluated to false."sv.data();
+		}
+		return "The condition was not found!"sv.data();
+	}
+
+	bool InvalidNonEssentialCondition::EvaluateImpl(RE::TESObjectREFR*, RE::hkbClipGenerator*, void*) const
+	{
+		return GetEssential() == EssentialState::kNonEssential_True;
 	}
 
 	bool ORCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
@@ -738,15 +802,15 @@ namespace Conditions
 						};
 
 						if (REL::Module::IsVR()) {  // VR must use a visitor since it doesn't have GetActiveEffectList
-							bool hasEffect = false;
+							bool bHasEffect = false;
 							magicTarget->VisitActiveEffects([&](RE::ActiveEffect* ae) {
 								if (matchesEffect(ae)) {
-									hasEffect = true;
+									bHasEffect = true;
 									return RE::BSContainer::ForEachResult::kStop;
 								}
 								return RE::BSContainer::ForEachResult::kContinue;
 							});
-							return hasEffect;
+							return bHasEffect;
 						} else {
 							if (auto activeEffects = magicTarget->GetActiveEffectList()) {
 								for (auto* ae : *activeEffects) {
@@ -789,10 +853,24 @@ namespace Conditions
 
 				if (boolComponent->GetBoolValue()) {
 					// active effects only, do the same thing as the game does but check the inactive flag as well
-					if (auto activeEffects = magicTarget->GetActiveEffectList()) {
-						for (RE::ActiveEffect* activeEffect : *activeEffects) {
-							if (!activeEffect->flags.any(RE::ActiveEffect::Flag::kInactive)) {
-								if (keywordComponent->HasKeyword(activeEffect->GetBaseObject())) {
+					const auto matchesEffect = [&](RE::ActiveEffect* ae) -> bool {
+						return ae && !ae->flags.any(RE::ActiveEffect::Flag::kInactive) && keywordComponent->HasKeyword(ae->GetBaseObject());
+					};
+
+					if (REL::Module::IsVR()) {  // VR must use a visitor since it doesn't have GetActiveEffectList
+						bool bHasEffect = false;
+						magicTarget->VisitActiveEffects([&](RE::ActiveEffect* ae) {
+							if (matchesEffect(ae)) {
+								bHasEffect = true;
+								return RE::BSContainer::ForEachResult::kStop;
+							}
+							return RE::BSContainer::ForEachResult::kContinue;
+						});
+						return bHasEffect;
+					} else {
+						if (auto activeEffects = magicTarget->GetActiveEffectList()) {
+							for (RE::ActiveEffect* activeEffect : *activeEffects) {
+								if (matchesEffect(activeEffect)) {
 									return true;
 								}
 							}
@@ -848,7 +926,7 @@ namespace Conditions
 			const std::string_view firstArg = Utils::TrimWhitespace(argument.substr(0, splitPos));
 			const std::string_view secondArg = Utils::TrimWhitespace(argument.substr(splitPos + 1));
 
-			const bool bIsActorValue = numericComponentA->value.GetType() == NumericValue::Type::kActorValue;
+			const bool bIsActorValue = numericComponentA->value.GetType() == Components::NumericValue::Type::kActorValue;
 			numericComponentA->value.ParseLegacy(firstArg, bIsActorValue);
 			numericComponentB->value.ParseLegacy(secondArg);
 		} else {
@@ -2200,42 +2278,42 @@ namespace Conditions
 		return 0.f;
 	}
 
-	void CurrentPackageProcedureTypeCondition::PostInitialize()
+	void CurrentPackageTypeCondition::PostInitialize()
 	{
 		ConditionBase::PostInitialize();
-		packageProcedureTypeComponent->value.getEnumMap = &CurrentPackageProcedureTypeCondition::GetEnumMap;
+		packageTypeComponent->value.getEnumMap = &CurrentPackageTypeCondition::GetEnumMap;
 	}
 
-	RE::BSString CurrentPackageProcedureTypeCondition::GetArgument() const
+	RE::BSString CurrentPackageTypeCondition::GetArgument() const
 	{
-		const auto packageProcedureType = static_cast<RE::PACKAGE_TYPE>(packageProcedureTypeComponent->GetNumericValue(nullptr));
+		const auto packageProcedureType = static_cast<RE::PACKAGE_TYPE>(packageTypeComponent->GetNumericValue(nullptr));
 
-		return GetPackageProcedureTypeName(packageProcedureType);
+		return GetPackageTypeName(packageProcedureType);
 	}
 
-	RE::BSString CurrentPackageProcedureTypeCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+	RE::BSString CurrentPackageTypeCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
-				return GetPackageProcedureTypeName(GetPackageType(actor));
+				return GetPackageTypeName(GetPackageType(actor));
 			}
 		}
 
 		return ConditionBase::GetCurrent(a_refr);
 	}
 
-	bool CurrentPackageProcedureTypeCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
+	bool CurrentPackageTypeCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (auto actor = a_refr->As<RE::Actor>()) {
-				return GetPackageType(actor) == static_cast<RE::PACKAGE_TYPE>(packageProcedureTypeComponent->GetNumericValue(a_refr));
+				return GetPackageType(actor) == static_cast<RE::PACKAGE_TYPE>(packageTypeComponent->GetNumericValue(a_refr));
 			}
 		}
 
 		return false;
 	}
 
-	RE::PACKAGE_TYPE CurrentPackageProcedureTypeCondition::GetPackageType(RE::Actor* a_actor) const
+	RE::PACKAGE_TYPE CurrentPackageTypeCondition::GetPackageType(RE::Actor* a_actor) const
 	{
 		if (a_actor) {
 			if (const auto currentPackage = a_actor->GetCurrentPackage()) {
@@ -2246,7 +2324,7 @@ namespace Conditions
 		return RE::PACKAGE_TYPE::kNone;
 	}
 
-	std::string_view CurrentPackageProcedureTypeCondition::GetPackageProcedureTypeName(RE::PACKAGE_TYPE a_type) const
+	std::string_view CurrentPackageTypeCondition::GetPackageTypeName(RE::PACKAGE_TYPE a_type) const
 	{
 		static auto map = GetEnumMap();
 		if (const auto it = map.find(static_cast<int32_t>(a_type)); it != map.end()) {
@@ -2256,11 +2334,11 @@ namespace Conditions
 		return "(Invalid)"sv;
 	}
 
-	std::map<int32_t, std::string_view> CurrentPackageProcedureTypeCondition::GetEnumMap()
+	std::map<int32_t, std::string_view> CurrentPackageTypeCondition::GetEnumMap()
 	{
 		std::map<int32_t, std::string_view> enumMap;
 		enumMap[-1] = "None"sv;
-		enumMap[0] = "Find"sv;
+		enumMap[0] = "Explore"sv;
 		enumMap[1] = "Follow"sv;
 		enumMap[2] = "Escort"sv;
 		enumMap[3] = "Eat"sv;
@@ -2277,7 +2355,7 @@ namespace Conditions
 		enumMap[14] = "Guard"sv;
 		enumMap[15] = "Dialogue"sv;
 		enumMap[16] = "UseWeapon"sv;
-		enumMap[17] = "Find2"sv;
+		enumMap[17] = "Find"sv;
 		enumMap[18] = "Package"sv;
 		enumMap[19] = "PackageTemplate"sv;
 		enumMap[20] = "Activate"sv;
@@ -2299,6 +2377,11 @@ namespace Conditions
 		enumMap[36] = "MovementBlocked"sv;
 		enumMap[37] = "VampireFeed"sv;
 		enumMap[38] = "Cannibal"sv;
+		enumMap[39] = "Landing"sv;
+		enumMap[40] = "Unused"sv;
+		enumMap[41] = "MountActor"sv;
+		enumMap[42] = "DismountActor"sv;
+		enumMap[43] = "ClearMountPosition"sv;
 		return enumMap;
 	}
 
@@ -3657,7 +3740,7 @@ namespace Conditions
 		bool bXORConditionMet = false;
 		size_t trueCount = 0;
 
-		conditionsComponent->conditionSet->ForEachCondition([&](auto& a_childCondition) {
+		conditionsComponent->conditionSet->ForEach([&](auto& a_childCondition) {
 			if (!a_childCondition->IsDisabled() && a_childCondition->Evaluate(a_refr, a_clipGenerator, a_parentSubMod)) {
 				if (++trueCount > 1) {
 					bXORConditionMet = false;
@@ -4360,7 +4443,7 @@ namespace Conditions
 	RE::BSString IdleTimeCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
 	{
 		if (a_refr) {
-			return std::to_string(GetIdleTime(a_refr)).data();
+			return std::to_string(GetIdleTime(a_refr, nullptr, nullptr)).data();
 		}
 
 		return ""sv.data();
@@ -4368,18 +4451,18 @@ namespace Conditions
 
 	bool IdleTimeCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
 	{
-		return comparisonComponent->GetComparisonResult(GetIdleTime(a_refr), numericComponent->GetNumericValue(a_refr));
+		return comparisonComponent->GetComparisonResult(GetIdleTime(a_refr, a_clipGenerator, a_parentSubMod), numericComponent->GetNumericValue(a_refr));
 	}
 
-	float IdleTimeCondition::GetIdleTime(RE::TESObjectREFR* a_refr) const
+	float IdleTimeCondition::GetIdleTime(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const
 	{
 		if (a_refr) {
 			if (const auto actor = a_refr->As<RE::Actor>()) {
-				IStateData* data = stateComponent->GetStateData(a_refr, nullptr, nullptr);
+				IStateData* data = stateComponent->GetStateData(a_refr, a_clipGenerator, a_parentSubMod);
 				if (!data) {  // data not found, add new
 					const auto newStateData = static_cast<IdleTimeConditionStateData*>(stateComponent->CreateStateData(IdleTimeConditionStateData::Create));
 					newStateData->Initialize(a_refr);
-					data = stateComponent->AddStateData(newStateData, a_refr, nullptr, nullptr);
+					data = stateComponent->AddStateData(newStateData, a_refr, a_clipGenerator, a_parentSubMod);
 				}
 
 				if (data) {
@@ -4390,5 +4473,285 @@ namespace Conditions
 		}
 
 		return 0.f;
+	}
+
+	bool IsAboveWaterCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
+	{
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				if (auto cell = actor->parentCell) {
+					RE::NiPoint3 pos = actor->GetPosition();
+					
+					float waterHeight;
+					if (cell->GetWaterHeight(pos, waterHeight)) {
+						float distance = distanceNumericComponent->GetNumericValue(a_refr);
+						float minDepth = depthNumericComponent->GetNumericValue(a_refr);
+						if (pos.z > waterHeight + distance) {
+							RE::hkVector4 raycastStart, raycastEnd;
+							RE::NiPoint3 waterPos = pos;
+							waterPos.z = waterHeight - minDepth;
+
+							raycastStart = Utils::NiPointToHkVector(pos, true);
+							raycastEnd = Utils::NiPointToHkVector(waterPos, true);
+
+							RE::hkpWorldRayCastInput raycastInput;
+							RE::hkpWorldRayCastOutput raycastOutput;
+
+							uint32_t collisionFilterInfo = 0;
+							actor->GetCollisionFilterInfo(collisionFilterInfo);
+							uint16_t collisionGroup = collisionFilterInfo >> 16;
+							raycastInput.filterInfo = (static_cast<uint32_t>(collisionGroup) << 16) | static_cast<uint32_t>(RE::COL_LAYER::kCharController);
+							raycastInput.from = raycastStart;
+							raycastInput.to = raycastEnd;
+
+							if (auto world = cell->GetbhkWorld()) {
+								{
+									RE::BSReadLockGuard lock(world->worldLock);
+									world->GetWorld1()->CastRay(raycastInput, raycastOutput);
+								}
+
+								if (!raycastOutput.HasHit()) {
+									return true;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return false;
+	}
+
+	RE::BSString MagicEffectElapsedTimeCondition::GetArgument() const
+	{
+		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+		auto ret = std::format("{} | Elapsed time {} {}", formComponent->form.GetArgument(), separator, numericComponent->value.GetArgument());
+		if (boolComponent->GetBoolValue()) {
+			ret.append(" | Active Only"sv);
+		}
+
+		return ret.data();
+	}
+
+	RE::BSString MagicEffectElapsedTimeCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+	{
+		if (formComponent->IsValid() && a_refr) {
+			if (const auto magicEffect = formComponent->GetTESFormValue()->As<RE::EffectSetting>()) {
+				if (const auto actor = a_refr->As<RE::Actor>()) {
+					const auto magicTarget = actor->AsMagicTarget();
+
+					const auto matchesEffect = [&](RE::ActiveEffect* ae) -> bool {
+						return ae && !ae->flags.any(RE::ActiveEffect::Flag::kInactive) && ae->GetBaseObject() == magicEffect;
+					};
+
+					if (REL::Module::IsVR()) {  // VR must use a visitor since it doesn't have GetActiveEffectList
+						bool bHasEffect = false;
+						float elapsedSeconds = 0.f;
+						magicTarget->VisitActiveEffects([&](RE::ActiveEffect* ae) {
+							if (matchesEffect(ae)) {
+								bHasEffect = true;
+								elapsedSeconds = ae->elapsedSeconds;
+								return RE::BSContainer::ForEachResult::kStop;
+							}
+							return RE::BSContainer::ForEachResult::kContinue;
+						});
+						if (bHasEffect) {
+							return std::to_string(elapsedSeconds).data();
+						}
+					} else {
+						if (auto activeEffects = magicTarget->GetActiveEffectList()) {
+							for (RE::ActiveEffect* activeEffect : *activeEffects) {
+								if (matchesEffect(activeEffect)) {
+									return std::to_string(activeEffect->elapsedSeconds).data();
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return ConditionBase::GetCurrent(a_refr);
+	}
+
+	bool MagicEffectElapsedTimeCondition::EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
+	{
+		if (formComponent->IsValid() && a_refr) {
+			if (const auto magicEffect = formComponent->GetTESFormValue()->As<RE::EffectSetting>()) {
+				if (const auto actor = a_refr->As<RE::Actor>()) {
+					const auto magicTarget = actor->AsMagicTarget();
+
+					const auto matchesEffect = [&](RE::ActiveEffect* ae) -> bool {
+						return ae && !ae->flags.any(RE::ActiveEffect::Flag::kInactive) && ae->GetBaseObject() == magicEffect && comparisonComponent->GetComparisonResult(ae->elapsedSeconds, numericComponent->GetNumericValue(a_refr));
+					};
+
+					if (REL::Module::IsVR()) {  // VR must use a visitor since it doesn't have GetActiveEffectList
+						bool bHasEffect = false;
+						magicTarget->VisitActiveEffects([&](RE::ActiveEffect* ae) {
+							if (matchesEffect(ae)) {
+								bHasEffect = true;
+								return RE::BSContainer::ForEachResult::kStop;
+							}
+							return RE::BSContainer::ForEachResult::kContinue;
+						});
+						return bHasEffect;
+					} else {
+						if (auto activeEffects = magicTarget->GetActiveEffectList()) {
+							for (RE::ActiveEffect* activeEffect : *activeEffects) {
+								if (matchesEffect(activeEffect)) {
+									return true;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return false;
+	}
+
+	void IsWornInSlotCondition::PostInitialize()
+	{
+		ConditionBase::PostInitialize();
+		slotComponent->value.getEnumMap = &IsWornInSlotCondition::GetEnumMap;
+	}
+
+	RE::BSString IsWornInSlotCondition::GetArgument() const
+	{
+		std::string slotName = "(Invalid)";
+		const auto slot = static_cast<uint32_t>(slotComponent->GetNumericValue(nullptr));
+
+		static auto map = GetEnumMap();
+		if (const auto it = map.find(slot); it != map.end()) {
+			slotName = it->second;
+		}
+
+		return slotName.data();
+	}
+
+	bool IsWornInSlotCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
+	{
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				const auto slot = static_cast<RE::BIPED_MODEL::BipedObjectSlot>(1 << static_cast<uint32_t>(slotComponent->GetNumericValue(a_refr)));
+				return actor->GetWornArmor(slot, true);
+			}
+		}
+
+		return false;
+	}
+
+	std::map<int32_t, std::string_view> IsWornInSlotCondition::GetEnumMap()
+	{
+		std::map<int32_t, std::string_view> enumMap;
+
+		enumMap[0] = "Head"sv;
+		enumMap[1] = "Hair"sv;
+		enumMap[2] = "Body"sv;
+		enumMap[3] = "Hands"sv;
+		enumMap[4] = "Forearms"sv;
+		enumMap[5] = "Amulet"sv;
+		enumMap[6] = "Ring"sv;
+		enumMap[7] = "Feet"sv;
+		enumMap[8] = "Calves"sv;
+		enumMap[9] = "Shield"sv;
+		enumMap[10] = "Tail"sv;
+		enumMap[11] = "LongHair"sv;
+		enumMap[12] = "Circlet"sv;
+		enumMap[13] = "Ears"sv;
+		enumMap[14] = "ModMouth"sv;
+		enumMap[15] = "ModNeck"sv;
+		enumMap[16] = "ModChestPrimary"sv;
+		enumMap[17] = "ModBack"sv;
+		enumMap[18] = "ModMisc1"sv;
+		enumMap[19] = "ModPelvisPrimary"sv;
+		enumMap[20] = "DecapitateHead"sv;
+		enumMap[21] = "Decapitate"sv;
+		enumMap[22] = "ModPelvisSecondary"sv;
+		enumMap[23] = "ModLegRight"sv;
+		enumMap[24] = "ModLegLeft"sv;
+		enumMap[25] = "ModFaceJewelry"sv;
+		enumMap[26] = "ModChestSecondary"sv;
+		enumMap[27] = "ModShoulder"sv;
+		enumMap[28] = "ModArmLeft"sv;
+		enumMap[29] = "ModArmRight"sv;
+		enumMap[30] = "ModMisc2"sv;
+		enumMap[31] = "FX01"sv;
+
+		return enumMap;
+	}
+
+	RE::BSString InventoryWeightCondition::GetArgument() const
+	{
+		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
+		const std::string prefix = boolComponent->GetBoolValue() ? "Encumbrance Percentage" : "Total Inventory Weight";
+		return std::format("{} {} {}", prefix, separator, numericComponent->value.GetArgument()).data();
+	}
+
+	RE::BSString InventoryWeightCondition::GetCurrent(RE::TESObjectREFR* a_refr) const
+	{
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				const std::string suffix = boolComponent->GetBoolValue() ? "%" : "";
+				return std::format("{}{}", GetInventoryWeight(actor), suffix).data();
+			}
+		}
+
+		return ConditionBase::GetCurrent(a_refr);
+	}
+
+	bool InventoryWeightCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
+	{
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				return comparisonComponent->GetComparisonResult(GetInventoryWeight(a_refr), numericComponent->GetNumericValue(a_refr));
+			}
+		}
+
+		return false;
+	}
+
+	float InventoryWeightCondition::GetInventoryWeight(RE::TESObjectREFR* a_refr) const
+	{
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				if (const auto inventoryChanges = a_refr->GetInventoryChanges(true)) {
+					const float weight = inventoryChanges->GetInventoryWeight();
+					if (boolComponent->GetBoolValue()) {
+						return weight / actor->GetTotalCarryWeight() * 100.f;
+					} else {
+						return weight;
+					}
+				}
+			}
+		}
+
+		return 0.f;
+	}
+
+	bool IsGhostCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
+	{
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				return actor->IsGhost();
+			}
+		}
+
+		return false;
+	}
+
+	bool IsSwimmingCondition::EvaluateImpl(RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const
+	{
+		if (a_refr) {
+			if (const auto actor = a_refr->As<RE::Actor>()) {
+				if (const auto actorState = actor->AsActorState()) {
+					return actorState->IsSwimming();
+				}
+			}
+		}
+
+		return false;
 	}
 }

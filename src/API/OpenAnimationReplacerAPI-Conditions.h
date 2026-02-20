@@ -11,8 +11,9 @@ namespace OAR_API::Conditions
 	{
 		V1,  // unsupported
 		V2,
+		V3,
 
-		Latest = V2
+		Latest = V3
 	};
 
 	// Error types that may be returned by Open Animation Replacer

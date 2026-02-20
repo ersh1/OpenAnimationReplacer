@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ReplacementAnimation.h"
+
 struct AnimationLogEntry
 {
 	enum class Event : uint8_t
@@ -18,6 +20,7 @@ struct AnimationLogEntry
 		kPairedMismatch
 	};
 
+	AnimationLogEntry() = default;
 	AnimationLogEntry(Event a_event, class ActiveClip* a_activeClip, RE::hkbCharacter* a_character);
 
 	[[nodiscard]] bool operator==(const AnimationLogEntry& a_rhs) const;
@@ -37,9 +40,12 @@ struct AnimationLogEntry
 	std::string subModName{};
 	std::string animPath{};
 	std::string variantFilename{};
+	ReplacementTrace trace;
 
 	float timeDrawn = 0.f;
 	uint32_t count = 1;
+
+	bool bIsValid = false;
 
 protected:
 	bool MatchesEvent(const std::regex& a_regex) const;
@@ -60,10 +66,13 @@ public:
 	void ForEachAnimationLogEntry(const std::function<void(AnimationLogEntry&)>& a_func);
 	void ClearAnimationLog();
 	[[nodiscard]] bool ShouldLogAnimations() const { return _bLogAnimations; }
+	[[nodiscard]] bool ShouldLogAnimationsForRefr(RE::TESObjectREFR* a_refr) const;
 	[[nodiscard]] bool ShouldLogAnimationsForActiveClip(ActiveClip* a_activeClip, AnimationLogEntry::Event a_logEvent) const;
 	void SetLogAnimations(bool a_enable);
 
 	std::string filter = {};
+
+	AnimationLogEntry tracedEntry;
 
 private:
 	AnimationLog() = default;

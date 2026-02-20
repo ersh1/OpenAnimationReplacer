@@ -120,12 +120,26 @@ void SubMod::LoadParseResult(const Parsing::SubModParseResult& a_parseResult)
 	_bReplaceOnEcho = a_parseResult.bReplaceOnEcho;
 	_bCustomBlendTimeOnEcho = a_parseResult.bCustomBlendTimeOnEcho;
 	_blendTimeOnEcho = a_parseResult.blendTimeOnEcho;
+	_bRunFunctionsOnLoop = a_parseResult.bRunFunctionsOnLoop;
+	_bRunFunctionsOnEcho = a_parseResult.bRunFunctionsOnEcho;
 	_bKeepRandomResultsOnLoop_DEPRECATED = a_parseResult.bKeepRandomResultsOnLoop_DEPRECATED;
 	_bShareRandomResults_DEPRECATED = a_parseResult.bShareRandomResults_DEPRECATED;
-	_conditionSet->MoveConditions(a_parseResult.conditionSet.get());
+	_conditionSet->MoveAll(a_parseResult.conditionSet.get());
 	if (a_parseResult.synchronizedConditionSet) {
 		SetHasSynchronizedAnimations();
-		_synchronizedConditionSet->MoveConditions(a_parseResult.synchronizedConditionSet.get());
+		_synchronizedConditionSet->MoveAll(a_parseResult.synchronizedConditionSet.get());
+	}
+	if (a_parseResult.functionSetOnActivate) {
+		CreateOrGetFunctionSet(Functions::FunctionSetType::kOnActivate);
+		_functionSetOnActivate->MoveAll(a_parseResult.functionSetOnActivate.get());
+	}
+	if (a_parseResult.functionSetOnDeactivate) {
+		CreateOrGetFunctionSet(Functions::FunctionSetType::kOnDeactivate);
+		_functionSetOnDeactivate->MoveAll(a_parseResult.functionSetOnDeactivate.get());
+	}
+	if (a_parseResult.functionSetOnTrigger) {
+		CreateOrGetFunctionSet(Functions::FunctionSetType::kOnTrigger);
+		_functionSetOnTrigger->MoveAll(a_parseResult.functionSetOnTrigger.get());
 	}
 
 	HandleDeprecatedSettings();
@@ -219,12 +233,91 @@ void SubMod::RestorePresetReferences()
 {
 	auto restorePresetReferences = [&](Conditions::ConditionSet* a_conditionSet) {
 		if (const auto conditionSet = a_conditionSet) {
-			conditionSet->ForEachCondition(TryRestorePreset);
+			conditionSet->ForEach(TryRestorePreset);
 		}
 	};
 
 	restorePresetReferences(_conditionSet.get());
 	restorePresetReferences(_synchronizedConditionSet.get());
+}
+
+Functions::FunctionSet* SubMod::GetFunctionSet(Functions::FunctionSetType a_setType) const
+{
+	switch (a_setType) {
+	case Functions::FunctionSetType::kOnActivate:
+		return _functionSetOnActivate.get();
+	case Functions::FunctionSetType::kOnDeactivate:
+		return _functionSetOnDeactivate.get();
+	case Functions::FunctionSetType::kOnTrigger:
+		return _functionSetOnTrigger.get();
+	}
+
+	return nullptr;
+}
+
+bool SubMod::HasFunctionSet(Functions::FunctionSetType a_setType) const
+{
+	switch (a_setType) {
+	case Functions::FunctionSetType::kOnActivate:
+		return _functionSetOnActivate != nullptr;
+	case Functions::FunctionSetType::kOnDeactivate:
+		return _functionSetOnDeactivate != nullptr;
+	case Functions::FunctionSetType::kOnTrigger:
+		return _functionSetOnTrigger != nullptr;
+	}
+
+	return false;
+}
+
+bool SubMod::HasValidFunctionSet(Functions::FunctionSetType a_setType) const
+{
+	switch (a_setType) {
+	case Functions::FunctionSetType::kOnActivate:
+		if (_functionSetOnActivate) {
+			return !_functionSetOnActivate->IsEmpty() && _functionSetOnActivate->IsValid();
+		}
+		break;
+	case Functions::FunctionSetType::kOnDeactivate:
+		if (_functionSetOnDeactivate) {
+			return !_functionSetOnDeactivate->IsEmpty() && _functionSetOnDeactivate->IsValid();
+		}
+		break;
+	case Functions::FunctionSetType::kOnTrigger:
+		if (_functionSetOnTrigger) {
+			return !_functionSetOnTrigger->IsEmpty() && _functionSetOnTrigger->IsValid();
+		}
+		break;
+	}
+
+	return false;
+}
+
+bool SubMod::HasAnyFunctionSet() const
+{
+	return _functionSetOnActivate || _functionSetOnDeactivate || _functionSetOnTrigger;
+}
+
+Functions::FunctionSet* SubMod::CreateOrGetFunctionSet(Functions::FunctionSetType a_setType)
+{
+	switch (a_setType) {
+	case Functions::FunctionSetType::kOnActivate:
+		if (!_functionSetOnActivate) {
+			_functionSetOnActivate = std::make_unique<Functions::FunctionSet>(this, a_setType);
+		}
+		return _functionSetOnActivate.get();
+	case Functions::FunctionSetType::kOnDeactivate:
+		if (!_functionSetOnDeactivate) {
+			_functionSetOnDeactivate = std::make_unique<Functions::FunctionSet>(this, a_setType);
+		}
+		return _functionSetOnDeactivate.get();
+	case Functions::FunctionSetType::kOnTrigger:
+		if (!_functionSetOnTrigger) {
+			_functionSetOnTrigger = std::make_unique<Functions::FunctionSet>(this, a_setType);
+		}
+		return _functionSetOnTrigger.get();
+	}
+
+	return nullptr;
 }
 
 bool SubMod::HasCustomBlendTime(CustomBlendType a_type) const
@@ -285,9 +378,45 @@ void SubMod::SetCustomBlendTime(CustomBlendType a_type, float a_value)
 	}
 }
 
+bool SubMod::IsDirty() const
+{
+	if (_bDirty) {
+		return true;
+	}
+
+	if (_conditionSet->IsDirtyRecursive()) {
+		return true;
+	}
+
+	if (_synchronizedConditionSet && _synchronizedConditionSet->IsDirtyRecursive()) {
+		return true;
+	}
+
+	if (_functionSetOnActivate && _functionSetOnActivate->IsDirtyRecursive()) {
+		return true;
+	}
+
+	if (_functionSetOnDeactivate && _functionSetOnDeactivate->IsDirtyRecursive()) {
+		return true;
+	}
+
+	if (_functionSetOnTrigger && _functionSetOnTrigger->IsDirtyRecursive()) {
+		return true;
+	}
+
+	return false;
+}
+
 bool SubMod::HasInvalidConditions() const
 {
-	return _conditionSet->HasInvalidConditions() || (_synchronizedConditionSet && _synchronizedConditionSet->HasInvalidConditions());
+	return !_conditionSet->IsValid() || (_synchronizedConditionSet && !_synchronizedConditionSet->IsValid());
+}
+
+bool SubMod::HasInvalidFunctions() const
+{
+	return (_functionSetOnActivate && !_functionSetOnActivate->IsValid()) ||
+	       (_functionSetOnDeactivate && !_functionSetOnDeactivate->IsValid()) ||
+	       (_functionSetOnTrigger && !_functionSetOnTrigger->IsValid());
 }
 
 void SubMod::SetHasSynchronizedAnimations()
@@ -344,7 +473,7 @@ bool SubMod::ReloadConfig()
 			LoadParseResult(parseResult);
 			auto& detectedProblems = DetectedProblems::GetSingleton();
 			detectedProblems.CheckForSubModsSharingPriority();
-			detectedProblems.CheckForSubModsWithInvalidConditions();
+			detectedProblems.CheckForSubModsWithInvalidEntries();
 			UpdateAnimations();
 			return true;
 		}
@@ -355,13 +484,13 @@ bool SubMod::ReloadConfig()
 		if (Utils::ContainsStringIgnoreCase(directoryPathStr, "_CustomConditions"sv)) {
 			if (auto txtPath = directoryPath / "_conditions.txt"sv; Utils::Exists(txtPath)) {
 				auto newConditionSet = Parsing::ParseConditionsTxt(txtPath);
-				_conditionSet->MoveConditions(newConditionSet.get());
+				_conditionSet->MoveAll(newConditionSet.get());
 
 				SetDirtyRecursive(false);
 
 				auto& detectedProblems = DetectedProblems::GetSingleton();
 				detectedProblems.CheckForSubModsSharingPriority();
-				detectedProblems.CheckForSubModsWithInvalidConditions();
+				detectedProblems.CheckForSubModsWithInvalidEntries();
 
 				return true;
 			}
@@ -379,15 +508,15 @@ bool SubMod::ReloadConfig()
 				std::string argument = modName + "|" + formIDString;
 				auto condition = OpenAnimationReplacer::GetSingleton().CreateCondition("IsActorBase");
 				static_cast<Conditions::IsActorBaseCondition*>(condition.get())->formComponent->SetTESFormValue(form);
-				newConditionSet->AddCondition(condition);
+				newConditionSet->Add(condition);
 			}
-			_conditionSet->MoveConditions(newConditionSet.get());
+			_conditionSet->MoveAll(newConditionSet.get());
 
 			SetDirtyRecursive(false);
 
 			auto& detectedProblems = DetectedProblems::GetSingleton();
 			detectedProblems.CheckForSubModsSharingPriority();
-			detectedProblems.CheckForSubModsWithInvalidConditions();
+			detectedProblems.CheckForSubModsWithInvalidEntries();
 
 			return true;
 		}
@@ -396,9 +525,9 @@ bool SubMod::ReloadConfig()
 	return false;
 }
 
-void SubMod::SaveConfig(ConditionEditMode a_editMode, bool a_bResetDirty /* = true*/)
+void SubMod::SaveConfig(EditMode a_editMode, bool a_bResetDirty /* = true*/)
 {
-	if (a_editMode == ConditionEditMode::kNone) {
+	if (a_editMode == EditMode::kNone) {
 		return;
 	}
 
@@ -407,11 +536,11 @@ void SubMod::SaveConfig(ConditionEditMode a_editMode, bool a_bResetDirty /* = tr
 	std::filesystem::path jsonPath(_path);
 
 	switch (a_editMode) {
-	case ConditionEditMode::kAuthor:
+	case EditMode::kAuthor:
 		jsonPath = jsonPath / "config.json"sv;
 		_configSource = Parsing::ConfigSource::kAuthor;
 		break;
-	case ConditionEditMode::kUser:
+	case EditMode::kUser:
 		jsonPath = jsonPath / "user.json"sv;
 		_configSource = Parsing::ConfigSource::kUser;
 		break;
@@ -430,11 +559,11 @@ void SubMod::SaveConfig(ConditionEditMode a_editMode, bool a_bResetDirty /* = tr
 	}
 }
 
-void SubMod::Serialize(rapidjson::Document& a_doc, ConditionEditMode a_editMode) const
+void SubMod::Serialize(rapidjson::Document& a_doc, EditMode a_editMode) const
 {
 	rapidjson::Value::AllocatorType& allocator = a_doc.GetAllocator();
 
-	if (a_editMode == ConditionEditMode::kAuthor) {
+	if (a_editMode == EditMode::kAuthor) {
 		// write submod name
 		{
 			rapidjson::Value value(rapidjson::StringRef(_name.data(), _name.length()));
@@ -589,6 +718,18 @@ void SubMod::Serialize(rapidjson::Document& a_doc, ConditionEditMode a_editMode)
 		a_doc.AddMember("blendTimeOnEcho", blendValue, allocator);
 	}
 
+	// write run functions on loop (true is default so skip)
+	if (!_bRunFunctionsOnLoop) {
+		rapidjson::Value value(_bRunFunctionsOnLoop);
+		a_doc.AddMember("runFunctionsOnLoop", value, allocator);
+	}
+
+	// write run functions on echo (true is default so skip)
+	if (!_bRunFunctionsOnEcho) {
+		rapidjson::Value value(_bRunFunctionsOnEcho);
+		a_doc.AddMember("runFunctionsOnEcho", value, allocator);
+	}
+
 	// write conditions
 	{
 		rapidjson::Value value = _conditionSet->Serialize(allocator);
@@ -600,13 +741,41 @@ void SubMod::Serialize(rapidjson::Document& a_doc, ConditionEditMode a_editMode)
 		rapidjson::Value value = _synchronizedConditionSet->Serialize(allocator);
 		a_doc.AddMember("pairedConditions", value, allocator);
 	}
+
+	// write functions
+	{
+		auto writeFunctions = [&](const std::unique_ptr<Functions::FunctionSet>& a_functionSet, Functions::FunctionSetType a_functionSetType) {
+			if (a_functionSet && !a_functionSet->IsEmpty()) {
+				std::string_view memberName;
+				switch (a_functionSetType) {
+				case Functions::FunctionSetType::kOnActivate:
+					memberName = "functionsOnActivate"sv;
+					break;
+				case Functions::FunctionSetType::kOnDeactivate:
+					memberName = "functionsOnDeactivate"sv;
+					break;
+				case Functions::FunctionSetType::kOnTrigger:
+					memberName = "functionsOnTrigger"sv;
+					break;
+				}
+
+				rapidjson::Value value = a_functionSet->Serialize(allocator);
+				auto memberStr = rapidjson::StringRef(memberName.data(), memberName.size());
+				a_doc.AddMember(memberStr, value, allocator);
+			}
+		};
+		
+		writeFunctions(_functionSetOnActivate, Functions::FunctionSetType::kOnActivate);
+		writeFunctions(_functionSetOnDeactivate, Functions::FunctionSetType::kOnDeactivate);
+		writeFunctions(_functionSetOnTrigger, Functions::FunctionSetType::kOnTrigger);
+	}
 }
 
 std::string SubMod::SerializeToString() const
 {
 	rapidjson::Document doc(rapidjson::kObjectType);
 
-	Serialize(doc, ConditionEditMode::kAuthor);
+	Serialize(doc, EditMode::kAuthor);
 
 	return Parsing::SerializeJsonToString(doc);
 }
@@ -654,6 +823,8 @@ void SubMod::ResetToLegacy()
 	_blendTimeOnEcho = Settings::fDefaultBlendTimeOnEcho;
 	_bKeepRandomResultsOnLoop_DEPRECATED = Settings::bLegacyKeepRandomResultsByDefault;
 	_bShareRandomResults_DEPRECATED = false;
+	_bRunFunctionsOnLoop = true;
+	_bRunFunctionsOnEcho = true;
 
 	ResetReplacementAnimationsToLegacy();
 
@@ -814,7 +985,7 @@ bool ReplacerMod::ReloadConfig()
 			LoadParseResult(parseResult);
 			RestorePresetReferences();
 			auto& detectedProblems = DetectedProblems::GetSingleton();
-			detectedProblems.CheckForReplacerModsWithInvalidConditions();
+			detectedProblems.CheckForReplacerModsWithInvalidEntries();
 			return true;
 		}
 	}
@@ -822,19 +993,19 @@ bool ReplacerMod::ReloadConfig()
 	return false;
 }
 
-void ReplacerMod::SaveConfig(ConditionEditMode a_editMode)
+void ReplacerMod::SaveConfig(EditMode a_editMode)
 {
-	if (a_editMode == ConditionEditMode::kNone) {
+	if (a_editMode == EditMode::kNone) {
 		return;
 	}
 
 	std::filesystem::path jsonPath(_path);
 
 	switch (a_editMode) {
-	case ConditionEditMode::kAuthor:
+	case EditMode::kAuthor:
 		jsonPath = jsonPath / "config.json"sv;
 		break;
-	case ConditionEditMode::kUser:
+	case EditMode::kUser:
 		jsonPath = jsonPath / "user.json"sv;
 		break;
 	}
@@ -970,7 +1141,7 @@ void ReplacerMod::RemoveConditionPreset(std::string_view a_name)
 	// remove it from all conditions. rather do this once than have the overhead of a weak pointer during gameplay
 	ForEachSubMod([&](SubMod* a_subMod) {
 		if (const auto conditionSet = a_subMod->GetConditionSet()) {
-			conditionSet->ForEachCondition([&](std::unique_ptr<Conditions::ICondition>& a_condition) {
+			conditionSet->ForEach([&](std::unique_ptr<Conditions::ICondition>& a_condition) {
 				if (a_condition->GetConditionType() == Conditions::ConditionType::kPreset) {
 					const auto presetCondition = static_cast<Conditions::PRESETCondition*>(a_condition.get());
 					if (presetCondition->conditionsComponent->conditionPreset == search->get()) {
@@ -991,7 +1162,7 @@ void ReplacerMod::LoadConditionPresets(std::vector<std::unique_ptr<Conditions::C
 	// remove references from all conditions
 	ForEachSubMod([&](SubMod* a_subMod) {
 		if (const auto conditionSet = a_subMod->GetConditionSet()) {
-			conditionSet->ForEachCondition([&](std::unique_ptr<Conditions::ICondition>& a_condition) {
+			conditionSet->ForEach([&](std::unique_ptr<Conditions::ICondition>& a_condition) {
 				if (a_condition->GetConditionType() == Conditions::ConditionType::kPreset) {
 					const auto presetCondition = static_cast<Conditions::PRESETCondition*>(a_condition.get());
 					presetCondition->conditionsComponent->conditionPreset = nullptr;
@@ -1076,12 +1247,39 @@ void ReplacerMod::SortConditionPresets()
 	});
 }
 
-bool ReplacerMod::HasInvalidConditions() const
+bool ReplacerMod::HasInvalidConditions(bool a_bCheckPresetsOnly) const
 {
 	using Result = RE::BSVisit::BSVisitControl;
 
-	const auto result = ForEachConditionPreset([&](const Conditions::ConditionPreset* a_preset) {
-		if (a_preset->IsEmpty() || a_preset->HasInvalidConditions()) {
+	auto result = ForEachConditionPreset([&](const Conditions::ConditionPreset* a_preset) {
+		if (a_preset->IsEmpty() || !a_preset->IsValid()) {
+			return Result::kStop;
+		}
+		return Result::kContinue;
+	});
+
+	if (!a_bCheckPresetsOnly) {
+		if (result == Result::kStop) {
+			return true;
+		}
+
+		result = ForEachSubMod([&](const SubMod* a_subMod) {
+			if (a_subMod->HasInvalidConditions()) {
+				return Result::kStop;
+			}
+			return Result::kContinue;
+		});
+	}
+
+	return result == Result::kStop;
+}
+
+bool ReplacerMod::HasInvalidFunctions() const
+{
+	using Result = RE::BSVisit::BSVisitControl;
+
+	const auto result = ForEachSubMod([&](const SubMod* a_subMod) {
+		if (a_subMod->HasInvalidFunctions()) {
 			return Result::kStop;
 		}
 		return Result::kContinue;
@@ -1094,9 +1292,17 @@ ReplacementAnimation* AnimationReplacements::EvaluateConditionsAndGetReplacement
 {
 	ReadLocker locker(_lock);
 
+	auto& animationLog = AnimationLog::GetSingleton();
+	ReplacementTrace* trace = animationLog.ShouldLogAnimationsForRefr(a_refr) ? OpenAnimationReplacer::GetSingleton().GetTrace(a_refr, a_clipGenerator) : nullptr;
+
 	if (!_replacements.empty()) {
+		if (trace) {
+			trace->StartNewTrace();
+		}
+
 		for (auto& replacementAnimation : _replacements) {
-			if (replacementAnimation->EvaluateConditions(a_refr, a_clipGenerator)) {
+			bool bSuccess = replacementAnimation->EvaluateConditions(a_refr, a_clipGenerator);
+			if (bSuccess) {
 				return replacementAnimation.get();
 			}
 		}
@@ -1109,7 +1315,18 @@ ReplacementAnimation* AnimationReplacements::EvaluateSynchronizedConditionsAndGe
 {
 	ReadLocker locker(_lock);
 
+	auto& animationLog = AnimationLog::GetSingleton();
+	ReplacementTrace* sourceTrace = animationLog.ShouldLogAnimationsForRefr(a_sourceRefr) ? OpenAnimationReplacer::GetSingleton().GetTraceFromSynchronizedScene(a_sourceRefr) : nullptr;
+	ReplacementTrace* targetTrace = animationLog.ShouldLogAnimationsForRefr(a_targetRefr) ? OpenAnimationReplacer::GetSingleton().GetTraceFromSynchronizedScene(a_targetRefr) : nullptr;
+
 	if (!_replacements.empty()) {
+		if (sourceTrace) {
+			sourceTrace->StartNewTrace();
+		}
+		if (targetTrace) {
+			targetTrace->StartNewTrace();
+		}
+
 		for (auto& replacementAnimation : _replacements) {
 			if (replacementAnimation->EvaluateSynchronizedConditions(a_sourceRefr, a_targetRefr, a_clipGenerator)) {
 				return replacementAnimation.get();

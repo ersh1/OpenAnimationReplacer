@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Conditions.h"
+#include "Functions.h"
 #include "ReplacementAnimation.h"
 #include "Settings.h"
 
@@ -118,8 +119,13 @@ namespace Parsing
 		float blendTimeOnEcho = Settings::fDefaultBlendTimeOnEcho;
 		bool bKeepRandomResultsOnLoop_DEPRECATED = false;
 		bool bShareRandomResults_DEPRECATED = false;
+		bool bRunFunctionsOnLoop = true;
+		bool bRunFunctionsOnEcho = true;
 		std::unique_ptr<Conditions::ConditionSet> conditionSet;
 		std::unique_ptr<Conditions::ConditionSet> synchronizedConditionSet;
+		std::unique_ptr<Functions::FunctionSet> functionSetOnActivate;
+		std::unique_ptr<Functions::FunctionSet> functionSetOnDeactivate;
+		std::unique_ptr<Functions::FunctionSet> functionSetOnTrigger;
 		std::vector<ReplacementAnimationFile> animationFiles;
 
 		ConfigSource configSource = ConfigSource::kAuthor;

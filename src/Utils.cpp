@@ -265,7 +265,7 @@ namespace Utils
 	bool ConditionSetHasRandomResult(Conditions::ConditionSet* a_conditionSet)
 	{
 		if (a_conditionSet) {
-			const auto result = a_conditionSet->ForEachCondition([&](auto& a_childCondition) {
+			const auto result = a_conditionSet->ForEach([&](auto& a_childCondition) {
 				if (ConditionHasRandomResult(a_childCondition.get())) {
 					return RE::BSVisit::BSVisitControl::kStop;
 				}
@@ -307,7 +307,7 @@ namespace Utils
 	bool ConditionSetHasPresetCondition(Conditions::ConditionSet* a_conditionSet)
 	{
 		if (a_conditionSet) {
-			const auto result = a_conditionSet->ForEachCondition([&](auto& a_childCondition) {
+			const auto result = a_conditionSet->ForEach([&](auto& a_childCondition) {
 				if (ConditionHasPresetCondition(a_childCondition.get())) {
 					return RE::BSVisit::BSVisitControl::kStop;
 				}
@@ -316,6 +316,23 @@ namespace Utils
 
 			if (result == RE::BSVisit::BSVisitControl::kStop) {
 				return true;
+			}
+		}
+
+		return false;
+	}
+
+	bool ConditionHasMultiComponent(Conditions::ICondition* a_condition)
+	{
+		if (a_condition->GetConditionType() == Conditions::ConditionType::kPreset) {
+			return true;
+		}
+
+		for (uint32_t i = 0; i < a_condition->GetNumComponents(); ++i) {
+			if (const auto component = a_condition->GetComponent(i)) {
+				if (component->GetType() == Conditions::ConditionComponentType::kMulti) {
+					return true;
+				}
 			}
 		}
 
@@ -601,6 +618,24 @@ namespace Utils
 		const auto dot = _mm_dp_ps(a_vector.quad, a_vector.quad, 0xFF);
 		const auto length = _mm_sqrt_ps(dot);
 		return _mm_div_ps(a_vector.quad, length);
+	}
+
+	RE::hkVector4 NiPointToHkVector(const RE::NiPoint3& a_pt, bool bConvertScale)
+	{
+		RE::hkVector4 ret = { a_pt.x, a_pt.y, a_pt.z, 0 };
+		if (bConvertScale) {
+			ret = ret * g_worldScale;
+		}
+		return ret;
+	}
+
+	RE::NiPoint3 HkVectorToNiPoint(const RE::hkVector4& a_vec, bool bConvertScale)
+	{
+		RE::NiPoint3 ret = { a_vec.quad.m128_f32[0], a_vec.quad.m128_f32[1], a_vec.quad.m128_f32[2] };
+		if (bConvertScale) {
+			ret *= g_worldScaleInverse;
+		}
+		return ret;
 	}
 
 	RE::hkVector4 Mix(const RE::hkVector4& a_vecA, const RE::hkVector4& a_vecB, float a_alpha)

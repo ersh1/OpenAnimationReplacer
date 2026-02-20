@@ -92,6 +92,10 @@ AnimationLogEntry::AnimationLogEntry(Event a_event, ActiveClip* a_activeClip, RE
 		}
 		logger::info("AnimationLogEntry: {} animation \"{}\" (Project: {}, Clip: {}) - {} ({}){}", eventString, animationName, projectName, clipName, infoString, animPath, variantString);
 	}
+
+	trace = a_activeClip->trace;
+
+	bIsValid = true;
 }
 
 bool AnimationLogEntry::operator==(const AnimationLogEntry& a_rhs) const
@@ -259,6 +263,11 @@ void AnimationLog::ClearAnimationLog()
 	WriteLocker locker(_animationLogLock);
 
 	_animationLog.clear();
+}
+
+bool AnimationLog::ShouldLogAnimationsForRefr(RE::TESObjectREFR* a_refr) const
+{
+	return _bLogAnimations && a_refr && a_refr == UI::UIManager::GetSingleton().GetRefrToEvaluate();
 }
 
 bool AnimationLog::ShouldLogAnimationsForActiveClip(ActiveClip* a_activeClip, AnimationLogEntry::Event a_logEvent) const

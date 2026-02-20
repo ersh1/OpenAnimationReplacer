@@ -3,10 +3,10 @@
 #include "AnimationLog.h"
 #include "FakeClipGenerator.h"
 #include "ReplacementAnimation.h"
-#include "StateDataContainer.h"
+#include "Containers.h"
 
 // a core class of OAR - holds additional data and logic about an active clip generator, created when a clip generator is activated and destroyed when it is deactivated
-class ActiveClip : public std::enable_shared_from_this<ActiveClip>, public IStateDataContainerHolder
+class ActiveClip : public std::enable_shared_from_this<ActiveClip>, public IStateDataContainerHolder, public RE::BSTEventSink<RE::BSAnimationGraphEvent>
 {
 public:
 	struct QueuedReplacement
@@ -56,6 +56,13 @@ public:
 		float blendElapsedTime = 0.f;
 	};
 
+	enum class TransitioningReason
+	{
+		kDefault,
+		kVariantEcho,
+		kVariantLoop
+	};
+
 	std::shared_ptr<ActiveClip> getptr()
 	{
 		return shared_from_this();
@@ -63,6 +70,9 @@ public:
 
 	[[nodiscard]] ActiveClip(RE::hkbClipGenerator* a_clipGenerator, RE::hkbCharacter* a_character, RE::hkbBehaviorGraph* a_behaviorGraph);
 	virtual ~ActiveClip();
+
+	// override BSTEventSink
+	RE::BSEventNotifyControl ProcessEvent(const RE::BSAnimationGraphEvent* a_event, RE::BSTEventSource<RE::BSAnimationGraphEvent>* a_eventSource) override;
 
 	bool StateDataUpdate(float a_deltaTime) override;
 	bool StateDataOnLoopOrEcho(RE::ObjectRefHandle a_refHandle, ActiveClip* a_activeClip, bool a_bIsEcho) override;
@@ -103,12 +113,12 @@ public:
 	[[nodiscard]] bool IsTransitioning() const { return _bTransitioning; }
 	[[nodiscard]] bool ShouldReplaceOnLoop() const { return _currentReplacementAnimation ? _currentReplacementAnimation->GetReplaceOnLoop() : true; }
 	[[nodiscard]] bool ShouldReplaceOnEcho() const { return _currentReplacementAnimation ? _currentReplacementAnimation->GetReplaceOnEcho() : _bOriginalReplaceOnEcho; }
-	[[nodiscard]] bool ShouldReplaceOnLoopOrEcho() const { return ShouldReplaceOnLoop() || ShouldReplaceOnEcho(); }
-	void SetTransitioning(bool a_bValue);
+	void SetTransitioning(bool a_bValue, TransitioningReason a_transitioningReason = TransitioningReason::kDefault);
 	void StartBlend(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context, float a_blendTime);
 	void PreUpdate(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context, float a_timestep);
 	void OnActivate(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context);
 	void OnPostActivate(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context);
+	void OnDeactivate(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbContext& a_context);
 	void BackupTriggers(RE::hkbClipGenerator* a_clipGenerator);
 	void RestoreBackupTriggers();
 	void RemoveNonAnnotationTriggers(RE::hkbClipGenerator* a_clipGenerator);
@@ -120,7 +130,16 @@ public:
 
 	bool IsInLoopSequence();
 
+	bool ReplacementHasOnTriggerFunctions() const { return _currentReplacementAnimation ? _currentReplacementAnimation->HasValidFunctionSet(Functions::FunctionSetType::kOnTrigger) : false; }
+	void RegisterEventSink();
+	void UnregisterEventSink();
+
+	[[nodiscard]] bool ShouldRunFunctionsOnLoop() const { return _currentReplacementAnimation ? _currentReplacementAnimation->GetRunFunctionsOnLoop() : false; }
+	[[nodiscard]] bool ShouldRunFunctionsOnEcho() const { return _currentReplacementAnimation ? _currentReplacementAnimation->GetRunFunctionsOnEcho() : false; }
+
 	StateDataContainer<const Conditions::ICondition*> conditionStateData;
+
+	ReplacementTrace trace;
 
 protected:
 	bool OnLoopOrEcho(RE::hkbClipGenerator* a_clipGenerator, bool a_bIsEcho, float a_echoDuration = 0.f);
@@ -151,9 +170,12 @@ protected:
 	const bool _bOriginalReplaceOnEcho;
 
 	bool _bTransitioning = false;
+	TransitioningReason _transitioningReason = TransitioningReason::kDefault;
 	RE::BSSynchronizedClipGenerator* _parentSynchronizedClipGenerator = nullptr;
 
 	// interruptible anim blending
 	float _lastGameTime = 0.f;
 	std::deque<std::unique_ptr<BlendingClip>> _blendingClipGenerators{};
+
+	bool _bRegisteredSink = false;
 };

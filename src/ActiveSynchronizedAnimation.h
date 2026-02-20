@@ -24,6 +24,8 @@ public:
 
 	[[nodiscard]] bool HasRef(RE::TESObjectREFR* a_refr) const;
 
+	[[nodiscard]] ReplacementTrace* GetTrace();
+
 protected:
 	struct SynchronizedClipData
 	{
@@ -31,7 +33,7 @@ protected:
 		SynchronizedClipData(uint16_t a_originalSynchronizedIndex, uint16_t a_originalInternalClipIndex, RE::BGSSynchronizedAnimationInstance::ActorSyncInfo const* a_syncInfo, AnimationReplacements* a_replacements, ReplacementAnimation* a_replacementAnimation, Variant* a_variant) :
 			originalSynchronizedIndex(a_originalSynchronizedIndex), originalInternalClipIndex(a_originalInternalClipIndex), syncInfo(a_syncInfo), replacements(a_replacements), replacementAnimation(a_replacementAnimation), variant(a_variant)
 		{}
-
+			
 		[[nodiscard]] constexpr bool Matches(const RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator) const { return syncInfo->synchronizedClipGenerator == a_synchronizedClipGenerator; }
 
 		const uint16_t originalSynchronizedIndex;
@@ -66,6 +68,8 @@ protected:
 	bool _bTransitioning = false;
 
 	std::optional<float> _variantRandomWeight = std::nullopt;
+
+	ReplacementTrace _trace;
 };
 
 // a special case where some mod uses SendAnimationEvent to trigger a synchronized clip. This doesn't create a BGSSynchronizedAnimationInstance at all.

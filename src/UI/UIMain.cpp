@@ -13,40 +13,6 @@
 
 namespace UI
 {
-	bool UIMain::ComboFilterData::SetNewValue(const ConditionInfo* a_conditionInfo, int a_newIndex) noexcept
-	{
-		currentSelection = a_newIndex;
-		return SetNewValue(a_conditionInfo);
-	}
-
-	bool UIMain::ComboFilterData::SetNewValue(const ConditionInfo* a_conditionInfo) noexcept
-	{
-		if (filterStatus) {
-			if (currentSelection >= 0) {
-				currentSelection = filteredInfos[currentSelection].index;
-			}
-			filteredInfos.clear();
-			filterStatus = false;
-			filterString = ""sv;
-		}
-
-		const bool bRet = currentSelection != initialValues.index;
-		if (bRet) {
-			initialValues.info = a_conditionInfo;
-			initialValues.index = currentSelection;
-		}
-
-		return bRet;
-	}
-
-	void UIMain::ComboFilterData::ResetToInitialValue() noexcept
-	{
-		filterStatus = false;
-		filterString = ""sv;
-		filteredInfos.clear();
-		currentSelection = initialValues.index;
-	}
-
 	bool UIMain::ShouldDrawImpl() const
 	{
 		return UIManager::GetSingleton().bShowMain;
@@ -166,7 +132,7 @@ namespace UI
 						height += 100.f;
 						height += problems.NumMissingPlugins() * ImGui::GetTextLineHeightWithSpacing();
 					}
-					if (problems.HasSubModsWithInvalidConditions()) {
+					if (problems.HasSubModsWithInvalidEntries()) {
 						height += 200.f;
 						height += problems.NumSubModsSharingPriority() * ImGui::GetTextLineHeightWithSpacing();
 					}
@@ -228,7 +194,7 @@ namespace UI
 								bShouldDrawSeparator = true;
 							}
 
-							if (problems.HasReplacerModsWithInvalidConditions()) {
+							if (problems.HasReplacerModsWithInvalidEntries()) {
 								if (bShouldDrawSeparator) {
 									ImGui::Spacing();
 									ImGui::Spacing();
@@ -245,7 +211,7 @@ namespace UI
 								bShouldDrawSeparator = true;
 							}
 
-							if (problems.HasSubModsWithInvalidConditions()) {
+							if (problems.HasSubModsWithInvalidEntries()) {
 								if (bShouldDrawSeparator) {
 									ImGui::Spacing();
 									ImGui::Spacing();
@@ -333,7 +299,7 @@ namespace UI
 
 		auto& detectedProblems = DetectedProblems::GetSingleton();
 		detectedProblems.CheckForSubModsSharingPriority();
-		detectedProblems.CheckForSubModsWithInvalidConditions();
+		detectedProblems.CheckForSubModsWithInvalidEntries();
 	}
 
 	void UIMain::OnClose()
@@ -718,7 +684,7 @@ namespace UI
 			ImGui::TableSetupScrollFreeze(0, 1);
 			ImGui::TableHeadersRow();
 
-			DetectedProblems::GetSingleton().ForEachReplacerModWithInvalidConditions([&](const ReplacerMod* a_replacerMod) {
+			DetectedProblems::GetSingleton().ForEachReplacerModWithInvalidEntries([&](const ReplacerMod* a_replacerMod) {
 				const auto replacerModName = a_replacerMod->GetName();
 
 				ImGui::TableNextRow();
@@ -738,7 +704,7 @@ namespace UI
 			ImGui::TableSetupScrollFreeze(0, 1);
 			ImGui::TableHeadersRow();
 
-			DetectedProblems::GetSingleton().ForEachSubModWithInvalidConditions([&](const SubMod* a_subMod) {
+			DetectedProblems::GetSingleton().ForEachSubModWithInvalidEntries([&](const SubMod* a_subMod) {
 				const auto subModName = a_subMod->GetName();
 				const auto parentModName = a_subMod->GetParentMod()->GetName();
 
@@ -833,7 +799,7 @@ namespace UI
 
 		// node name
 		ImGui::SameLine();
-		if (a_replacerMod->HasInvalidConditions()) {
+		if (a_replacerMod->HasInvalidConditions(false) || a_replacerMod->HasInvalidFunctions()) {
 			UICommon::TextUnformattedColored(UICommon::INVALID_CONDITION_COLOR, a_replacerMod->GetName().data());
 		} else {
 			ImGui::TextUnformatted(a_replacerMod->GetName().data());
@@ -841,7 +807,7 @@ namespace UI
 
 		if (bNodeOpen) {
 			// Mod name
-			if (!a_replacerMod->IsLegacy() && _editMode == ConditionEditMode::kAuthor) {
+			if (!a_replacerMod->IsLegacy() && _editMode == EditMode::kAuthor) {
 				const std::string nameId = "Mod name##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + "name";
 				ImGui::SetNextItemWidth(-150.f);
 				std::string tempName(a_replacerMod->GetName());
@@ -853,7 +819,7 @@ namespace UI
 
 			// Mod author
 			const std::string authorId = "Author##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + "author";
-			if (!a_replacerMod->IsLegacy() && _editMode == ConditionEditMode::kAuthor) {
+			if (!a_replacerMod->IsLegacy() && _editMode == EditMode::kAuthor) {
 				ImGui::SetNextItemWidth(250.f);
 				std::string tempAuthor(a_replacerMod->GetAuthor());
 				if (ImGui::InputTextWithHint(authorId.data(), "Author", &tempAuthor)) {
@@ -873,7 +839,7 @@ namespace UI
 
 			// Mod description
 			const std::string descriptionId = "Mod description##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + "description";
-			if (!a_replacerMod->IsLegacy() && _editMode == ConditionEditMode::kAuthor) {
+			if (!a_replacerMod->IsLegacy() && _editMode == EditMode::kAuthor) {
 				ImGui::SetNextItemWidth(-150.f);
 				std::string tempDescription(a_replacerMod->GetDescription());
 				if (ImGui::InputTextMultiline(descriptionId.data(), &tempDescription, ImVec2(0, ImGui::GetTextLineHeight() * 5))) {
@@ -894,7 +860,7 @@ namespace UI
 			}
 
 			// Condition presets
-			if (_editMode > ConditionEditMode::kNone || a_replacerMod->HasConditionPresets()) {
+			if (_editMode > EditMode::kNone || a_replacerMod->HasConditionPresets()) {
 				const std::string conditionPresetsLabel = "Condition presets##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + "conditionPresets";
 				ImGuiTreeNodeFlags flags = a_replacerMod->HasConditionPresets() ? ImGuiTreeNodeFlags_DefaultOpen : ImGuiTreeNodeFlags_None;
 				if (ImGui::CollapsingHeader(conditionPresetsLabel.data(), flags)) {
@@ -916,7 +882,7 @@ namespace UI
 						}
 					}
 
-					if (_editMode > ConditionEditMode::kNone) {
+					if (_editMode > EditMode::kNone) {
 						// Add condition preset button
 						constexpr auto popupName = "Adding new condition preset"sv;
 						if (ImGui::Button("Add new condition preset")) {
@@ -963,13 +929,13 @@ namespace UI
 			});
 
 			// Save mod config
-			if (!a_replacerMod->IsLegacy() && _editMode > ConditionEditMode::kNone) {
+			if (!a_replacerMod->IsLegacy() && _editMode > EditMode::kNone) {
 				const bool bIsDirty = a_replacerMod->IsDirty();
 				if (!bIsDirty) {
 					ImGui::BeginDisabled();
 				}
-				ImGui::BeginDisabled(a_replacerMod->HasInvalidConditions());
-				if (ImGui::Button(_editMode == ConditionEditMode::kAuthor ? "Save mod config (Author)" : "Save mod config (User)")) {
+				ImGui::BeginDisabled(a_replacerMod->HasInvalidConditions(true) || a_replacerMod->HasInvalidFunctions());
+				if (ImGui::Button(_editMode == EditMode::kAuthor ? "Save mod config (Author)" : "Save mod config (User)")) {
 					a_replacerMod->SaveConfig(_editMode);
 				}
 				ImGui::EndDisabled();
@@ -1015,7 +981,7 @@ namespace UI
 
 		// Disable checkbox
 		ImGui::SameLine();
-		if (_editMode > ConditionEditMode::kNone) {
+		if (_editMode > EditMode::kNone) {
 			std::string idString = std::format("{}##bDisabled", reinterpret_cast<uintptr_t>(a_subMod));
 			ImGui::PushID(idString.data());
 			bool bEnabled = !a_subMod->IsDisabled();
@@ -1050,7 +1016,7 @@ namespace UI
 
 		// node name
 		ImGui::SameLine();
-		if (a_subMod->HasInvalidConditions()) {
+		if (a_subMod->HasInvalidConditions() || a_subMod->HasInvalidFunctions()) {
 			UICommon::TextUnformattedColored(UICommon::INVALID_CONDITION_COLOR, a_subMod->GetName().data());
 		} else {
 			ImGui::TextUnformatted(a_subMod->GetName().data());
@@ -1079,7 +1045,7 @@ namespace UI
 		if (bNodeOpen) {
 			// Submod name
 			{
-				if (_editMode == ConditionEditMode::kAuthor) {
+				if (_editMode == EditMode::kAuthor) {
 					std::string subModNameId = "Submod name##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "name";
 					ImGui::SetNextItemWidth(-150.f);
 					std::string tempName(a_subMod->GetName());
@@ -1093,7 +1059,7 @@ namespace UI
 			// Submod description
 			{
 				std::string subModDescriptionId = "Submod description##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "description";
-				if (_editMode == ConditionEditMode::kAuthor) {
+				if (_editMode == EditMode::kAuthor) {
 					ImGui::SetNextItemWidth(-150.f);
 					std::string tempDescription(a_subMod->GetDescription());
 					if (ImGui::InputTextMultiline(subModDescriptionId.data(), &tempDescription, ImVec2(0, ImGui::GetTextLineHeight() * 5))) {
@@ -1115,7 +1081,7 @@ namespace UI
 			// Submod priority
 			{
 				std::string priorityLabel = "Priority##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "priority";
-				if (_editMode != ConditionEditMode::kNone) {
+				if (_editMode != EditMode::kNone) {
 					int32_t tempPriority = a_subMod->GetPriority();
 					if (ImGui::InputInt(priorityLabel.data(), &tempPriority, 1, 100, ImGuiInputTextFlags_EnterReturnsTrue)) {
 						a_subMod->SetPriority(tempPriority);
@@ -1140,7 +1106,7 @@ namespace UI
 			{
 				std::string overrideAnimationsFolderLabel = "Override animations folder##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "overrideAnimationsFolder";
 				std::string overrideAnimationsFolderTooltip = "If set, this submod will load animations from the given folder (in the parent directory) instead of its own folder.";
-				if (_editMode != ConditionEditMode::kNone) {
+				if (_editMode != EditMode::kNone) {
 					ImGui::SetNextItemWidth(-220.f);
 					std::string tempOverrideAnimationsFolder(a_subMod->GetOverrideAnimationsFolder());
 					if (ImGui::InputTextWithHint(overrideAnimationsFolderLabel.data(), "Override animations folder", &tempOverrideAnimationsFolder)) {
@@ -1167,7 +1133,7 @@ namespace UI
 			{
 				std::string requiredProjectNameId = "Required project name##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "requiredProjectName";
 				std::string requiredProjectNameTooltip = "If set, this submod will only load for the specified project name. Leave empty to load for all projects.";
-				if (_editMode != ConditionEditMode::kNone) {
+				if (_editMode != EditMode::kNone) {
 					ImGui::SetNextItemWidth(-220.f);
 					std::string tempRequiredProjectName(a_subMod->GetRequiredProjectName());
 					if (ImGui::InputTextWithHint(requiredProjectNameId.data(), "Required project name", &tempRequiredProjectName)) {
@@ -1195,7 +1161,7 @@ namespace UI
 				std::string noTriggersFlagLabel = "Ignore \"Don't Convert Annotations To Triggers\" flag##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "ignoreDontConvertAnnotationsToTriggersFlag";
 				std::string noTriggersFlagTooltip = "If checked, the animation clip flag \"Don't convert annotations to triggers\", set on some animation clips in vanilla, will be ignored. This means that animation triggers (events) that included in the replacer animation file itself as annotations will now run, instead of being ignored.";
 
-				if (_editMode != ConditionEditMode::kNone) {
+				if (_editMode != EditMode::kNone) {
 					bool tempIgnoreNoTriggersFlag = a_subMod->IsIgnoringDontConvertAnnotationsToTriggersFlag();
 					if (ImGui::Checkbox(noTriggersFlagLabel.data(), &tempIgnoreNoTriggersFlag)) {
 						a_subMod->SetIgnoringDontConvertAnnotationsToTriggersFlag(tempIgnoreNoTriggersFlag);
@@ -1219,7 +1185,7 @@ namespace UI
 				std::string triggersFromAnnotationsOnlyLabel = "Only use triggers from annotations##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "triggersFromAnnotationsOnly";
 				std::string triggersFromAnnotationsOnlyTooltip = "If checked, the triggers \"baked in\" in the animation clips inside the behavior files will be ignored. The only events that will will be those from annotations inside the animation file.\nThe \"Don't convert annotations to triggers\" flag is still respected, so make sure to enable the above setting if necessary.";
 
-				if (_editMode != ConditionEditMode::kNone) {
+				if (_editMode != EditMode::kNone) {
 					bool tempTriggersFromAnnotationsOnly = a_subMod->IsOnlyUsingTriggersFromAnnotations();
 					if (ImGui::Checkbox(triggersFromAnnotationsOnlyLabel.data(), &tempTriggersFromAnnotationsOnly)) {
 						a_subMod->SetOnlyUsingTriggersFromAnnotations(tempTriggersFromAnnotationsOnly);
@@ -1243,7 +1209,7 @@ namespace UI
 				std::string interruptibleLabel = "Interruptible##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "interruptible";
 				std::string interruptibleTooltip = "If checked, the conditions will be checked every frame and the clip will be switched to another one if needed. Mostly useful for looping animations.";
 
-				if (_editMode != ConditionEditMode::kNone) {
+				if (_editMode != EditMode::kNone) {
 					bool tempInterruptible = a_subMod->IsInterruptible();
 					if (ImGui::Checkbox(interruptibleLabel.data(), &tempInterruptible)) {
 						a_subMod->SetInterruptible(tempInterruptible);
@@ -1263,7 +1229,7 @@ namespace UI
 			}
 
 			const auto drawBlendTimeOption = [this, a_subMod](CustomBlendType a_type, std::string_view a_boolLabel, std::string_view a_sliderLabel, std::string_view a_tooltip) {
-				if (_editMode != ConditionEditMode::kNone) {
+				if (_editMode != EditMode::kNone) {
 					bool tempHasCustomBlendTime = a_subMod->HasCustomBlendTime(a_type);
 					if (ImGui::Checkbox(a_boolLabel.data(), &tempHasCustomBlendTime)) {
 						a_subMod->ToggleCustomBlendTime(a_type, tempHasCustomBlendTime);
@@ -1306,7 +1272,7 @@ namespace UI
 				std::string replaceOnLoopLabel = "Replace on loop##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "replaceOnLoop";
 				std::string replaceOnLoopTooltip = "If checked the conditions will be reevaluated on animation loop and the clip will be switched to another one if needed. Enabled by default.";
 
-				if (_editMode != ConditionEditMode::kNone) {
+				if (_editMode != EditMode::kNone) {
 					bool tempReplaceOnLoop = a_subMod->IsReevaluatingOnLoop();
 					if (ImGui::Checkbox(replaceOnLoopLabel.data(), &tempReplaceOnLoop)) {
 						a_subMod->SetReevaluatingOnLoop(tempReplaceOnLoop);
@@ -1338,7 +1304,7 @@ namespace UI
 				std::string replaceOnEchoLabel = "Replace on echo##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "replaceOnEcho";
 				std::string replaceOnEchoTooltip = "If checked the conditions will be reevaluated on animation echo and the clip will be switched to another one if needed. Disabled by default because of cosmetic issues with several animations, should be only enabled on animations that actually need it.";
 
-				if (_editMode != ConditionEditMode::kNone) {
+				if (_editMode != EditMode::kNone) {
 					bool tempReplaceOnEcho = a_subMod->IsReevaluatingOnEcho();
 					if (ImGui::Checkbox(replaceOnEchoLabel.data(), &tempReplaceOnEcho)) {
 						a_subMod->SetReevaluatingOnEcho(tempReplaceOnEcho);
@@ -1363,6 +1329,54 @@ namespace UI
 				const std::string blendTimeLabel = "Custom blend time on echo##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "blendTimeOnEcho";
 				const std::string blendTimeTooltip = "Sets custom blend time between an animation from this submod and a new one when replacing on echo.";
 				drawBlendTimeOption(CustomBlendType::kEcho, hasCustomBlendTimeLabel, blendTimeLabel, blendTimeTooltip);
+			}
+
+			// Submod run functions on loop
+			{
+				std::string runFunctionsOnLoopLabel = "Run functions on loop##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "runFunctionsOnLoop";
+				std::string runFunctionsOnLoopTooltip = "If checked the OnDeactivate/OnActivate functions will run when the clip loops. Enabled by default.";
+
+				if (_editMode != EditMode::kNone) {
+					bool tempRunFunctionsOnLoop = a_subMod->IsRunningFunctionsOnLoop();
+					if (ImGui::Checkbox(runFunctionsOnLoopLabel.data(), &tempRunFunctionsOnLoop)) {
+						a_subMod->SetRunningFunctionsOnLoop(tempRunFunctionsOnLoop);
+						OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::UpdateSubModJob>(a_subMod, false);
+						a_subMod->SetDirty(true);
+					}
+					ImGui::SameLine();
+					UICommon::HelpMarker(runFunctionsOnLoopTooltip.data());
+				} else if (!a_subMod->IsRunningFunctionsOnLoop()) {
+					ImGui::BeginDisabled();
+					bool tempRunFunctionsOnLoop = a_subMod->IsRunningFunctionsOnLoop();
+					ImGui::Checkbox(runFunctionsOnLoopLabel.data(), &tempRunFunctionsOnLoop);
+					ImGui::EndDisabled();
+					ImGui::SameLine();
+					UICommon::HelpMarker(runFunctionsOnLoopTooltip.data());
+				}
+			}
+
+			// Submod run functions on echo
+			{
+				std::string runFunctionsOnEchoLabel = "Run functions on echo##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "runFunctionsOnEcho";
+				std::string runFunctionsOnEchoTooltip = "If checked the OnDeactivate/OnActivate functions will run on clip echo. Enabled by default.";
+
+				if (_editMode != EditMode::kNone) {
+					bool tempRunFunctionsOnEcho = a_subMod->IsRunningFunctionsOnEcho();
+					if (ImGui::Checkbox(runFunctionsOnEchoLabel.data(), &tempRunFunctionsOnEcho)) {
+						a_subMod->SetRunningFunctionsOnEcho(tempRunFunctionsOnEcho);
+						OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::UpdateSubModJob>(a_subMod, false);
+						a_subMod->SetDirty(true);
+					}
+					ImGui::SameLine();
+					UICommon::HelpMarker(runFunctionsOnEchoTooltip.data());
+				} else if (!a_subMod->IsRunningFunctionsOnEcho()) {
+					ImGui::BeginDisabled();
+					bool tempRunFunctionsOnEcho = a_subMod->IsRunningFunctionsOnEcho();
+					ImGui::Checkbox(runFunctionsOnEchoLabel.data(), &tempRunFunctionsOnEcho);
+					ImGui::EndDisabled();
+					ImGui::SameLine();
+					UICommon::HelpMarker(runFunctionsOnEchoTooltip.data());
+				}
 			}
 
 			// Submod animations
@@ -1429,7 +1443,7 @@ namespace UI
 								ImGui::PushStyleVar(ImGuiStyleVar_Alpha, style.DisabledAlpha);
 							}
 
-							if (_editMode != ConditionEditMode::kNone) {
+							if (_editMode != EditMode::kNone) {
 								const std::string idString = std::format("{}##bDisabled", reinterpret_cast<uintptr_t>(a_replacementAnimation));
 								ImGui::PushID(idString.data());
 								bool bEnabled = !a_replacementAnimation->GetDisabled();
@@ -1483,7 +1497,7 @@ namespace UI
 									auto variantMode = variants.GetVariantMode();
 									if (!a_replacementAnimation->IsSynchronizedAnimation()) {
 										// variant mode
-										if (_editMode != ConditionEditMode::kNone) {
+										if (_editMode != EditMode::kNone) {
 											const std::string label = "Variant Mode##" + std::to_string(reinterpret_cast<std::uintptr_t>(&variants)) + "variantMode";
 											const std::string current = variantMode == VariantMode::kRandom ? "Random" : "Sequential";
 											int tempVariantMode = static_cast<int>(variantMode);
@@ -1528,7 +1542,7 @@ namespace UI
 											return "INVALID"sv;
 										};
 
-										if (_editMode != ConditionEditMode::kNone) {
+										if (_editMode != EditMode::kNone) {
 											const std::string variantScopeLabel = "Variant state scope##" + std::to_string(reinterpret_cast<std::uintptr_t>(&variants));
 											if (ImGui::BeginCombo(variantScopeLabel.data(), getScopeName(variantScope).data())) {
 												for (Conditions::StateDataScope i = Conditions::StateDataScope::kLocal; i <= Conditions::StateDataScope::kReplacerMod; i = static_cast<Conditions::StateDataScope>(static_cast<int32_t>(i) << 1)) {
@@ -1558,7 +1572,7 @@ namespace UI
 									{
 										bool tempShouldBlend = variants.ShouldBlendBetweenVariants();
 										const std::string shouldBlendLabel = "Blend between variants##" + std::to_string(reinterpret_cast<std::uintptr_t>(&variants));
-										ImGui::BeginDisabled(_editMode == ConditionEditMode::kNone);
+										ImGui::BeginDisabled(_editMode == EditMode::kNone);
 										if (ImGui::Checkbox(shouldBlendLabel.data(), &tempShouldBlend)) {
 											variants.SetShouldBlendBetweenVariants(tempShouldBlend);
 											a_subMod->SetDirty(true);
@@ -1572,7 +1586,7 @@ namespace UI
 									{
 										bool tempShouldResetRandom = variants.ShouldResetRandomOnLoopOrEcho();
 										const std::string shouldResetRandomLabel = "Reset random on loop or echo##" + std::to_string(reinterpret_cast<std::uintptr_t>(&variants));
-										ImGui::BeginDisabled(_editMode == ConditionEditMode::kNone);
+										ImGui::BeginDisabled(_editMode == EditMode::kNone);
 										if (ImGui::Checkbox(shouldResetRandomLabel.data(), &tempShouldResetRandom)) {
 											variants.SetShouldResetRandomOnLoopOrEcho(tempShouldResetRandom);
 											a_subMod->SetDirty(true);
@@ -1587,7 +1601,7 @@ namespace UI
 										if (variants.GetVariantStateScope() > Conditions::StateDataScope::kLocal) {
 											bool tempShouldSharePlayedHistory = variants.ShouldSharePlayedHistory();
 											const std::string shouldSharePlayedHistoryLabel = "Share played history##" + std::to_string(reinterpret_cast<std::uintptr_t>(&variants));
-											ImGui::BeginDisabled(_editMode == ConditionEditMode::kNone);
+											ImGui::BeginDisabled(_editMode == EditMode::kNone);
 											if (ImGui::Checkbox(shouldSharePlayedHistoryLabel.data(), &tempShouldSharePlayedHistory)) {
 												variants.SetShouldSharePlayedHistory(tempShouldSharePlayedHistory);
 												a_subMod->SetDirty(true);
@@ -1613,7 +1627,7 @@ namespace UI
 										ImGui::AlignTextToFramePadding();
 
 										ImGui::Indent();
-										if (_editMode != ConditionEditMode::kNone) {
+										if (_editMode != EditMode::kNone) {
 											ImGui::PushID(&a_variant);
 											bool bEnabled = !a_variant.IsDisabled();
 											if (ImGui::Checkbox("##disableVariant", &bEnabled)) {
@@ -1778,10 +1792,68 @@ namespace UI
 				}
 			}
 
-			if (_editMode != ConditionEditMode::kNone) {
-				if (_editMode == ConditionEditMode::kAuthor && a_replacerMod->IsLegacy()) {
+			// Submod functions
+			auto drawFunctionSet = [&](Functions::FunctionSetType a_functionSetType) {
+				std::string functionsTreeNodeLabel;
+				std::string helpMarkerText;
+				switch (a_functionSetType) {
+				case Functions::FunctionSetType::kOnActivate:
+					functionsTreeNodeLabel = "On Activate##";
+					helpMarkerText = "Functions from this set will run when an animation from this submod starts.";
+					break;
+				case Functions::FunctionSetType::kOnDeactivate:
+					functionsTreeNodeLabel = "On Deactivate##";
+					helpMarkerText = "Functions from this set will run when an animation from this submod ends.";
+					break;
+				case Functions::FunctionSetType::kOnTrigger:
+					functionsTreeNodeLabel = "On Trigger##";
+					helpMarkerText = "Functions from this set will run when a specified animation event is called while an animation from this submod is playing.";
+					break;
+				}
+
+				functionsTreeNodeLabel += std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "functionsNode";
+				bool bIsExpanded = ImGui::CollapsingHeader(functionsTreeNodeLabel.data());
+				ImGui::SameLine();
+				UICommon::HelpMarker(helpMarkerText.data());
+				if (bIsExpanded) {
+					ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2, 2));
+
+					ImGui::Indent();
+					const ImGuiStyle& style = ImGui::GetStyle();
+					ImVec2 pos = ImGui::GetCursorScreenPos();
+					pos.x += style.FramePadding.x;
+					pos.y += style.FramePadding.y;
+					ImGui::PushID(a_subMod->GetFunctionSet(a_functionSetType));
+					DrawFunctionSet(a_subMod->GetFunctionSet(a_functionSetType), a_subMod, _editMode, a_functionSetType, UIManager::GetSingleton().GetRefrToEvaluate(), true, pos);
+					ImGui::PopID();
+					ImGui::Unindent();
+
+					ImGui::Spacing();
+					ImGui::PopStyleVar();
+				}
+			};
+
+			if (_editMode != EditMode::kNone || a_subMod->HasAnyFunctionSet()) {
+				std::string allFunctionsTreeNodeLabel = "Functions##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + std::to_string(reinterpret_cast<std::uintptr_t>(a_subMod)) + "functionsNode";
+				if (ImGui::CollapsingHeader(allFunctionsTreeNodeLabel.data(), ImGuiTreeNodeFlags_DefaultOpen)) {
+					ImGui::Indent();
+					if (_editMode != EditMode::kNone || a_subMod->HasFunctionSet(Functions::FunctionSetType::kOnActivate)) {
+						drawFunctionSet(Functions::FunctionSetType::kOnActivate);
+					}
+					if (_editMode != EditMode::kNone || a_subMod->HasFunctionSet(Functions::FunctionSetType::kOnDeactivate)) {
+						drawFunctionSet(Functions::FunctionSetType::kOnDeactivate);
+					}
+					if (_editMode != EditMode::kNone || a_subMod->HasFunctionSet(Functions::FunctionSetType::kOnTrigger)) {
+						drawFunctionSet(Functions::FunctionSetType::kOnTrigger);
+					}
+					ImGui::Unindent();
+				}
+			}
+
+			if (_editMode != EditMode::kNone) {
+				if (_editMode == EditMode::kAuthor && a_replacerMod->IsLegacy()) {
 					// Save migration config
-					ImGui::BeginDisabled(a_subMod->HasInvalidConditions());
+					ImGui::BeginDisabled(a_subMod->HasInvalidConditions() || a_subMod->HasInvalidFunctions());
 					UICommon::ButtonWithConfirmationModal("Save author submod config for migration", "This author config won't be read because this is a legacy mod.\nThe functionality is here for convenience only.\nYou can copy the resulting file to the proper folder when migrating your mods to the new structure.\n\n"sv, [&]() {
 						a_subMod->SaveConfig(_editMode, false);
 					});
@@ -1792,8 +1864,8 @@ namespace UI
 					if (!bIsDirty) {
 						ImGui::BeginDisabled();
 					}
-					ImGui::BeginDisabled(a_subMod->HasInvalidConditions());
-					if (ImGui::Button(_editMode == ConditionEditMode::kAuthor ? "Save submod config (Author)" : "Save submod config (User)")) {
+					ImGui::BeginDisabled(a_subMod->HasInvalidConditions() || a_subMod->HasInvalidFunctions());
+					if (ImGui::Button(_editMode == EditMode::kAuthor ? "Save submod config (Author)" : "Save submod config (User)")) {
 						a_subMod->SaveConfig(_editMode);
 					}
 					ImGui::EndDisabled();
@@ -1823,9 +1895,9 @@ namespace UI
 				}
 
 				// copy json to clipboard button
-				if (a_replacerMod->IsLegacy() && _editMode == ConditionEditMode::kAuthor) {
+				if (a_replacerMod->IsLegacy() && _editMode == EditMode::kAuthor) {
 					ImGui::SameLine();
-					ImGui::BeginDisabled(a_subMod->HasInvalidConditions());
+					ImGui::BeginDisabled(a_subMod->HasInvalidConditions() || a_subMod->HasInvalidFunctions());
 					if (ImGui::Button("Copy submod config to clipboard")) {
 						ImGui::LogToClipboard();
 						ImGui::LogText(a_subMod->SerializeToString().data());
@@ -2004,7 +2076,7 @@ namespace UI
 				});
 				ImGui::Unindent();
 			}
-			DrawConditionSet(a_replacementAnimation->GetConditionSet(), a_replacementAnimation->GetParentSubMod(), ConditionEditMode::kNone, Conditions::ConditionType::kNormal, refrToEvaluate, true, ImGui::GetCursorScreenPos());
+			DrawConditionSet(a_replacementAnimation->GetConditionSet(), a_replacementAnimation->GetParentSubMod(), EditMode::kNone, Conditions::ConditionType::kNormal, refrToEvaluate, true, ImGui::GetCursorScreenPos());
 			ImGui::TreePop();
 		}
 		ImGui::PopID();
@@ -2014,7 +2086,7 @@ namespace UI
 		}
 	}
 
-	bool UIMain::DrawConditionSet(Conditions::ConditionSet* a_conditionSet, SubMod* a_parentSubMod, ConditionEditMode a_editMode, Conditions::ConditionType a_conditionType, RE::TESObjectREFR* a_refrToEvaluate, bool a_bDrawLines, const ImVec2& a_drawStartPos)
+	bool UIMain::DrawConditionSet(Conditions::ConditionSet* a_conditionSet, SubMod* a_parentSubMod, EditMode a_editMode, Conditions::ConditionType a_conditionType, RE::TESObjectREFR* a_refrToEvaluate, bool a_bDrawLines, const ImVec2& a_drawStartPos)
 	{
 		if (!a_conditionSet) {
 			return false;
@@ -2036,7 +2108,7 @@ namespace UI
 		const float tooltipWidth = ImGui::GetContentRegionAvail().x + ImGui::GetStyle().WindowPadding.x * 2;
 
 		if (!a_conditionSet->IsEmpty()) {
-			a_conditionSet->ForEachCondition([&](std::unique_ptr<Conditions::ICondition>& a_condition) {
+			a_conditionSet->ForEach([&](std::unique_ptr<Conditions::ICondition>& a_condition) {
 				const ImRect nodeRect = DrawCondition(a_condition, a_conditionSet, a_parentSubMod, a_editMode, a_conditionType, a_refrToEvaluate, bSetDirty);
 				if (a_bDrawLines) {
 					const float midPoint = (nodeRect.Min.y + nodeRect.Max.y) / 2.f;
@@ -2055,7 +2127,7 @@ namespace UI
 			drawList->AddLine(vertLineStart, vertLineEnd, ImGui::GetColorU32(UICommon::TREE_LINE_COLOR));
 		}
 
-		if (a_editMode > ConditionEditMode::kNone) {
+		if (a_editMode > EditMode::kNone) {
 			const bool bIsConditionPreset = a_conditionType == Conditions::ConditionType::kPreset;
 
 			// Add condition button
@@ -2065,11 +2137,11 @@ namespace UI
 				}
 				if (_lastAddNewConditionName.empty()) {
 					auto isFormCondition = Conditions::CreateCondition("IsForm"sv);
-					a_conditionSet->AddCondition(isFormCondition, true);
+					a_conditionSet->Add(isFormCondition, true);
 					bSetDirty = true;
 				} else {
 					auto newCondition = Conditions::CreateCondition(_lastAddNewConditionName);
-					a_conditionSet->AddCondition(newCondition, true);
+					a_conditionSet->Add(newCondition, true);
 					bSetDirty = true;
 				}
 			}
@@ -2085,7 +2157,7 @@ namespace UI
 				const auto xButtonSize = ImGui::CalcTextSize("Paste condition set").x + style.FramePadding.x * 2 + style.ItemSpacing.x;
 
 				// Copy conditions button
-				ImGui::BeginDisabled(a_conditionSet->HasInvalidConditions());
+				ImGui::BeginDisabled(a_conditionSet->IsEmpty() || !a_conditionSet->IsValid());
 				if (ImGui::Button("Copy condition set", ImVec2(xButtonSize, 0))) {
 					ImGui::CloseCurrentPopup();
 					_conditionSetCopy = DuplicateConditionSet(a_conditionSet);
@@ -2098,7 +2170,7 @@ namespace UI
 				if (ImGui::Button("Paste condition set", ImVec2(xButtonSize, 0))) {
 					ImGui::CloseCurrentPopup();
 					const auto duplicatedSet = DuplicateConditionSet(_conditionSetCopy.get());
-					a_conditionSet->AppendConditions(duplicatedSet.get());
+					a_conditionSet->Append(duplicatedSet.get());
 					bSetDirty = true;
 				}
 				ImGui::EndDisabled();
@@ -2106,11 +2178,12 @@ namespace UI
 				if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) {
 					ImGui::SetNextWindowSize(ImVec2(tooltipWidth, 0));
 					ImGui::BeginTooltip();
-					DrawConditionSet(_conditionSetCopy.get(), nullptr, ConditionEditMode::kNone, a_conditionType, nullptr, false, a_drawStartPos);
+					DrawConditionSet(_conditionSetCopy.get(), nullptr, EditMode::kNone, a_conditionType, nullptr, false, a_drawStartPos);
 					ImGui::EndTooltip();
 				}
 
 				// Clear conditions button
+				ImGui::BeginDisabled(a_conditionSet->IsEmpty());
 				UICommon::ButtonWithConfirmationModal(
 					"Clear condition set"sv, "Are you sure you want to clear the condition set?\nThis operation cannot be undone!\n\n"sv, [&]() {
 						ImGui::ClosePopupsExceptModals();
@@ -2118,6 +2191,7 @@ namespace UI
 						bSetDirty = true;
 					},
 					ImVec2(xButtonSize, 0));
+				ImGui::EndDisabled();
 				ImGui::EndPopup();
 			}
 		}
@@ -2125,7 +2199,114 @@ namespace UI
 		return bSetDirty;
 	}
 
-	ImRect UIMain::DrawCondition(std::unique_ptr<Conditions::ICondition>& a_condition, Conditions::ConditionSet* a_conditionSet, SubMod* a_parentSubMod, ConditionEditMode a_editMode, Conditions::ConditionType a_conditionType, RE::TESObjectREFR* a_refrToEvaluate, bool& a_bOutSetDirty)
+	bool UIMain::DrawFunctionSet(Functions::FunctionSet* a_functionSet, SubMod* a_parentSubMod, EditMode a_editMode, Functions::FunctionSetType a_functionSetType, RE::TESObjectREFR* a_refrToEvaluate, bool a_bDrawLines, const ImVec2& a_drawStartPos)
+	{
+		bool bSetDirty = false;
+
+		ImDrawList* drawList = ImGui::GetWindowDrawList();
+		const ImGuiStyle& style = ImGui::GetStyle();
+
+		ImVec2 vertLineStart = a_drawStartPos;
+		vertLineStart.y += style.FramePadding.x;
+		vertLineStart.x -= style.IndentSpacing * 0.6f;
+		ImVec2 vertLineEnd = vertLineStart;
+
+		const float tooltipWidth = ImGui::GetContentRegionAvail().x + ImGui::GetStyle().WindowPadding.x * 2;
+
+		if (a_functionSet && !a_functionSet->IsEmpty()) {
+			a_functionSet->ForEach([&](std::unique_ptr<Functions::IFunction>& a_function) {
+				const ImRect nodeRect = DrawFunction(a_function, a_functionSet, a_parentSubMod, a_editMode, a_functionSetType, a_refrToEvaluate, bSetDirty);
+				if (a_bDrawLines) {
+					const float midPoint = (nodeRect.Min.y + nodeRect.Max.y) / 2.f;
+					constexpr float horLineLength = 10.f;
+					drawList->AddLine(ImVec2(vertLineStart.x, midPoint), ImVec2(vertLineStart.x + horLineLength, midPoint), ImGui::GetColorU32(UICommon::TREE_LINE_COLOR));
+					vertLineEnd.y = midPoint;
+				}
+
+				return RE::BSVisit::BSVisitControl::kContinue;
+			});
+		} else {
+			DrawBlankFunction(a_functionSet, a_parentSubMod, a_editMode, a_functionSetType);
+		}
+
+		if (a_bDrawLines) {
+			drawList->AddLine(vertLineStart, vertLineEnd, ImGui::GetColorU32(UICommon::TREE_LINE_COLOR));
+		}
+
+		if (a_editMode > EditMode::kNone) {
+			// Add function button
+			if (ImGui::Button("Add new function")) {
+				if (!a_functionSet) {
+					a_functionSet = a_parentSubMod->CreateOrGetFunctionSet(a_functionSetType);
+				}
+				if (_lastAddNewFunctionName.empty()) {
+					auto defaultFunction = Functions::CreateFunction("AddSpell"sv);
+					a_functionSet->Add(defaultFunction, true);
+					bSetDirty = true;
+				} else {
+					auto newFunction = Functions::CreateFunction(_lastAddNewFunctionName);
+					a_functionSet->Add(newFunction, true);
+					bSetDirty = true;
+				}
+			}
+
+			// Function set functions button
+			ImGui::SameLine(0.f, 20.f);
+			const auto popupId = std::string("Function set functions##") + std::to_string(reinterpret_cast<uintptr_t>(a_parentSubMod)) + std::to_string(static_cast<uint8_t>(a_functionSetType)) + std::to_string(reinterpret_cast<uintptr_t>(a_functionSet));
+			if (UICommon::PopupToggleButton("Function set...", popupId.data())) {
+				ImGui::OpenPopup(popupId.data());
+			}
+
+			if (ImGui::BeginPopupContextItem(popupId.data())) {
+				const auto xButtonSize = ImGui::CalcTextSize("Paste function set").x + style.FramePadding.x * 2 + style.ItemSpacing.x;
+
+				// Copy functions button
+				ImGui::BeginDisabled(!a_functionSet || a_functionSet->IsEmpty() || !a_functionSet->IsValid());
+				if (ImGui::Button("Copy function set", ImVec2(xButtonSize, 0))) {
+					ImGui::CloseCurrentPopup();
+					_functionSetCopy = DuplicateFunctionSet(a_functionSet);
+				}
+				ImGui::EndDisabled();
+
+				// Paste functions button
+				const bool bPasteEnabled = _functionSetCopy != nullptr;
+				ImGui::BeginDisabled(!bPasteEnabled);
+				if (ImGui::Button("Paste function set", ImVec2(xButtonSize, 0))) {
+					ImGui::CloseCurrentPopup();
+					const auto duplicatedSet = DuplicateFunctionSet(_functionSetCopy.get());
+					if (!a_functionSet) {
+						a_functionSet = a_parentSubMod->CreateOrGetFunctionSet(a_functionSetType);
+					}
+					a_functionSet->Append(duplicatedSet.get());
+					bSetDirty = true;
+				}
+				ImGui::EndDisabled();
+				// Paste tooltip
+				if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) {
+					ImGui::SetNextWindowSize(ImVec2(tooltipWidth, 0));
+					ImGui::BeginTooltip();
+					DrawFunctionSet(_functionSetCopy.get(), nullptr, EditMode::kNone, a_functionSetType, nullptr, false, a_drawStartPos);
+					ImGui::EndTooltip();
+				}
+
+				// Clear functions button
+				ImGui::BeginDisabled(!a_functionSet || a_functionSet->IsEmpty());
+				UICommon::ButtonWithConfirmationModal(
+					"Clear function set"sv, "Are you sure you want to clear the function set?\nThis operation cannot be undone!\n\n"sv, [&]() {
+						ImGui::ClosePopupsExceptModals();
+						OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::ClearFunctionSetJob>(a_functionSet);
+						bSetDirty = true;
+					},
+					ImVec2(xButtonSize, 0));
+				ImGui::EndDisabled();
+				ImGui::EndPopup();
+			}
+		}
+
+		return bSetDirty;
+	}
+
+	ImRect UIMain::DrawCondition(std::unique_ptr<Conditions::ICondition>& a_condition, Conditions::ConditionSet* a_conditionSet, SubMod* a_parentSubMod, EditMode a_editMode, Conditions::ConditionType a_conditionType, RE::TESObjectREFR* a_refrToEvaluate, bool& a_bOutSetDirty)
 	{
 		ImRect conditionRect;
 
@@ -2177,15 +2358,15 @@ namespace UI
 
 			// Open node
 			bool bNodeOpen = false;
-			if (a_editMode > ConditionEditMode::kNone || a_condition->GetNumComponents() > 0) {
+			if (a_editMode > EditMode::kNone || a_condition->GetNumComponents() > 0) {
 				bNodeOpen = ImGui::TreeNodeEx(a_condition.get(), ImGuiTreeNodeFlags_AllowItemOverlap | ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_SpanAvailWidth, "");
 			} else {
-				bNodeOpen = TreeNodeCollapsedLeaf(a_condition.get(), ImGuiTreeNodeFlags_AllowItemOverlap | ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_SpanAvailWidth, "");
+				bNodeOpen = UICommon::TreeNodeCollapsedLeaf(a_condition.get(), ImGuiTreeNodeFlags_AllowItemOverlap | ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_SpanAvailWidth, "");
 				//bNodeOpen = ImGui::TreeNodeEx(a_condition.get(), ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_AllowItemOverlap | ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_SpanAvailWidth, "");
 			}
 
 			// Condition context menu
-			if (a_editMode > ConditionEditMode::kNone) {
+			if (a_editMode > EditMode::kNone) {
 				if (ImGui::BeginPopupContextItem()) {
 					// copy button
 					auto& style = ImGui::GetStyle();
@@ -2212,7 +2393,7 @@ namespace UI
 						ImGui::SetNextWindowSize(ImVec2(tooltipWidth, 0));
 						ImGui::BeginTooltip();
 						bool bDummy = false;
-						DrawCondition(_conditionCopy, a_conditionSet, nullptr, ConditionEditMode::kNone, a_conditionType, nullptr, bDummy);
+						DrawCondition(_conditionCopy, a_conditionSet, nullptr, EditMode::kNone, a_conditionType, nullptr, bDummy);
 						ImGui::EndTooltip();
 					}
 
@@ -2230,23 +2411,23 @@ namespace UI
 			}
 
 			// Condition description tooltip
-			DrawConditionTooltip(a_condition.get());
+			DrawInfoTooltip(a_condition.get());
 
 			nodeRect = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
 
 			// Drag & Drop source
-			if (a_editMode > ConditionEditMode::kNone && a_condition->IsValid()) {
+			if (a_editMode > EditMode::kNone && a_condition->IsValid()) {
 				if (BeginDragDropSourceEx(ImGuiDragDropFlags_SourceNoHoldToOpenOthers, ImVec2(tooltipWidth, 0))) {
 					DragConditionPayload payload(a_condition, a_conditionSet);
 					ImGui::SetDragDropPayload("DND_CONDITION", &payload, sizeof(DragConditionPayload));
 					bool bDummy = false;
-					DrawCondition(a_condition, a_conditionSet, nullptr, ConditionEditMode::kNone, a_conditionType, nullptr, bDummy);
+					DrawCondition(a_condition, a_conditionSet, nullptr, EditMode::kNone, a_conditionType, nullptr, bDummy);
 					ImGui::EndDragDropSource();
 				}
 			}
 
 			// Drag & Drop target - tree node
-			if (a_editMode > ConditionEditMode::kNone) {
+			if (a_editMode > EditMode::kNone) {
 				if (ImGui::BeginDragDropTarget()) {
 					if (const ImGuiPayload* imguiPayload = ImGui::AcceptDragDropPayload("DND_CONDITION", ImGuiDragDropFlags_AcceptPeekOnly)) {
 						DragConditionPayload payload = *static_cast<DragConditionPayload*>(imguiPayload->Data);
@@ -2288,7 +2469,7 @@ namespace UI
 
 			// Disable checkbox
 			ImGui::SameLine();
-			if (a_editMode > ConditionEditMode::kNone) {
+			if (a_editMode > EditMode::kNone) {
 				std::string idString = std::format("{}##bDisabled", reinterpret_cast<uintptr_t>(a_condition.get()));
 				ImGui::PushID(idString.data());
 				bool bEnabled = !a_condition->IsDisabled();
@@ -2336,7 +2517,7 @@ namespace UI
 			if (bNodeOpen) {
 				ImGui::Spacing();
 
-				if (a_editMode > ConditionEditMode::kNone) {
+				if (a_editMode > EditMode::kNone) {
 					// negate checkbox
 					bool bNOT = a_condition->IsNegated();
 					if (ImGui::Checkbox("Negate", &bNOT)) {
@@ -2351,15 +2532,15 @@ namespace UI
 					const float conditionComboWidth = UICommon::FirstColumnWidth(_firstColumnWidthPercent);
 					ImGui::SetNextItemWidth(conditionComboWidth);
 
-					const auto& conditionInfos = GetConditionInfos(a_conditionType);
+					const auto& conditionInfos = _conditionComboFilter.GetConditionInfos(a_conditionType);
 					if (conditionInfos.empty()) {
-						CacheConditionInfos();
+						_conditionComboFilter.CacheInfos();
 					}
 
 					int selectedItem = -1;
-					const ConditionInfo* currentConditionInfo = nullptr;
+					const Info* currentConditionInfo = nullptr;
 
-					auto it = std::ranges::find_if(conditionInfos, [&](const ConditionInfo& a_conditionInfo) {
+					auto it = std::ranges::find_if(conditionInfos, [&](const Info& a_conditionInfo) {
 						return a_conditionInfo.name == std::string_view(conditionName);
 					});
 
@@ -2368,7 +2549,7 @@ namespace UI
 						currentConditionInfo = &*it;
 					}
 
-					if (ConditionComboFilter("##Condition type", selectedItem, conditionInfos, currentConditionInfo, ImGuiComboFlags_HeightLarge)) {
+					if (_conditionComboFilter.ComboFilter("##Condition type", selectedItem, conditionInfos, currentConditionInfo, ImGuiComboFlags_HeightLarge, &UIMain::DrawInfoTooltip)) {
 						if (selectedItem >= 0 && selectedItem < conditionInfos.size() && OpenAnimationReplacer::GetSingleton().HasConditionFactory(conditionInfos[selectedItem].name)) {
 							_lastAddNewConditionName = conditionInfos[selectedItem].name;
 							OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::ReplaceConditionJob>(a_condition, conditionInfos[selectedItem].name, a_conditionSet);
@@ -2383,6 +2564,48 @@ namespace UI
 						OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::RemoveConditionJob>(a_condition, a_conditionSet);
 						a_bOutSetDirty = true;
 					});
+
+					// Essential state
+					{
+						if (a_condition->GetConditionType() == Conditions::ConditionType::kCustom && a_condition->GetConditionAPIVersion() >= Conditions::ConditionAPIVersion::kNew) {
+							static std::map<Conditions::EssentialState, std::string_view> enumMap = {
+								{ Conditions::EssentialState::kEssential, "Essential" },
+								{ Conditions::EssentialState::kNonEssential_True, "Non-essential - Return true" },
+								{ Conditions::EssentialState::kNonEssential_False, "Non-essential - Return false" }
+							};
+							ImGui::SameLine();
+							std::string idString = std::format("{}##essential", reinterpret_cast<uintptr_t>(a_condition.get()));
+							ImGui::PushID(idString.data());
+
+							Conditions::EssentialState currentValue = a_condition->GetEssential();
+							std::string currentEnumName;
+							if (const auto search = enumMap.find(currentValue); search != enumMap.end()) {
+								currentEnumName = search->second;
+							} else {
+								currentEnumName = std::format("Unknown ({})", static_cast<uint8_t>(currentValue));
+							}
+
+							if (ImGui::BeginCombo(idString.data(), currentEnumName.data())) {
+								for (auto& [enumValue, enumName] : enumMap) {
+									const bool bIsCurrent = enumValue == currentValue;
+									if (ImGui::Selectable(enumName.data(), bIsCurrent)) {
+										if (!bIsCurrent) {
+											currentValue = enumValue;
+											a_condition->SetEssential(currentValue);
+											a_conditionSet->SetDirty(true);
+											a_bOutSetDirty = true;
+										}
+									}
+									if (bIsCurrent) {
+										ImGui::SetItemDefaultFocus();
+									}
+								}
+								ImGui::EndCombo();
+							}
+							ImGui::PopID();
+							UICommon::AddTooltip("Users missing a plugin implementing this condition won't be notified about an error and the condition will evaluate to either true or false, depending on the selected option.");
+						}
+					}
 				}
 
 				if (auto numComponents = a_condition->GetNumComponents(); numComponents > 0) {
@@ -2396,14 +2619,14 @@ namespace UI
 						}
 						if (bIsMultiConditionComponent || bIsConditionPresetComponent) {
 							const auto multiConditionComponent = static_cast<Conditions::IMultiConditionComponent*>(component);
-							// display component
-							if (component->DisplayInUI(a_editMode != ConditionEditMode::kNone, _firstColumnWidthPercent)) {
+							// draw conditions
+							auto conditionType = a_conditionType == Conditions::ConditionType::kPreset || bIsConditionPresetComponent ? Conditions::ConditionType::kPreset : Conditions::ConditionType::kNormal;
+							if (DrawConditionSet(multiConditionComponent->GetConditions(), a_parentSubMod, bIsConditionPresetComponent ? EditMode::kNone : a_editMode, conditionType, multiConditionComponent->GetShouldDrawEvaluateResultForChildConditions() ? a_condition->GetRefrToEvaluate(a_refrToEvaluate) : nullptr, true, cursorPos)) {
 								a_conditionSet->SetDirty(true);
 								a_bOutSetDirty = true;
 							}
-							// draw conditions
-							auto conditionType = a_conditionType == Conditions::ConditionType::kPreset || bIsConditionPresetComponent ? Conditions::ConditionType::kPreset : Conditions::ConditionType::kNormal;
-							if (DrawConditionSet(multiConditionComponent->GetConditions(), a_parentSubMod, bIsConditionPresetComponent ? ConditionEditMode::kNone : a_editMode, conditionType, multiConditionComponent->GetShouldDrawEvaluateResultForChildConditions() ? a_condition->GetRefrToEvaluate(a_refrToEvaluate) : nullptr, true, cursorPos)) {
+							// display component
+							if (component->DisplayInUI(a_editMode != EditMode::kNone, _firstColumnWidthPercent)) {
 								a_conditionSet->SetDirty(true);
 								a_bOutSetDirty = true;
 							}
@@ -2418,7 +2641,7 @@ namespace UI
 								UICommon::AddTooltip(componentDescription.data());
 							}
 							// display component
-							if (component->DisplayInUI(a_editMode != ConditionEditMode::kNone, _firstColumnWidthPercent)) {
+							if (component->DisplayInUI(a_editMode != EditMode::kNone, _firstColumnWidthPercent)) {
 								a_conditionSet->SetDirty(true);
 								a_bOutSetDirty = true;
 							}
@@ -2463,7 +2686,7 @@ namespace UI
 		ImGui::InvisibleButton(conditionInvisibleDragAreaId.data(), ImVec2(width, style.ItemSpacing.y));
 
 		// Drag & Drop target - invisible button
-		if (a_editMode > ConditionEditMode::kNone) {
+		if (a_editMode > EditMode::kNone) {
 			if (ImGui::BeginDragDropTarget()) {
 				if (const ImGuiPayload* imguiPayload = ImGui::AcceptDragDropPayload("DND_CONDITION", ImGuiDragDropFlags_AcceptPeekOnly)) {
 					DragConditionPayload payload = *static_cast<DragConditionPayload*>(imguiPayload->Data);
@@ -2487,7 +2710,454 @@ namespace UI
 		return conditionRect;
 	}
 
-	ImRect UIMain::DrawBlankCondition(Conditions::ConditionSet* a_conditionSet, ConditionEditMode a_editMode, Conditions::ConditionType a_conditionType)
+	ImRect UIMain::DrawFunction(std::unique_ptr<Functions::IFunction>& a_function, Functions::FunctionSet* a_functionSet, SubMod* a_parentSubMod, EditMode a_editMode, Functions::FunctionSetType a_functionSetType, RE::TESObjectREFR* a_refrToEvaluate, bool& a_bOutSetDirty)
+	{
+		ImRect functionRect;
+
+		ImRect nodeRect;
+
+		std::string functionTableId = std::format("{}functionTable", reinterpret_cast<uintptr_t>(a_function.get()));
+		ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(0, 0));
+
+		if (ImGui::BeginTable(functionTableId.data(), 1, ImGuiTableFlags_BordersOuter)) {
+			ImGui::TableNextRow();
+			ImGui::TableSetColumnIndex(0);
+			//ImGui::AlignTextToFramePadding();
+
+			const auto functionName = a_function->GetName();
+			std::string nodeName = functionName.data();
+
+			bool bStyleVarPushed = false;
+			if (a_function->IsDisabled()) {
+				auto& style = ImGui::GetStyle();
+				ImGui::PushStyleVar(ImGuiStyleVar_Alpha, style.Alpha * style.DisabledAlpha);
+				bStyleVarPushed = true;
+			}
+
+			float tooltipWidth = ImGui::GetContentRegionAvail().x + ImGui::GetStyle().WindowPadding.x * 2;
+			ImVec2 nodePos = ImGui::GetCursorScreenPos();
+
+			// Open node
+			bool bNodeOpen = false;
+			if (a_editMode > EditMode::kNone || a_function->GetNumComponents() > 0) {
+				bNodeOpen = ImGui::TreeNodeEx(a_function.get(), ImGuiTreeNodeFlags_AllowItemOverlap | ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_SpanAvailWidth, "");
+			} else {
+				bNodeOpen = UICommon::TreeNodeCollapsedLeaf(a_function.get(), ImGuiTreeNodeFlags_AllowItemOverlap | ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_SpanAvailWidth, "");
+				//bNodeOpen = ImGui::TreeNodeEx(a_condition.get(), ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_AllowItemOverlap | ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_SpanAvailWidth, "");
+			}
+
+			// Function context menu
+			if (a_editMode > EditMode::kNone) {
+				if (ImGui::BeginPopupContextItem()) {
+					// copy button
+					auto& style = ImGui::GetStyle();
+					auto xButtonSize = ImGui::CalcTextSize("Paste function below").x + style.FramePadding.x * 2 + style.ItemSpacing.x;
+					ImGui::BeginDisabled(!a_function->IsValid());
+					if (ImGui::Button("Copy function", ImVec2(xButtonSize, 0))) {
+						_functionCopy = DuplicateFunction(a_function);
+						ImGui::CloseCurrentPopup();
+					}
+					ImGui::EndDisabled();
+
+					// paste button
+					const bool bPasteEnabled = _functionCopy != nullptr;
+					ImGui::BeginDisabled(!bPasteEnabled);
+					if (ImGui::Button("Paste function below", ImVec2(xButtonSize, 0))) {
+						auto duplicate = DuplicateFunction(_functionCopy);
+						if (!a_functionSet) {
+							a_functionSet = a_parentSubMod->CreateOrGetFunctionSet(a_functionSetType);
+						}
+						OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::InsertFunctionJob>(duplicate, a_functionSet, a_function);
+						a_bOutSetDirty = true;
+						ImGui::CloseCurrentPopup();
+					}
+					ImGui::EndDisabled();
+
+					// paste tooltip
+					if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) {
+						ImGui::SetNextWindowSize(ImVec2(tooltipWidth, 0));
+						ImGui::BeginTooltip();
+						bool bDummy = false;
+						DrawFunction(_functionCopy, a_functionSet, nullptr, EditMode::kNone, a_functionSetType, nullptr, bDummy);
+						ImGui::EndTooltip();
+					}
+
+					// delete button
+					UICommon::ButtonWithConfirmationModal(
+						"Delete function"sv, "Are you sure you want to remove the function?\nThis operation cannot be undone!\n\n"sv, [&]() {
+							ImGui::ClosePopupsExceptModals();
+							OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::RemoveFunctionJob>(a_function, a_functionSet);
+							a_bOutSetDirty = true;
+						},
+						ImVec2(xButtonSize, 0));
+
+					ImGui::EndPopup();
+				}
+			}
+
+			// Function description tooltip
+			DrawInfoTooltip(a_function.get());
+
+			nodeRect = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+
+			// Drag & Drop source
+			if (a_editMode > EditMode::kNone && a_function->IsValid()) {
+				if (BeginDragDropSourceEx(ImGuiDragDropFlags_SourceNoHoldToOpenOthers, ImVec2(tooltipWidth, 0))) {
+					DragFunctionPayload payload(a_function, a_functionSet);
+					ImGui::SetDragDropPayload("DND_FUNCTION", &payload, sizeof(DragConditionPayload));
+					bool bDummy = false;
+					DrawFunction(a_function, a_functionSet, nullptr, EditMode::kNone, a_functionSetType, nullptr, bDummy);
+					ImGui::EndDragDropSource();
+				}
+			}
+
+			// Drag & Drop target - tree node
+			if (a_editMode > EditMode::kNone) {
+				if (ImGui::BeginDragDropTarget()) {
+					if (const ImGuiPayload* imguiPayload = ImGui::AcceptDragDropPayload("DND_FUNCTION", ImGuiDragDropFlags_AcceptPeekOnly)) {
+						DragFunctionPayload payload = *static_cast<DragFunctionPayload*>(imguiPayload->Data);
+
+						const ImGuiStyle& style = ImGui::GetStyle();
+						if (!bNodeOpen) {
+							// Draw our own preview of the drop because we want to draw a line either above or below the function
+							float midPoint = (nodeRect.Min.y + nodeRect.Max.y) / 2.f;
+							const auto upperHalf = ImRect(nodeRect.Min.x, nodeRect.Min.y, nodeRect.Max.x, midPoint);
+							const auto lowerHalf = ImRect(nodeRect.Min.x, midPoint, nodeRect.Max.x, nodeRect.Max.y);
+
+							bool bInsertAfter = ImGui::IsMouseHoveringRect(lowerHalf.Min, lowerHalf.Max);
+
+							ImDrawList* drawList = ImGui::GetWindowDrawList();
+							auto lineY = bInsertAfter ? nodeRect.Max.y + style.ItemSpacing.y * 0.5f : nodeRect.Min.y - style.ItemSpacing.y * 0.5f;
+							drawList->AddLine(ImVec2(nodeRect.Min.x, lineY), ImVec2(nodeRect.Max.x, lineY), ImGui::GetColorU32(ImGuiCol_DragDropTarget), 3.f);
+
+							if (imguiPayload->IsDelivery()) {
+								OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::MoveFunctionJob>(payload.function, payload.functionSet, a_function, a_functionSet, bInsertAfter);
+							}
+						} else {
+							// Draw our own preview of the drop because we want to draw a line above the function if we're hovering over the upper half of the node. Ignore anything below, we have the invisible button for that
+							float midPoint = (nodeRect.Min.y + nodeRect.Max.y) / 2.f;
+							const auto upperHalf = ImRect(nodeRect.Min.x, nodeRect.Min.y, nodeRect.Max.x, midPoint);
+
+							if (ImGui::IsMouseHoveringRect(upperHalf.Min, upperHalf.Max)) {
+								ImDrawList* drawList = ImGui::GetWindowDrawList();
+								drawList->AddLine(ImVec2(nodeRect.Min.x, nodeRect.Min.y - style.ItemSpacing.y * 0.5f), ImVec2(nodeRect.Max.x, nodeRect.Min.y - style.ItemSpacing.y * 0.5f), ImGui::GetColorU32(ImGuiCol_DragDropTarget), 3.f);
+
+								if (imguiPayload->IsDelivery()) {
+									OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::MoveFunctionJob>(payload.function, payload.functionSet, a_function, a_functionSet, false);
+								}
+							}
+						}
+					}
+					ImGui::EndDragDropTarget();
+				}
+			}
+
+			// Disable checkbox
+			ImGui::SameLine();
+			if (a_editMode > EditMode::kNone) {
+				std::string idString = std::format("{}##bDisabled", reinterpret_cast<uintptr_t>(a_function.get()));
+				ImGui::PushID(idString.data());
+				bool bEnabled = !a_function->IsDisabled();
+				if (ImGui::Checkbox("##toggleFunction", &bEnabled)) {
+					a_function->SetDisabled(!bEnabled);
+					a_functionSet->SetDirty(true);
+					a_bOutSetDirty = true;
+				}
+				UICommon::AddTooltip("Toggles the function on/off");
+				ImGui::PopID();
+			}
+
+			// Function name
+			ImGui::SameLine();
+			if (a_function->IsValid()) {
+				auto requiredPluginName = a_function->GetRequiredPluginName();
+				if (!requiredPluginName.empty()) {
+					UICommon::TextUnformattedColored(UICommon::CUSTOM_CONDITION_COLOR, nodeName.data());
+				} else {
+					ImGui::TextUnformatted(nodeName.data());
+				}
+			} else {
+				UICommon::TextUnformattedColored(UICommon::INVALID_CONDITION_COLOR, nodeName.data());
+			}
+
+			ImVec2 cursorPos = ImGui::GetCursorScreenPos();
+
+			// Right column, argument text
+			UICommon::SecondColumn(_firstColumnWidthPercent);
+			const auto argument = a_function->GetArgument();
+			ImGui::TextUnformatted(argument.data());
+
+			//ImGui::TableSetColumnIndex(0);
+
+			functionRect = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+
+			// Node contents
+			if (bNodeOpen) {
+				ImGui::Spacing();
+
+				if (a_editMode > EditMode::kNone) {
+					// select function type
+					//ImGui::SameLine();
+					const float functionComboWidth = UICommon::FirstColumnWidth(_firstColumnWidthPercent);
+					ImGui::SetNextItemWidth(functionComboWidth);
+
+					const auto& functionInfos = _functionComboFilter.GetFunctionInfos();
+					if (functionInfos.empty()) {
+						_functionComboFilter.CacheInfos();
+					}
+
+					int selectedItem = -1;
+					const Info* currentFunctionInfo = nullptr;
+
+					auto it = std::ranges::find_if(functionInfos, [&](const Info& a_functionInfo) {
+						return a_functionInfo.name == std::string_view(functionName);
+					});
+
+					if (it != functionInfos.end()) {
+						selectedItem = static_cast<int>(std::distance(functionInfos.begin(), it));
+						currentFunctionInfo = &*it;
+					}
+
+					if (_functionComboFilter.ComboFilter("##Function type", selectedItem, functionInfos, currentFunctionInfo, ImGuiComboFlags_HeightLarge, &UIMain::DrawInfoTooltip)) {
+						if (selectedItem >= 0 && selectedItem < functionInfos.size() && OpenAnimationReplacer::GetSingleton().HasFunctionFactory(functionInfos[selectedItem].name)) {
+							_lastAddNewFunctionName = functionInfos[selectedItem].name;
+							OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::ReplaceFunctionJob>(a_function, functionInfos[selectedItem].name, a_functionSet);
+							a_bOutSetDirty = true;
+						}
+					}
+
+					// remove function button
+					UICommon::SecondColumn(_firstColumnWidthPercent);
+
+					UICommon::ButtonWithConfirmationModal("Delete function"sv, "Are you sure you want to remove the function?\nThis operation cannot be undone!\n\n"sv, [&]() {
+						OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::RemoveFunctionJob>(a_function, a_functionSet);
+						a_bOutSetDirty = true;
+					});
+
+					// Essential state
+					{
+						if (a_function->GetFunctionType() == Functions::FunctionType::kCustom) {
+							static std::map<Functions::EssentialState, std::string_view> enumMap = {
+								{ Functions::EssentialState::kEssential, "Essential" },
+								{ Functions::EssentialState::kNonEssential_True, "Non-essential - Return true" },
+								{ Functions::EssentialState::kNonEssential_False, "Non-essential - Return false" }
+							};
+							ImGui::SameLine();
+							std::string idString = std::format("{}##essential", reinterpret_cast<uintptr_t>(a_function.get()));
+							ImGui::PushID(idString.data());
+
+							Functions::EssentialState currentValue = a_function->GetEssential();
+							std::string currentEnumName;
+							if (const auto search = enumMap.find(currentValue); search != enumMap.end()) {
+								currentEnumName = search->second;
+							} else {
+								currentEnumName = std::format("Unknown ({})", static_cast<uint8_t>(currentValue));
+							}
+
+							if (ImGui::BeginCombo(idString.data(), currentEnumName.data())) {
+								for (auto& [enumValue, enumName] : enumMap) {
+									const bool bIsCurrent = enumValue == currentValue;
+									if (ImGui::Selectable(enumName.data(), bIsCurrent)) {
+										if (!bIsCurrent) {
+											currentValue = enumValue;
+											a_function->SetEssential(currentValue);
+											a_functionSet->SetDirty(true);
+											a_bOutSetDirty = true;
+										}
+									}
+									if (bIsCurrent) {
+										ImGui::SetItemDefaultFocus();
+									}
+								}
+								ImGui::EndCombo();
+							}
+							ImGui::PopID();
+							UICommon::AddTooltip("Users missing a plugin implementing this function won't be notified about an error and the function's return value will either be true or false, depending on the selected option.");
+						}
+					}
+				}
+
+				if (auto numComponents = a_function->GetNumComponents(); numComponents > 0) {
+					for (uint32_t i = 0; i < numComponents; i++) {
+						auto component = a_function->GetComponent(i);
+						const bool bIsMultiFunctionComponent = component->GetType() == Functions::FunctionComponentType::kMulti;
+						const bool bIsConditionComponent = component->GetType() == Functions::FunctionComponentType::kCondition;
+						if (bIsMultiFunctionComponent) {
+							const auto multiFunctionComponent = static_cast<Functions::IMultiFunctionComponent*>(component);
+							// draw functions
+							if (DrawFunctionSet(multiFunctionComponent->GetFunctions(), a_parentSubMod, a_editMode, Functions::FunctionSetType::kNone, a_refrToEvaluate, true, cursorPos)) {
+								a_functionSet->SetDirty(true);
+								a_bOutSetDirty = true;
+							}
+							// display component
+							if (component->DisplayInUI(a_editMode != EditMode::kNone, _firstColumnWidthPercent)) {
+								a_functionSet->SetDirty(true);
+								a_bOutSetDirty = true;
+							}
+						} else if (bIsConditionComponent) {
+							const auto conditionFunctionComponent = static_cast<Functions::IConditionFunctionComponent*>(component);
+							// draw conditions
+							if (DrawConditionSet(conditionFunctionComponent->GetConditions(), a_parentSubMod, a_editMode, Conditions::ConditionType::kNormal, a_refrToEvaluate, true, cursorPos)) {
+								a_functionSet->SetDirty(true);
+								a_bOutSetDirty = true;
+							}
+							ImGui::Separator();
+							// draw functions
+							if (DrawFunctionSet(conditionFunctionComponent->GetFunctions(), a_parentSubMod, a_editMode, Functions::FunctionSetType::kNone, a_refrToEvaluate, true, cursorPos)) {
+								a_functionSet->SetDirty(true);
+								a_bOutSetDirty = true;
+							}
+							// display component
+							if (component->DisplayInUI(a_editMode != EditMode::kNone, _firstColumnWidthPercent)) {
+								a_functionSet->SetDirty(true);
+								a_bOutSetDirty = true;
+							}
+						} else {
+							ImGui::Spacing();
+							// write component name aligned to the right
+							const auto componentName = component->GetName();
+							UICommon::TextDescriptionRightAligned(componentName.data());
+							// show component description on mouseover
+							const auto componentDescription = component->GetDescription();
+							if (!componentDescription.empty()) {
+								UICommon::AddTooltip(componentDescription.data());
+							}
+							// display component
+							if (component->DisplayInUI(a_editMode != EditMode::kNone, _firstColumnWidthPercent)) {
+								a_functionSet->SetDirty(true);
+								a_bOutSetDirty = true;
+							}
+						}
+					}
+				}
+
+				// triggers
+				if (a_functionSetType == Functions::FunctionSetType::kOnTrigger) {
+					std::string triggersLabel = std::format("Triggers##{}", reinterpret_cast<uintptr_t>(a_function.get()));
+					bool bIsOpen = ImGui::CollapsingHeader(triggersLabel.data(), ImGuiTreeNodeFlags_DefaultOpen);
+					ImGui::SameLine();
+					UICommon::HelpMarker("Animation events with an optional payload that will trigger this function.");
+					if (bIsOpen) {
+						ImGui::Indent();
+						uint32_t i = 0;
+						a_function->ForEachTrigger([&](const auto& a_trigger) {
+							// draw trigger
+							ImGui::TextUnformatted(a_trigger.event.data());
+							if (a_trigger.payload.length() > 0) {
+								ImGui::SameLine(0.f, 0.f);
+								ImGui::PushStyleColor(ImGuiCol_Text, UICommon::EVENT_LOG_PAYLOAD_COLOR);
+								ImGui::TextUnformatted(".");
+								ImGui::SameLine(0.f, 0.f);
+								UICommon::TextUnformattedEllipsis(a_trigger.payload.data());
+								ImGui::PopStyleColor();
+							}
+
+							// remove trigger button
+							UICommon::SecondColumn(_firstColumnWidthPercent);
+							std::string buttonLabel = std::format("Delete trigger##{}{}", reinterpret_cast<uintptr_t>(a_function.get()), i++);
+							if (ImGui::Button(buttonLabel.data())) {
+								OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::RemoveTriggerJob>(a_function, a_functionSet, a_trigger);
+								a_functionSet->SetDirty(true);
+								a_bOutSetDirty = true;
+							}
+							return RE::BSVisit::BSVisitControl::kContinue;
+						});
+
+						// add new trigger
+						if (a_editMode > EditMode::kNone) {
+							constexpr auto popupName = "Adding new trigger"sv;
+							std::string buttonLabel = std::format("Add new trigger##{}", reinterpret_cast<uintptr_t>(a_function.get()));
+							if (ImGui::Button(buttonLabel.data())) {
+								const auto popupPos = ImGui::GetCursorScreenPos();
+								ImGui::SetNextWindowPos(popupPos);
+								ImGui::OpenPopup(popupName.data());
+							}
+
+							if (ImGui::BeginPopupModal(popupName.data(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+								static std::string eventBuffer;
+								static std::string payloadBuffer;
+								ImGui::InputTextWithHint("##NewTriggerEvent", "Event name", &eventBuffer, ImGuiInputTextFlags_CharsNoBlank);
+								ImGui::SameLine();
+								ImGui::TextUnformatted(".");
+								ImGui::SameLine();
+								ImGui::InputTextWithHint("##NewTriggerPayload", "Payload (optional)", &payloadBuffer, ImGuiInputTextFlags_CharsNoBlank);
+								std::string addButtonLabel = std::format("Add trigger##{}", reinterpret_cast<uintptr_t>(a_function.get()));
+								ImGui::BeginDisabled(eventBuffer.empty());
+								if (ImGui::Button(addButtonLabel.data())) {
+									auto trigger = Functions::Trigger(eventBuffer.data(), payloadBuffer.data());
+									OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::AddTriggerJob>(a_function, a_functionSet, trigger);
+									a_functionSet->SetDirty(true);
+									a_bOutSetDirty = true;
+									eventBuffer.clear();
+									payloadBuffer.clear();
+									ImGui::CloseCurrentPopup();
+								}
+								ImGui::EndDisabled();
+								ImGui::SetItemDefaultFocus();
+								ImGui::SameLine();
+								if (ImGui::Button("Cancel")) {
+									eventBuffer.clear();
+									payloadBuffer.clear();
+									ImGui::CloseCurrentPopup();
+								}
+								ImGui::EndPopup();
+							}
+						}
+
+						ImGui::Unindent();
+					}
+				}
+
+				ImGui::Spacing();
+
+				ImGui::TreePop();
+			}
+
+			if (bStyleVarPushed) {
+				ImGui::PopStyleVar();
+			}
+
+			ImGui::EndTable();
+		}
+		ImGui::PopStyleVar();  // ImGuiStyleVar_CellPadding
+
+		auto rectMax = ImGui::GetItemRectMax();
+
+		auto width = ImGui::GetItemRectSize().x;
+		auto groupEnd = ImGui::GetCursorPos();
+		const ImGuiStyle& style = ImGui::GetStyle();
+		ImVec2 invisibleButtonStart = groupEnd;
+		invisibleButtonStart.y -= style.ItemSpacing.y;
+		ImGui::SetCursorPos(invisibleButtonStart);
+		std::string functionInvisibleDragAreaId = std::format("{}functionInvisibleDragArea", reinterpret_cast<uintptr_t>(a_function.get()));
+		ImGui::InvisibleButton(functionInvisibleDragAreaId.data(), ImVec2(width, style.ItemSpacing.y));
+
+		// Drag & Drop target - invisible button
+		if (a_editMode > EditMode::kNone) {
+			if (ImGui::BeginDragDropTarget()) {
+				if (const ImGuiPayload* imguiPayload = ImGui::AcceptDragDropPayload("DND_FUNCTION", ImGuiDragDropFlags_AcceptPeekOnly)) {
+					DragFunctionPayload payload = *static_cast<DragFunctionPayload*>(imguiPayload->Data);
+					// Draw our own preview of the drop because we want to draw a line below the condition
+
+					ImDrawList* drawList = ImGui::GetWindowDrawList();
+					drawList->AddLine(ImVec2(nodeRect.Min.x, rectMax.y + style.ItemSpacing.y * 0.5f), ImVec2(nodeRect.Max.x, rectMax.y + style.ItemSpacing.y * 0.5f), ImGui::GetColorU32(ImGuiCol_DragDropTarget), 3.f);
+
+					if (imguiPayload->IsDelivery()) {
+						OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::MoveFunctionJob>(payload.function, payload.functionSet, a_function, a_functionSet, true);
+					}
+				}
+				ImGui::EndDragDropTarget();
+			}
+		}
+
+		ImGui::SetCursorPos(groupEnd);
+
+		//ImGui::EndGroup();
+
+		return functionRect;
+	}
+
+	ImRect UIMain::DrawBlankCondition(Conditions::ConditionSet* a_conditionSet, EditMode a_editMode, Conditions::ConditionType a_conditionType)
 	{
 		ImRect conditionRect;
 
@@ -2500,9 +3170,9 @@ namespace UI
 			const float tooltipWidth = ImGui::GetContentRegionAvail().x + ImGui::GetStyle().WindowPadding.x * 2;
 
 			const std::string nodeId = std::format("No conditions##{}", reinterpret_cast<uintptr_t>(a_conditionSet));
-			TreeNodeCollapsedLeaf(nodeId.data(), ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_SpanAvailWidth);
+			UICommon::TreeNodeCollapsedLeaf(nodeId.data(), ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_SpanAvailWidth);
 
-			if (a_editMode > ConditionEditMode::kNone) {
+			if (a_editMode > EditMode::kNone) {
 				// Paste condition context menu
 				if (ImGui::BeginPopupContextItem()) {
 					// paste button
@@ -2519,7 +3189,7 @@ namespace UI
 						ImGui::SetNextWindowSize(ImVec2(tooltipWidth, 0));
 						ImGui::BeginTooltip();
 						bool bDummy = false;
-						DrawCondition(_conditionCopy, a_conditionSet, nullptr, ConditionEditMode::kNone, Conditions::ConditionType::kNormal, nullptr, bDummy);
+						DrawCondition(_conditionCopy, a_conditionSet, nullptr, EditMode::kNone, Conditions::ConditionType::kNormal, nullptr, bDummy);
 						ImGui::EndTooltip();
 					}
 
@@ -2543,6 +3213,71 @@ namespace UI
 		ImGui::PopStyleVar();  // ImGuiStyleVar_CellPadding
 
 		return conditionRect;
+	}
+
+	ImRect UIMain::DrawBlankFunction(Functions::FunctionSet* a_functionSet, SubMod* a_parentSubMod, EditMode a_editMode, Functions::FunctionSetType a_functionSetType)
+	{
+		ImRect functionRect;
+
+		auto id = reinterpret_cast<uintptr_t>(a_parentSubMod) + static_cast<uint8_t>(a_functionSetType) + reinterpret_cast<uintptr_t>(a_functionSet);
+		const std::string functionTableId = std::format("{}blankFunctionTable", id);
+		ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(0, 0));
+		if (ImGui::BeginTable(functionTableId.data(), 1, ImGuiTableFlags_BordersOuter)) {
+			ImGui::TableNextRow();
+			ImGui::TableSetColumnIndex(0);
+
+			const float tooltipWidth = ImGui::GetContentRegionAvail().x + ImGui::GetStyle().WindowPadding.x * 2;
+
+			const std::string nodeId = std::format("No functions##{}", id);
+			UICommon::TreeNodeCollapsedLeaf(nodeId.data(), ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_SpanAvailWidth);
+
+			if (a_editMode > EditMode::kNone) {
+				// Paste function context menu
+				if (ImGui::BeginPopupContextItem()) {
+					// paste button
+					const bool bPasteEnabled = _functionCopy != nullptr;
+					ImGui::BeginDisabled(!bPasteEnabled);
+					if (ImGui::Button("Paste function below")) {
+						auto duplicate = DuplicateFunction(_functionCopy);
+						if (!a_functionSet) {
+							a_functionSet = a_parentSubMod->CreateOrGetFunctionSet(a_functionSetType);
+						}
+						OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::InsertFunctionJob>(duplicate, a_functionSet, nullptr);
+						ImGui::CloseCurrentPopup();
+					}
+					ImGui::EndDisabled();
+					// paste tooltip
+					if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) {
+						ImGui::SetNextWindowSize(ImVec2(tooltipWidth, 0));
+						ImGui::BeginTooltip();
+						bool bDummy = false;
+						DrawFunction(_functionCopy, a_functionSet, nullptr, EditMode::kNone, a_functionSetType, nullptr, bDummy);
+						ImGui::EndTooltip();
+					}
+
+					ImGui::EndPopup();
+				}
+
+				// Drag & Drop target - blank function set
+				if (ImGui::BeginDragDropTarget()) {
+					if (const ImGuiPayload* imguiPayload = ImGui::AcceptDragDropPayload("DND_FUNCTION")) {
+						DragFunctionPayload payload = *static_cast<DragFunctionPayload*>(imguiPayload->Data);
+						if (!a_functionSet) {
+							a_functionSet = a_parentSubMod->CreateOrGetFunctionSet(a_functionSetType);
+						}
+						OpenAnimationReplacer::GetSingleton().QueueJob<Jobs::MoveFunctionJob>(payload.function, payload.functionSet, nullptr, a_functionSet, true);
+					}
+					ImGui::EndDragDropTarget();
+				}
+			}
+
+			functionRect = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+
+			ImGui::EndTable();
+		}
+		ImGui::PopStyleVar();  // ImGuiStyleVar_CellPadding
+
+		return functionRect;
 	}
 
 	bool UIMain::DrawConditionPreset(ReplacerMod* a_replacerMod, Conditions::ConditionPreset* a_conditionPreset, bool& a_bOutWasPresetRenamed)
@@ -2571,7 +3306,7 @@ namespace UI
 			};
 
 			// context menu
-			if (_editMode != ConditionEditMode::kNone) {
+			if (_editMode != EditMode::kNone) {
 				if (ImGui::BeginPopupContextItem()) {
 					// delete button
 					const std::string buttonText = "Delete condition preset";
@@ -2591,7 +3326,7 @@ namespace UI
 
 			// condition preset name
 			ImGui::SameLine();
-			if (!a_conditionPreset->IsEmpty() && !a_conditionPreset->HasInvalidConditions()) {
+			if (!a_conditionPreset->IsEmpty() && a_conditionPreset->IsValid()) {
 				ImGui::TextUnformatted(a_conditionPreset->GetName().data());
 			} else {
 				UICommon::TextUnformattedColored(UICommon::INVALID_CONDITION_COLOR, a_conditionPreset->GetName().data());
@@ -2599,14 +3334,14 @@ namespace UI
 
 			// right column, condition count text
 			UICommon::SecondColumn(_firstColumnWidthPercent);
-			ImGui::TextUnformatted(a_conditionPreset->GetNumConditionsText().data());
+			ImGui::TextUnformatted(a_conditionPreset->NumText().data());
 
 			if (bNodeOpen) {
 				const ImGuiStyle& style = ImGui::GetStyle();
 
 				ImGui::Spacing();
 				// rename / delete condition preset
-				if (_editMode != ConditionEditMode::kNone) {
+				if (_editMode != EditMode::kNone) {
 					const std::string nameId = "##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_replacerMod)) + "name";
 					ImGui::SetNextItemWidth(UICommon::FirstColumnWidth(_firstColumnWidthPercent));
 					std::string tempName(a_conditionPreset->GetName());
@@ -2632,7 +3367,7 @@ namespace UI
 
 				// description
 				const std::string descriptionId = "##" + std::to_string(reinterpret_cast<std::uintptr_t>(a_conditionPreset)) + "description";
-				if (_editMode != ConditionEditMode::kNone) {
+				if (_editMode != EditMode::kNone) {
 					std::string tempDescription(a_conditionPreset->GetDescription());
 					ImGui::SetNextItemWidth(UICommon::FirstColumnWidth(_firstColumnWidthPercent));
 					if (ImGui::InputText(descriptionId.data(), &tempDescription)) {
@@ -2666,24 +3401,24 @@ namespace UI
 		return bSetDirty;
 	}
 
-	void UIMain::DrawConditionTooltip(const ConditionInfo& a_conditionInfo, ImGuiHoveredFlags a_flags) const
+	void UIMain::DrawInfoTooltip(const Info& a_info, ImGuiHoveredFlags a_flags)
 	{
 		if (ImGui::IsItemHovered(a_flags)) {
 			ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 8, 8 });
 			if (ImGui::BeginTooltip()) {
 				ImGui::PushTextWrapPos(ImGui::GetFontSize() * 50.0f);
-				ImGui::TextUnformatted(a_conditionInfo.description.data());
-				if (!a_conditionInfo.requiredPluginName.empty()) {
+				ImGui::TextUnformatted(a_info.description.data());
+				if (!a_info.requiredPluginName.empty()) {
 					ImGui::TextUnformatted("Source plugin:");
 					ImGui::SameLine();
-					UICommon::TextUnformattedColored(a_conditionInfo.textColor, a_conditionInfo.requiredPluginName.data());
+					UICommon::TextUnformattedColored(a_info.textColor, a_info.requiredPluginName.data());
 					ImGui::SameLine();
-					UICommon::TextUnformattedDisabled(a_conditionInfo.requiredVersion.string("."sv).data());
-					if (!a_conditionInfo.requiredPluginAuthor.empty()) {
+					UICommon::TextUnformattedDisabled(a_info.requiredVersion.string("."sv).data());
+					if (!a_info.requiredPluginAuthor.empty()) {
 						ImGui::SameLine();
 						ImGui::TextUnformatted("by");
 						ImGui::SameLine();
-						UICommon::TextUnformattedColored(a_conditionInfo.textColor, a_conditionInfo.requiredPluginAuthor.data());
+						UICommon::TextUnformattedColored(a_info.textColor, a_info.requiredPluginAuthor.data());
 					}
 				}
 				ImGui::PopTextWrapPos();
@@ -2699,294 +3434,6 @@ namespace UI
 		ImGui::TextUnformatted("Animations from behavior projects that are not loaded will not show up here!");
 		ImGui::SameLine();
 		UICommon::HelpMarker("If the ones you're looking for are missing, make sure a character using them has been loaded by the game in this gameplay session.");
-	}
-
-	void UIMain::CacheConditionInfos()
-	{
-		_conditionInfos.clear();
-		_conditionInfosNoPRESET.clear();
-
-		OpenAnimationReplacer::GetSingleton().ForEachConditionFactory([&](std::string_view a_name, [[maybe_unused]] auto a_factory) {
-			if (const auto tempCondition = OpenAnimationReplacer::GetSingleton().CreateCondition(a_name)) {
-				const auto conditionType = tempCondition->GetConditionType();
-				ImVec4 color;
-				switch (conditionType) {
-				case Conditions::ConditionType::kCustom:
-					color = UICommon::CUSTOM_CONDITION_COLOR;
-					break;
-				case Conditions::ConditionType::kPreset:
-					color = UICommon::CONDITION_PRESET_COLOR;
-					break;
-				case Conditions::ConditionType::kNormal:
-				default:
-					color = UICommon::DEFAULT_CONDITION_COLOR;
-					break;
-				}
-				_conditionInfos.emplace_back(a_name, tempCondition->GetDescription(), color, tempCondition->GetRequiredPluginName(), tempCondition->GetRequiredPluginAuthor(), tempCondition->GetRequiredVersion());
-				if (conditionType != Conditions::ConditionType::kPreset) {
-					_conditionInfosNoPRESET.emplace_back(a_name, tempCondition->GetDescription(), color, tempCondition->GetRequiredPluginName(), tempCondition->GetRequiredPluginAuthor(), tempCondition->GetRequiredVersion());
-				}
-			}
-		});
-	}
-
-	struct ComboMapHasher
-	{
-		ImGuiID operator()(ImGuiID a_id) const noexcept
-		{
-			return a_id;
-		}
-	};
-
-	static std::unordered_map<ImGuiID, std::unique_ptr<UIMain::ComboFilterData>, ComboMapHasher> g_comboHashMap{};
-
-	UIMain::ComboFilterData* UIMain::GetComboFilterData(ImGuiID a_comboId)
-	{
-		const auto it = g_comboHashMap.find(a_comboId);
-		return it == g_comboHashMap.end() ? nullptr : it->second.get();
-	}
-
-	UIMain::ComboFilterData* UIMain::AddComboFilterData(ImGuiID a_comboId)
-	{
-		IM_ASSERT(!g_comboHashMap.contains(a_comboId) && "A combo data currently exists on the same id!");
-		auto& new_data = g_comboHashMap[a_comboId];
-		new_data.reset(new ComboFilterData());
-		return new_data.get();
-	}
-
-	void UIMain::ClearComboFilterData(ImGuiID a_comboId)
-	{
-		g_comboHashMap.erase(a_comboId);
-	}
-
-	float CalcComboItemHeight(int a_itemCount, float a_offsetMultiplier)
-	{
-		const ImGuiContext* g = GImGui;
-		return a_itemCount < 0 ? FLT_MAX : (g->FontSize + g->Style.ItemSpacing.y) * a_itemCount - g->Style.ItemSpacing.y + (g->Style.WindowPadding.y * a_offsetMultiplier);
-	}
-
-	bool UIMain::ConditionComboFilter(const char* a_comboLabel, int& a_selectedItem, const std::vector<ConditionInfo>& a_conditionInfos, const ConditionInfo* a_currentConditionInfo, ImGuiComboFlags a_flags)
-	{
-		using namespace ImGui;
-
-		ImGuiContext* g = GImGui;
-		ImGuiWindow* window = GetCurrentWindow();
-
-		g->NextWindowData.ClearFlags();  // We behave like Begin() and need to consume those values
-		if (window->SkipItems) {
-			return false;
-		}
-
-		IM_ASSERT((a_flags & (ImGuiComboFlags_NoArrowButton | ImGuiComboFlags_NoPreview)) != (ImGuiComboFlags_NoArrowButton | ImGuiComboFlags_NoPreview));  // Can't use both flags together
-
-		const ImGuiStyle& style = g->Style;
-		const ImGuiID combo_id = window->GetID(a_comboLabel);
-
-		const float arrow_size = (a_flags & ImGuiComboFlags_NoArrowButton) ? 0.0f : GetFrameHeight();
-		const ImVec2 label_size = CalcTextSize(a_comboLabel, NULL, true);
-		const float expected_w = CalcItemWidth();
-		const float w = (a_flags & ImGuiComboFlags_NoPreview) ? arrow_size : CalcItemWidth();
-		const ImVec2 bb_max(window->DC.CursorPos.x + w, window->DC.CursorPos.y + (label_size.y + style.FramePadding.y * 2.0f));
-		const ImRect bb(window->DC.CursorPos, bb_max);
-		const ImVec2 total_bb_max(bb.Max.x + (label_size.x > 0.0f ? style.ItemInnerSpacing.x + label_size.x : 0.0f), bb.Max.y);
-		const ImRect total_bb(bb.Min, total_bb_max);
-		ItemSize(total_bb, style.FramePadding.y);
-		if (!ItemAdd(total_bb, combo_id, &bb)) {
-			return false;
-		}
-
-		// Open on click
-		bool hovered, held;
-		bool pressed = ButtonBehavior(bb, combo_id, &hovered, &held);
-		bool popup_open = IsPopupOpen(combo_id, ImGuiPopupFlags_None);
-		bool popup_just_opened = false;
-		if (pressed && !popup_open) {
-			OpenPopupEx(combo_id, ImGuiPopupFlags_None);
-			popup_open = true;
-			popup_just_opened = true;
-		}
-
-		// Render shape
-		const ImU32 frame_col = GetColorU32(hovered ? ImGuiCol_FrameBgHovered : ImGuiCol_FrameBg);
-		const float value_x2 = ImMax(bb.Min.x, bb.Max.x - arrow_size);
-		RenderNavHighlight(bb, combo_id);
-		if (!(a_flags & ImGuiComboFlags_NoPreview))
-			window->DrawList->AddRectFilled(bb.Min, ImVec2(value_x2, bb.Max.y), frame_col, style.FrameRounding, (a_flags & ImGuiComboFlags_NoArrowButton) ? ImDrawFlags_RoundCornersAll : ImDrawFlags_RoundCornersLeft);
-		if (!(a_flags & ImGuiComboFlags_NoArrowButton)) {
-			ImU32 bg_col = GetColorU32((popup_open || hovered) ? ImGuiCol_ButtonHovered : ImGuiCol_Button);
-			ImU32 text_col = GetColorU32(ImGuiCol_Text);
-			window->DrawList->AddRectFilled(ImVec2(value_x2, bb.Min.y), bb.Max, bg_col, style.FrameRounding, (w <= arrow_size) ? ImDrawFlags_RoundCornersAll : ImDrawFlags_RoundCornersRight);
-			if (value_x2 + arrow_size - style.FramePadding.x <= bb.Max.x)
-				RenderArrow(window->DrawList, ImVec2(value_x2 + style.FramePadding.y, bb.Min.y + style.FramePadding.y), text_col, popup_open ? ImGuiDir_Up : ImGuiDir_Down, 1.0f);
-		}
-		RenderFrameBorder(bb.Min, bb.Max, style.FrameRounding);
-
-		// Render preview and label
-		if (a_currentConditionInfo && !(a_flags & ImGuiComboFlags_NoPreview)) {
-			const ImVec2 min_pos(bb.Min.x + style.FramePadding.x, bb.Min.y + style.FramePadding.y);
-			PushStyleColor(ImGuiCol_Text, a_currentConditionInfo->textColor);
-			RenderTextClipped(min_pos, ImVec2(value_x2, bb.Max.y), a_currentConditionInfo->name.data(), NULL, NULL);
-			PopStyleColor();
-		}
-		if (label_size.x > 0) {
-			RenderText(ImVec2(bb.Max.x + style.ItemInnerSpacing.x, bb.Min.y + style.FramePadding.y), a_comboLabel);
-		}
-
-		if (!popup_open) {
-			ClearComboFilterData(combo_id);
-			return false;
-		}
-
-		ComboFilterData* comboData = GetComboFilterData(combo_id);
-		if (!comboData) {
-			comboData = AddComboFilterData(combo_id);
-			comboData->currentSelection = a_selectedItem;
-			comboData->initialValues.info = a_currentConditionInfo;
-			comboData->initialValues.index = a_selectedItem;
-		}
-
-		PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(3.50f, 5.00f));
-		int popup_item_count = -1;
-		if (!(g->NextWindowData.Flags & ImGuiNextWindowDataFlags_HasSizeConstraint)) {
-			if ((a_flags & ImGuiComboFlags_HeightMask_) == 0)
-				a_flags |= ImGuiComboFlags_HeightRegular;
-			IM_ASSERT(ImIsPowerOfTwo(a_flags & ImGuiComboFlags_HeightMask_));  // Only one
-			if (a_flags & ImGuiComboFlags_HeightRegular)
-				popup_item_count = 8 + 1;
-			else if (a_flags & ImGuiComboFlags_HeightSmall)
-				popup_item_count = 4 + 1;
-			else if (a_flags & ImGuiComboFlags_HeightLarge)
-				popup_item_count = 20 + 1;
-			const float popup_height = CalcComboItemHeight(popup_item_count, 5.0f);  // Increment popup_item_count to account for the InputText widget
-			SetNextWindowSizeConstraints(ImVec2(0.0f, 0.0f), ImVec2(expected_w, popup_height));
-		}
-
-		char name[16];
-		ImFormatString(name, IM_ARRAYSIZE(name), "##Combo_%02d", g->BeginPopupStack.Size);  // Recycle windows based on depth
-
-		if (ImGuiWindow* popup_window = FindWindowByName(name)) {
-			if (popup_window->WasActive) {
-				// Always override 'AutoPosLastDirection' to not leave a chance for a past value to affect us.
-				ImVec2 size_expected = CalcWindowNextAutoFitSize(popup_window);
-				popup_window->AutoPosLastDirection = (a_flags & ImGuiComboFlags_PopupAlignLeft) ? ImGuiDir_Left : ImGuiDir_Down;  // Left = "Below, Toward Left", Down = "Below, Toward Right (default)"
-				ImRect r_outer = GetPopupAllowedExtentRect(popup_window);
-				ImVec2 pos = FindBestWindowPosForPopupEx(bb.GetBL(), size_expected, &popup_window->AutoPosLastDirection, r_outer, bb, ImGuiPopupPositionPolicy_ComboBox);
-				SetNextWindowPos(pos);
-			}
-		}
-
-		constexpr ImGuiWindowFlags window_flags = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_Popup | ImGuiWindowFlags_NoNavInputs | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove;
-		if (!Begin(name, nullptr, window_flags)) {
-			PopStyleVar();
-			EndPopup();
-			IM_ASSERT(0);  // This should never happen as we tested for IsPopupOpen() above
-			return false;
-		}
-
-		if (popup_just_opened) {
-			SetKeyboardFocusHere();
-		}
-
-		const float items_max_width = expected_w - (style.WindowPadding.x * 2.00f);
-		PushItemWidth(items_max_width);
-		PushStyleVar(ImGuiStyleVar_FrameRounding, 5.00f);
-		PushStyleColor(ImGuiCol_FrameBg, (ImVec4)ImColor(240, 240, 240, 255));
-		PushStyleColor(ImGuiCol_Text, (ImVec4)ImColor(0, 0, 0, 255));
-		const bool buffer_changed = InputText("##inputText", &comboData->filterString, ImGuiInputTextFlags_AutoSelectAll, nullptr, nullptr);
-		PopStyleColor(2);
-		PopStyleVar(1);
-		PopItemWidth();
-
-		bool selection_changed = false;
-		const bool clicked_outside = !IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem | ImGuiHoveredFlags_AnyWindow) && IsMouseClicked(0);
-
-		auto getInfo = [&](int a_index) -> const ConditionInfo& {
-			const int index = comboData->filterStatus ? comboData->filteredInfos[a_index].index : a_index;
-			return a_conditionInfos[index];
-		};
-
-		const int item_count = static_cast<int>(comboData->filterStatus ? comboData->filteredInfos.size() : a_conditionInfos.size());
-		char listbox_name[16];
-		ImFormatString(listbox_name, 16, "##lbn%u", combo_id);
-		if (--popup_item_count > item_count || popup_item_count < 0) {
-			popup_item_count = item_count;
-		}
-		if (BeginListBox(listbox_name, ImVec2(items_max_width, CalcComboItemHeight(popup_item_count, 1.50f)))) {
-			ImGuiWindow* listbox_window = ImGui::GetCurrentWindow();
-			listbox_window->Flags |= ImGuiWindowFlags_NoNavInputs | ImGuiWindowFlags_NoNavFocus;
-
-			if (listbox_window->Appearing) {
-				UICommon::SetScrollToComboItemJump(listbox_window, comboData->initialValues.index);
-			}
-
-			ImGuiListClipper listclipper;
-			listclipper.Begin(item_count);
-			char select_item_id[128];
-			while (listclipper.Step()) {
-				for (int i = listclipper.DisplayStart; i < listclipper.DisplayEnd; ++i) {
-					bool is_selected = i == comboData->currentSelection;
-					const ConditionInfo& conditionInfo = getInfo(i);
-
-					ImFormatString(select_item_id, 128, "%s##id%d", conditionInfo.name.data(), i);
-					PushStyleColor(ImGuiCol_Text, conditionInfo.textColor);
-					if (Selectable(select_item_id, is_selected)) {
-						if (comboData->SetNewValue(&conditionInfo, i)) {
-							selection_changed = true;
-							a_selectedItem = comboData->currentSelection;
-						}
-						CloseCurrentPopup();
-					}
-					PopStyleColor();
-					DrawConditionTooltip(conditionInfo);
-				}
-			}
-
-			if (clicked_outside || IsKeyPressed(ImGuiKey_Escape)) {
-				comboData->ResetToInitialValue();
-				CloseCurrentPopup();
-			} else if (buffer_changed) {
-				comboData->filteredInfos.clear();
-				comboData->filterStatus = !comboData->filterString.empty();
-				if (comboData->filterStatus) {
-					constexpr int max_matches = 128;
-					unsigned char matches[max_matches];
-					int match_count;
-					int score = 0;
-
-					for (int i = 0; i < a_conditionInfos.size(); ++i) {
-						auto& conditionInfo = a_conditionInfos[i];
-						if (UICommon::FuzzySearch(comboData->filterString.data(), conditionInfo.name.data(), score, matches, max_matches, match_count)) {
-							comboData->filteredInfos.emplace_back(i, score);
-						}
-					}
-					std::sort(comboData->filteredInfos.rbegin(), comboData->filteredInfos.rend());
-				}
-				comboData->currentSelection = comboData->filteredInfos.empty() ? -1 : 0;
-				SetScrollY(0.0f);
-			} else if (IsKeyPressed(ImGuiKey_Enter) || IsKeyPressed(ImGuiKey_KeypadEnter)) {  // Automatically exit the combo popup on selection
-				if (comboData->SetNewValue(comboData->currentSelection < 0 ? nullptr : &getInfo(comboData->currentSelection))) {
-					selection_changed = true;
-					a_selectedItem = comboData->currentSelection;
-				}
-				CloseCurrentPopup();
-			}
-
-			if (IsKeyPressed(ImGuiKey_UpArrow)) {
-				if (comboData->currentSelection > 0) {
-					UICommon::SetScrollToComboItemUp(listbox_window, --comboData->currentSelection);
-				}
-			} else if (IsKeyPressed(ImGuiKey_DownArrow)) {
-				if (comboData->currentSelection >= -1 && comboData->currentSelection < item_count - 1) {
-					UICommon::SetScrollToComboItemDown(listbox_window, ++comboData->currentSelection);
-				}
-			}
-
-			EndListBox();
-		}
-		EndPopup();
-		PopStyleVar();
-
-		return selection_changed;
 	}
 
 	bool UIMain::CanPreviewAnimation(RE::TESObjectREFR* a_refr, const ReplacementAnimation* a_replacementAnimation)
@@ -3199,137 +3646,6 @@ namespace UI
 		return false;
 	}
 
-	bool UIMain::TreeNodeCollapsedLeaf(const char* a_label, ImGuiTreeNodeFlags a_flags) const
-	{
-		ImGuiWindow* window = ImGui::GetCurrentWindow();
-		if (window->SkipItems)
-			return false;
-
-		return TreeNodeCollapsedLeafBehavior(window->GetID(a_label), a_flags, a_label);
-	}
-
-	bool UIMain::TreeNodeCollapsedLeaf(const void* a_ptrId, ImGuiTreeNodeFlags a_flags, const char* a_label) const
-	{
-		ImGuiWindow* window = ImGui::GetCurrentWindow();
-		if (window->SkipItems)
-			return false;
-
-		return TreeNodeCollapsedLeafBehavior(window->GetID(a_ptrId), a_flags, a_label);
-	}
-
-	bool UIMain::TreeNodeCollapsedLeafBehavior(ImGuiID a_id, ImGuiTreeNodeFlags a_flags, const char* a_label) const
-	{
-		using namespace ImGui;
-
-		const ImGuiWindow* window = GetCurrentWindow();
-		if (window->SkipItems)
-			return false;
-
-		ImGuiContext& g = *GImGui;
-		const ImGuiStyle& style = g.Style;
-		const bool display_frame = (a_flags & ImGuiTreeNodeFlags_Framed) != 0;
-		const ImVec2 padding = (display_frame || (a_flags & ImGuiTreeNodeFlags_FramePadding)) ? style.FramePadding : ImVec2(style.FramePadding.x, ImMin(window->DC.CurrLineTextBaseOffset, style.FramePadding.y));
-
-		const char* label_end = FindRenderedTextEnd(a_label);
-		const ImVec2 label_size = CalcTextSize(a_label, label_end, false);
-
-		// We vertically grow up to current line height up the typical widget height.
-		const float frame_height = ImMax(ImMin(window->DC.CurrLineSize.y, g.FontSize + style.FramePadding.y * 2), label_size.y + padding.y * 2);
-		ImRect frame_bb;
-		frame_bb.Min.x = (a_flags & ImGuiTreeNodeFlags_SpanFullWidth) ? window->WorkRect.Min.x : window->DC.CursorPos.x;
-		frame_bb.Min.y = window->DC.CursorPos.y;
-		frame_bb.Max.x = window->WorkRect.Max.x;
-		frame_bb.Max.y = window->DC.CursorPos.y + frame_height;
-		if (display_frame) {
-			// Framed header expand a little outside the default padding, to the edge of InnerClipRect
-			// (FIXME: May remove this at some point and make InnerClipRect align with WindowPadding.x instead of WindowPadding.x*0.5f)
-			frame_bb.Min.x -= IM_FLOOR(window->WindowPadding.x * 0.5f - 1.0f);
-			frame_bb.Max.x += IM_FLOOR(window->WindowPadding.x * 0.5f);
-		}
-
-		const float text_offset_x = g.FontSize + (display_frame ? padding.x * 3 : padding.x * 2);           // Collapser arrow width + Spacing
-		const float text_offset_y = ImMax(padding.y, window->DC.CurrLineTextBaseOffset);                    // Latch before ItemSize changes it
-		const float text_width = g.FontSize + (label_size.x > 0.0f ? label_size.x + padding.x * 2 : 0.0f);  // Include collapser
-		ImVec2 text_pos(window->DC.CursorPos.x + text_offset_x, window->DC.CursorPos.y + text_offset_y);
-		ItemSize(ImVec2(text_width, frame_height), padding.y);
-
-		// For regular tree nodes, we arbitrary allow to click past 2 worth of ItemSpacing
-		ImRect interact_bb = frame_bb;
-		if (!display_frame && (a_flags & (ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_SpanFullWidth)) == 0)
-			interact_bb.Max.x = frame_bb.Min.x + text_width + style.ItemSpacing.x * 2.0f;
-
-		const bool item_add = ItemAdd(interact_bb, a_id);
-		g.LastItemData.StatusFlags |= ImGuiItemStatusFlags_HasDisplayRect;
-		g.LastItemData.DisplayRect = frame_bb;
-
-		if (!item_add) {
-			IMGUI_TEST_ENGINE_ITEM_INFO(g.LastItemData.ID, label, g.LastItemData.StatusFlags);
-			return false;
-		}
-
-		ImGuiButtonFlags button_flags = ImGuiTreeNodeFlags_None;
-		if (a_flags & ImGuiTreeNodeFlags_AllowItemOverlap)
-			button_flags |= ImGuiButtonFlags_AllowItemOverlap;
-
-		if (window != g.HoveredWindow)
-			button_flags |= ImGuiButtonFlags_NoKeyModifiers;
-
-		if (a_flags & ImGuiTreeNodeFlags_OpenOnDoubleClick)
-			button_flags |= ImGuiButtonFlags_PressedOnClickRelease | ImGuiButtonFlags_PressedOnDoubleClick;
-		else
-			button_flags |= ImGuiButtonFlags_PressedOnClickRelease;
-
-		const bool selected = (a_flags & ImGuiTreeNodeFlags_Selected) != 0;
-		const bool was_selected = selected;
-
-		bool hovered, held;
-		ButtonBehavior(interact_bb, a_id, &hovered, &held, button_flags);
-
-		if (a_flags & ImGuiTreeNodeFlags_AllowItemOverlap)
-			SetItemAllowOverlap();
-
-		// In this branch, TreeNodeBehavior() cannot toggle the selection so this will never trigger.
-		if (selected != was_selected)  //-V547
-			g.LastItemData.StatusFlags |= ImGuiItemStatusFlags_ToggledSelection;
-
-		// Render
-		const ImU32 text_col = GetColorU32(ImGuiCol_Text);
-		const ImGuiNavHighlightFlags nav_highlight_flags = ImGuiNavHighlightFlags_TypeThin;
-		if (display_frame) {
-			// Framed type
-			const ImU32 bg_col = GetColorU32((held && hovered) ? ImGuiCol_HeaderActive : hovered ? ImGuiCol_HeaderHovered :
-																								   ImGuiCol_Header);
-			RenderFrame(frame_bb.Min, frame_bb.Max, bg_col, true, style.FrameRounding);
-			RenderNavHighlight(frame_bb, a_id, nav_highlight_flags);
-			if (a_flags & ImGuiTreeNodeFlags_Bullet)
-				RenderBullet(window->DrawList, ImVec2(text_pos.x - text_offset_x * 0.60f, text_pos.y + g.FontSize * 0.5f), text_col);
-			else  // Leaf without bullet, left-adjusted text
-				text_pos.x -= text_offset_x;
-			if (a_flags & ImGuiTreeNodeFlags_ClipLabelForTrailingButton)
-				frame_bb.Max.x -= g.FontSize + style.FramePadding.x;
-
-			if (g.LogEnabled)
-				LogSetNextTextDecoration("###", "###");
-			RenderTextClipped(text_pos, frame_bb.Max, a_label, label_end, &label_size);
-		} else {
-			// Unframed typed for tree nodes
-			if (hovered || selected) {
-				const ImU32 bg_col = GetColorU32((held && hovered) ? ImGuiCol_HeaderActive : hovered ? ImGuiCol_HeaderHovered :
-																									   ImGuiCol_Header);
-				RenderFrame(frame_bb.Min, frame_bb.Max, bg_col, false);
-			}
-			RenderNavHighlight(frame_bb, a_id, nav_highlight_flags);
-			if (a_flags & ImGuiTreeNodeFlags_Bullet)
-				RenderBullet(window->DrawList, ImVec2(text_pos.x - text_offset_x * 0.5f, text_pos.y + g.FontSize * 0.5f), text_col);
-			if (g.LogEnabled)
-				LogSetNextTextDecoration(">", nullptr);
-			RenderText(text_pos, a_label, label_end, false);
-		}
-
-		IMGUI_TEST_ENGINE_ITEM_INFO(id, label, g.LastItemData.StatusFlags);
-		return false;
-	}
-
 	bool UIMain::ConditionContainsPreset(Conditions::ICondition* a_condition, Conditions::ConditionPreset* a_conditionPreset) const
 	{
 		if (a_condition == nullptr) {
@@ -3374,7 +3690,7 @@ namespace UI
 			return false;
 		}
 
-		const auto result = a_conditionSet->ForEachCondition([&](std::unique_ptr<Conditions::ICondition>& a_condition) {
+		const auto result = a_conditionSet->ForEach([&](std::unique_ptr<Conditions::ICondition>& a_condition) {
 			if (ConditionContainsPreset(a_condition.get(), a_conditionPreset)) {
 				return RE::BSVisit::BSVisitControl::kStop;
 			}

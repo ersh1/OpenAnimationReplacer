@@ -1,11 +1,16 @@
 cmake_minimum_required(VERSION 3.22)
 
+set(NAME "OpenAnimationReplacer" CACHE STRING "")
+set(VERSION 3.0.0 CACHE STRING "")
+
 project(
-	OpenAnimationReplacer
-	VERSION 2.3.6
+	${NAME}
+	VERSION ${VERSION}
 	LANGUAGES CXX
 )
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+add_compile_definitions(_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
 
 if("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}")
 	message(FATAL_ERROR "in-source builds are not allowed")
@@ -17,16 +22,18 @@ macro(set_from_environment VARIABLE)
 	endif()
 endmacro()
 
-set_from_environment(CompiledPluginsPath)
-if(NOT DEFINED CompiledPluginsPath)
-	message(FATAL_ERROR "CompiledPluginsPath is not set")
-endif()
-
 option(COPY_OUTPUT "Copy the output of build operations to the game directory" ON)
 option(ENABLE_SKYRIM_SE "Enable support for Skyrim SE in the dynamic runtime feature." ON)
 option(ENABLE_SKYRIM_AE "Enable support for Skyrim AE in the dynamic runtime feature." ON)
 option(ENABLE_SKYRIM_VR "Enable support for Skyrim VR in the dynamic runtime feature." ON)
 set(BUILD_TESTS OFF)
+
+if (COPY_OUTPUT)
+	set_from_environment(CompiledPluginsPath)
+	if(NOT DEFINED CompiledPluginsPath)
+		message(FATAL_ERROR "CompiledPluginsPath is not set")
+	endif()
+endif()
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 

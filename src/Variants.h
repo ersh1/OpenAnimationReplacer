@@ -1,8 +1,5 @@
 #pragma once
-
-#include "API/OpenAnimationReplacer-ConditionTypes.h"
-#include "Settings.h"
-#include "StateDataContainer.h"
+#include "Containers.h"
 #include "Utils.h"
 
 class ActiveClip;
@@ -163,7 +160,7 @@ private:
 	uint32_t _timestamp = 0;
 };
 
-class VariantStateData : public Conditions::IStateData
+class VariantStateData : public IStateData
 {
 public:
 	static IStateData* Create() { return new VariantStateData(); }
@@ -212,8 +209,8 @@ public:
 	bool OnLoopOrEcho(RE::ObjectRefHandle a_refHandle, ActiveClip* a_activeClip, bool a_bIsEcho);
 	bool ClearRefrData(RE::ObjectRefHandle a_refHandle);
 	void Clear();
-	Conditions::IStateData* AccessStateData(RE::ObjectRefHandle a_key, RE::hkbClipGenerator* a_clipGenerator, const Variants* a_variants);
-	Conditions::IStateData* AddStateData(RE::ObjectRefHandle a_key, Conditions::IStateData* a_stateData, RE::hkbClipGenerator* a_clipGenerator, const Variants* a_variants);
+	IStateData* AccessStateData(RE::ObjectRefHandle a_key, RE::hkbClipGenerator* a_clipGenerator, const Variants* a_variants);
+	IStateData* AddStateData(RE::ObjectRefHandle a_key, IStateData* a_stateData, RE::hkbClipGenerator* a_clipGenerator, const Variants* a_variants);
 
 protected:
 	StateDataContainer<> _replacerModVariantStateData{};

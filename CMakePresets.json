@@ -62,6 +62,13 @@
       ],
       "name": "vs2022-windows",
       "toolset": "v143"
+    },
+    {
+      "cacheVariables": {
+        "COPY_OUTPUT": "OFF"
+      },
+      "inherits": "vs2022-windows",
+      "name": "github-actions"
     }
   ],
   "version": 3

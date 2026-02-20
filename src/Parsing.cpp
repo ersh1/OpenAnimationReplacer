@@ -48,11 +48,11 @@ namespace Parsing
 					// start an OR block - create an OR condition and add all conditions to it until we reach AND
 					auto orCondition = OpenAnimationReplacer::GetSingleton().CreateCondition("OR");
 					static_cast<Conditions::ORCondition*>(orCondition.get())->conditionsComponent->conditionSet = GetConditions(a_currentLine, true);
-					conditions->AddCondition(orCondition);
+					conditions->Add(orCondition);
 				} else {
 					// create and add a new condition
 					if (auto newCondition = Conditions::CreateConditionFromString(a_currentLine)) {
-						conditions->AddCondition(newCondition);
+						conditions->Add(newCondition);
 
 						if (!bEndsWithOR && a_bInOrBlock) {
 							// end an OR block
@@ -144,7 +144,7 @@ namespace Parsing
 										logger::error("Dumping entire json file from memory: {}", buffer.GetString());
 									}
 
-									conditionPreset->AddCondition(condition);
+									conditionPreset->Add(condition);
 								}
 
 								a_outParseResult.conditionPresets.push_back(std::move(conditionPreset));
@@ -384,6 +384,16 @@ namespace Parsing
 				}
 			}
 
+			// read run functions on loop (optional)
+			if (auto it = doc.FindMember("runFunctionsOnLoop"); it != doc.MemberEnd() && it->value.IsBool()) {
+				a_outParseResult.bRunFunctionsOnLoop = it->value.GetBool();
+			}
+
+			// read run functions on echo (optional)
+			if (auto it = doc.FindMember("runFunctionsOnEcho"); it != doc.MemberEnd() && it->value.IsBool()) {
+				a_outParseResult.bRunFunctionsOnEcho = it->value.GetBool();
+			}
+
 			// read conditions
 			if (auto it = doc.FindMember("conditions"); it != doc.MemberEnd() && it->value.IsArray()) {
 				for (auto& conditionValue : it->value.GetArray()) {
@@ -409,7 +419,7 @@ namespace Parsing
 						}
 					}
 
-					a_outParseResult.conditionSet->AddCondition(condition);
+					a_outParseResult.conditionSet->Add(condition);
 				}
 			}
 
@@ -430,9 +440,50 @@ namespace Parsing
 						a_outParseResult.synchronizedConditionSet = std::make_unique<Conditions::ConditionSet>();
 					}
 
-					a_outParseResult.synchronizedConditionSet->AddCondition(condition);
+					a_outParseResult.synchronizedConditionSet->Add(condition);
 				}
 			}
+
+			// read functions
+			auto parseFunctionSet = [&](std::unique_ptr<Functions::FunctionSet>& functionSet, Functions::FunctionSetType a_functionSetType) {
+				std::string_view memberName;
+				switch (a_functionSetType) {
+				case Functions::FunctionSetType::kOnActivate:
+					memberName = "functionsOnActivate"sv;
+					break;
+				case Functions::FunctionSetType::kOnDeactivate:
+					memberName = "functionsOnDeactivate"sv;
+					break;
+				case Functions::FunctionSetType::kOnTrigger:
+					memberName = "functionsOnTrigger"sv;
+					break;
+				}
+
+				if (auto it = doc.FindMember(memberName.data()); it != doc.MemberEnd() && it->value.IsArray()) {
+					for (auto& functionValue : it->value.GetArray()) {
+						auto function = Functions::CreateFunctionFromJson(functionValue, functionSet.get());
+						if (!function->IsValid()) {
+							logger::error("Failed to parse function in file: {}", a_jsonPath.string());
+
+							rapidjson::StringBuffer buffer;
+							rapidjson::PrettyWriter writer(buffer);
+							doc.Accept(writer);
+
+							logger::error("Dumping entire json file from memory: {}", buffer.GetString());
+						}
+
+						if (!functionSet) {
+							functionSet = std::make_unique<Functions::FunctionSet>(a_functionSetType);
+						}
+
+						functionSet->Add(function);
+					}
+				}
+			};
+
+			parseFunctionSet(a_outParseResult.functionSetOnActivate, Functions::FunctionSetType::kOnActivate);
+			parseFunctionSet(a_outParseResult.functionSetOnDeactivate, Functions::FunctionSetType::kOnDeactivate);
+			parseFunctionSet(a_outParseResult.functionSetOnTrigger, Functions::FunctionSetType::kOnTrigger);
 
 			a_outParseResult.path = a_jsonPath.parent_path().string();
 			a_outParseResult.bSuccess = true;
@@ -862,7 +913,7 @@ namespace Parsing
 							argument += directoryName;
 							auto condition = OpenAnimationReplacer::GetSingleton().CreateCondition("IsActorBase");
 							static_cast<Conditions::IsActorBaseCondition*>(condition.get())->formComponent->SetTESFormValue(form);
-							conditionSet->AddCondition(condition);
+							conditionSet->Add(condition);
 
 							SubModParseResult result;
 

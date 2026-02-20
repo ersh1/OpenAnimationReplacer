@@ -1,6 +1,7 @@
 #include "ReplacementAnimation.h"
 
 #include "AnimationFileHashCache.h"
+#include "OpenAnimationReplacer.h"
 #include "Parsing.h"
 #include "ReplacerMods.h"
 #include "Settings.h"
@@ -186,6 +187,26 @@ SubMod* ReplacementAnimation::GetParentSubMod() const
 	return _parentSubMod;
 }
 
+Functions::FunctionSet* ReplacementAnimation::GetFunctionSet(Functions::FunctionSetType a_setType) const
+{
+	return _parentSubMod ? _parentSubMod->GetFunctionSet(a_setType) : nullptr;
+}
+
+bool ReplacementAnimation::HasValidFunctionSet(Functions::FunctionSetType a_setType) const
+{
+	return _parentSubMod ? _parentSubMod->HasValidFunctionSet(a_setType) : false;
+}
+
+bool ReplacementAnimation::GetRunFunctionsOnLoop() const
+{
+	return _parentSubMod ? _parentSubMod->IsRunningFunctionsOnLoop() : false;
+}
+
+bool ReplacementAnimation::GetRunFunctionsOnEcho() const
+{
+	return _parentSubMod ? _parentSubMod->IsRunningFunctionsOnEcho() : false;
+}
+
 void ReplacementAnimation::MarkAsSynchronizedAnimation(bool a_bSynchronized)
 {
 	_bSynchronized = a_bSynchronized;
@@ -288,25 +309,69 @@ RE::BSVisit::BSVisitControl ReplacementAnimation::ForEachVariant(const std::func
 
 bool ReplacementAnimation::EvaluateConditions(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const
 {
+	auto& animationLog = AnimationLog::GetSingleton();
+	ReplacementTrace* trace = animationLog.ShouldLogAnimationsForRefr(a_refr) ? OpenAnimationReplacer::GetSingleton().GetTrace(a_refr, a_clipGenerator) : nullptr;
+
+	if (trace) {
+		trace->TraceAnimation(this);
+	}
+
 	if (IsDisabled()) {
+		if (trace) {
+			trace->SetTraceAnimationResult(ReplacementTrace::Step::StepResult::kDisabled);
+		}
 		return false;
 	}
 
 	if (_conditionSet->IsEmpty()) {
+		if (trace) {
+			trace->SetTraceAnimationResult(ReplacementTrace::Step::StepResult::kNoConditions);
+		}
 		return true;
 	}
 
-	return _conditionSet->EvaluateAll(a_refr, a_clipGenerator, _parentSubMod);
+	bool bResult = _conditionSet->EvaluateAll(a_refr, a_clipGenerator, _parentSubMod);
+	if (trace) {
+		trace->SetTraceAnimationResult(bResult ? ReplacementTrace::Step::StepResult::kSuccess : ReplacementTrace::Step::StepResult::kFail);
+	}
+
+	return bResult;
 }
 
 bool ReplacementAnimation::EvaluateSynchronizedConditions(RE::TESObjectREFR* a_sourceRefr, RE::TESObjectREFR* a_targetRefr, RE::hkbClipGenerator* a_clipGenerator) const
 {
+	auto& animationLog = AnimationLog::GetSingleton();
+	bool bTrace = animationLog.ShouldLogAnimationsForRefr(a_sourceRefr) || animationLog.ShouldLogAnimationsForRefr(a_targetRefr);
+	ReplacementTrace* trace = bTrace ? OpenAnimationReplacer::GetSingleton().GetTrace(a_sourceRefr, a_clipGenerator) : nullptr;
+
+	if (trace) {
+		trace->TraceAnimation(this);
+	}
+
 	if (IsDisabled()) {
+		if (trace) {
+			trace->SetTraceAnimationResult(ReplacementTrace::Step::StepResult::kDisabled);
+		}
 		return false;
 	}
 
-	const bool bPassingSourceConditions = _conditionSet->IsEmpty() || _conditionSet->EvaluateAll(a_sourceRefr, a_clipGenerator, _parentSubMod);
-	const bool bPassingTargetConditions = !_synchronizedConditionSet || _synchronizedConditionSet->IsEmpty() || _synchronizedConditionSet->EvaluateAll(a_targetRefr, a_clipGenerator, _parentSubMod);
+	if (trace) {
+		trace->SetEvaluatingSynchronizedConditions(false);
+	}
+	const bool bPassingSourceConditions = _conditionSet->IsEmpty() || _conditionSet->EvaluateAll(a_sourceRefr, a_clipGenerator, _parentSubMod, bTrace);
+
+	if (trace) {
+		trace->SetEvaluatingSynchronizedConditions(true);
+	}
+	const bool bPassingTargetConditions = !_synchronizedConditionSet || _synchronizedConditionSet->IsEmpty() || _synchronizedConditionSet->EvaluateAll(a_targetRefr, a_clipGenerator, _parentSubMod, bTrace);
+
+	if (trace) {
+		if (_conditionSet->IsEmpty() && (!_synchronizedConditionSet || _synchronizedConditionSet->IsEmpty())) {
+			trace->SetTraceAnimationResult(ReplacementTrace::Step::StepResult::kNoConditions);
+		} else {
+			trace->SetTraceAnimationResult(bPassingSourceConditions && bPassingTargetConditions ? ReplacementTrace::Step::StepResult::kSuccess : ReplacementTrace::Step::StepResult::kFail);
+		}
+	}
 
 	return bPassingSourceConditions && bPassingTargetConditions;
 }

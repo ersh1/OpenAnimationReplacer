@@ -127,5 +127,10 @@ namespace UI
 		void SetScrollToComboItemJump(ImGuiWindow* a_listbox_window, int a_index);
 		void SetScrollToComboItemUp(ImGuiWindow* a_listbox_window, int a_index);
 		void SetScrollToComboItemDown(ImGuiWindow* a_listbox_window, int a_index);
+
+		// modified from imgui to draw a collapsed leaf node with no label
+		bool TreeNodeCollapsedLeaf(const char* a_label, ImGuiTreeNodeFlags a_flags);
+		bool TreeNodeCollapsedLeaf(const void* a_ptrId, ImGuiTreeNodeFlags a_flags, const char* a_label);
+		bool TreeNodeCollapsedLeafBehavior(ImGuiID a_id, ImGuiTreeNodeFlags a_flags, const char* a_label);
 	}
 }

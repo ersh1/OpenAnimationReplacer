@@ -114,6 +114,7 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 		Sleep(100);
 	}
 #endif
+	REL::Module::reset();  // Clib-NG bug workaround
 
 	// check if DAR is present
 	if (GetModuleHandle("DynamicAnimationReplacer.dll")) {
@@ -181,9 +182,33 @@ extern "C" DLLEXPORT OAR_API::Conditions::IConditionsInterface* SKSEAPI RequestP
 	case OAR_API::Conditions::InterfaceVersion::V2:
 		logger::info("OpenAnimationReplacer::RequestPluginAPI_Conditions returned the API singleton");
 		return api;
+	case OAR_API::Conditions::InterfaceVersion::V3:
+		logger::info("OpenAnimationReplacer::RequestPluginAPI_Conditions returned the API singleton");
+		return api;
 	}
 
 	logger::warn("OpenAnimationReplacer::RequestPluginAPI_Conditions requested the wrong interface version");
+	return nullptr;
+}
+
+extern "C" DLLEXPORT OAR_API::Functions::IFunctionsInterface* SKSEAPI RequestPluginAPI_Functions(const OAR_API::Functions::InterfaceVersion a_interfaceVersion, const char* a_pluginName, REL::Version a_pluginVersion)
+{
+	const auto api = OAR_API::Functions::FunctionsInterface::GetSingleton();
+
+	if (a_pluginName == nullptr) {
+		logger::info("OpenAnimationReplacer::RequestPluginAPI_Functions called with a nullptr plugin name");
+		return nullptr;
+	}
+
+	logger::info("OpenAnimationReplacer::RequestPluginAPI_Functions called, InterfaceVersion {} (Plugin name: {}, version: {}", static_cast<uint8_t>(a_interfaceVersion) + 1, a_pluginName, a_pluginVersion);
+
+	switch (a_interfaceVersion) {
+	case OAR_API::Functions::InterfaceVersion::V1:
+		logger::info("OpenAnimationReplacer::RequestPluginAPI_Functions returned the API singleton");
+		return api;
+	}
+
+	logger::warn("OpenAnimationReplacer::RequestPluginAPI_Functions requested the wrong interface version");
 	return nullptr;
 }
 

@@ -46,7 +46,7 @@ namespace Hooks
 
 		auto& animationLog = AnimationLog::GetSingleton();
 		const auto event = activeClip->IsOriginal() ? AnimationLogEntry::Event::kActivate : AnimationLogEntry::Event::kActivateReplace;
-		if (bAdded && animationLog.ShouldLogAnimations() && !activeClip->IsTransitioning() && animationLog.ShouldLogAnimationsForActiveClip(activeClip, event)) {
+		if (bAdded && !activeClip->IsTransitioning() && animationLog.ShouldLogAnimationsForActiveClip(activeClip, event)) {
 			animationLog.LogAnimation(event, activeClip, a_context.character);
 		}
 
@@ -75,6 +75,11 @@ namespace Hooks
 
 		if (openAnimationReplacer.HasActiveAnimationPreviews()) {
 			openAnimationReplacer.RemoveActiveAnimationPreview(a_context.character->behaviorGraph.get());
+		}
+
+		const auto activeClip = OpenAnimationReplacer::GetSingleton().GetActiveClip(a_this);
+		if (activeClip) {
+			activeClip->OnDeactivate(a_this, a_context);
 		}
 
 		_hkbClipGenerator_Deactivate(a_this, a_context);
@@ -116,7 +121,7 @@ namespace Hooks
 		if (!bReplaced) {
 			auto& animationLog = AnimationLog::GetSingleton();
 			const auto event = AnimationLogEntry::Event::kEcho;
-			if (activeClip && animationLog.ShouldLogAnimations() && animationLog.ShouldLogAnimationsForActiveClip(activeClip, event)) {
+			if (activeClip && animationLog.ShouldLogAnimationsForActiveClip(activeClip, event)) {
 				animationLog.LogAnimation(event, activeClip, activeClip->GetCharacter());
 			}
 		}
@@ -238,6 +243,20 @@ namespace Hooks
 		animationEventLog.TryAddEvent(a_this, a_eventName, result);
 
 		return result;
+	}
+
+	RE::hkbSymbolIdMap* HavokHooks::CreateSymbolIdMap(RE::hkbBehaviorGraph* a_this, const RE::BSScrapArray<RE::hkbBehaviorGraph*>& a_graphArr, const char* a_projectPath, RE::hkbCharacter* a_character, RE::hkbSymbolLinker* a_eventLinker, RE::hkbSymbolLinker* a_variableLinker)
+	{
+		if (a_this && a_character && a_this->data && !a_this->eventIDMap) {
+			// inject event
+			for (auto& graph : a_graphArr) {
+				if (graph) {
+					InjectEvent(graph, "OAR");
+				}
+			}
+		}
+
+		return _CreateSymbolIdMap(a_this, a_graphArr, a_projectPath, a_character, a_eventLinker, a_variableLinker);
 	}
 
 	void HavokHooks::LoadClips(RE::hkbCharacterStringData* a_stringData, RE::hkbAnimationBindingSet* a_bindingSet, void* a_assetLoader, RE::hkbBehaviorGraph* a_rootBehavior, const char* a_animationPath, RE::BSTHashMap<RE::BSFixedString, uint32_t>* a_annotationToEventIdMap)
@@ -363,6 +382,24 @@ namespace Hooks
 	void HavokHooks::OnCreateSynchronizedClipBinding(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, RE::hkbCharacter* a_character)
 	{
 		a_synchronizedClipGenerator->animationBindingIndex -= OpenAnimationReplacer::GetSingleton().GetSynchronizedClipsIDOffset(a_character);
+	}
+
+	void HavokHooks::InjectEvent(RE::hkbBehaviorGraph* a_graph, const RE::hkStringPtr& a_eventName)
+	{
+		if (a_graph && a_graph->data && a_graph->data->eventInfos.data() && a_graph->data->stringData && a_graph->data->stringData->eventNames.data()) {
+			// check if it contains the event already
+			for (auto& eventName : a_graph->data->stringData->eventNames) {
+				if (_strcmpi(eventName.data(), a_eventName.data()) == 0) {
+					return;
+				}
+			}
+
+			RE::hkArray<RE::hkbEventInfo>& eventInfos = *reinterpret_cast<RE::hkArray<RE::hkbEventInfo>*>(&a_graph->data->eventInfos);
+
+			RE::hkbEventInfo info;
+			a_graph->data->stringData->eventNames.push_back(a_eventName);
+			eventInfos.push_back(info);
+		}
 	}
 
 	void HavokHooks::PatchUnsignedAnimationBindingIndex()

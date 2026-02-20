@@ -10,6 +10,8 @@ static int32_t* g_RelationshipRankTypeIdsByIndex = (int32_t*)REL::VariantID(5022
 static RE::SynchronizedAnimationManager** g_syncAnimManagerPtr = (RE::SynchronizedAnimationManager**)REL::VariantID(514960, 401100, 0x2FC4880).address();  // 2EFF990, 2F9A0A0, 2FC4880
 static const char** g_str_BSSynchronizedClipGenerator = (const char**)REL::VariantID(522834, 409352, 0x30B4BB0).address();                                 // 2F5CB20, 2FF76A0, 30B4BB0
 static void** g_pathingSingleton = (void**)REL::VariantID(514893, 401037, 0x2FC4658).address();                                                            // 2EFF768, 2F99E98, 2FC4658
+static float& g_worldScale = *(float*)REL::VariantID(231896, 188105, 0x15B78F4).address();																 // 154064C, 1637AA0, 15B78F4
+static float& g_worldScaleInverse = *(float*)REL::VariantID(230692, 187407, 0x15ADFE8).address();															 // 1536BA0, 162DF48, 15ADFE8
 
 using thkbBlendPoses = RE::hkVector4& (*)(uint32_t numData, const RE::hkQsTransform* src, const RE::hkQsTransform* dst, float amount, RE::hkQsTransform* out);
 static REL::Relocation<thkbBlendPoses> hkbBlendPoses{ REL::VariantID(63192, 64112, 0xB4DD80) };  // B12FA0, B38110, B4DD80

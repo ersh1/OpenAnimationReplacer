@@ -79,6 +79,11 @@ namespace Hooks
 			REL::Relocation<uintptr_t> PlayerCharacter_IAnimationGraphManagerHolderVtbl{ RE::VTABLE_PlayerCharacter[3] };
 			_PlayerCharacter_IAnimationGraphManagerHolder_NotifyAnimationGraph = PlayerCharacter_IAnimationGraphManagerHolderVtbl.write_vfunc(0x1, PlayerCharacter_IAnimationGraphManagerHolder_NotifyAnimationGraph);
 
+			// Inject custom OAR event
+			const REL::Relocation<std::uintptr_t> symbolIdMapHook{ REL::VariantID(62640, 63585, 0xB28870) };  // AEDD10, B13420, B28870
+			SKSE::AllocTrampoline(14);
+			_CreateSymbolIdMap = trampoline.write_call<5>(symbolIdMapHook.address() + REL::VariantOffset(0x22A, 0x237, 0x22A).offset(), CreateSymbolIdMap);  // hkbBehaviorGraph__CreateSymbolIdMap
+
 			PatchSynchronizedClips();
 			PatchUnsignedAnimationBindingIndex();
 		}
@@ -103,6 +108,7 @@ namespace Hooks
 		static bool TESObjectREFR_IAnimationGraphManagerHolder_NotifyAnimationGraph(RE::IAnimationGraphManagerHolder* a_this, const RE::BSFixedString& a_eventName);
 		static bool Character_IAnimationGraphManagerHolder_NotifyAnimationGraph(RE::IAnimationGraphManagerHolder* a_this, const RE::BSFixedString& a_eventName);
 		static bool PlayerCharacter_IAnimationGraphManagerHolder_NotifyAnimationGraph(RE::IAnimationGraphManagerHolder* a_this, const RE::BSFixedString& a_eventName);
+		static RE::hkbSymbolIdMap* CreateSymbolIdMap(RE::hkbBehaviorGraph* a_this, const RE::BSScrapArray<RE::hkbBehaviorGraph*>& a_graphArr, const char* a_projectPath, RE::hkbCharacter* a_character, RE::hkbSymbolLinker* a_eventLinker, RE::hkbSymbolLinker* a_variableLinker);
 
 		static void LoadClips(RE::hkbCharacterStringData* a_stringData, RE::hkbAnimationBindingSet* a_bindingSet, void* a_assetLoader, RE::hkbBehaviorGraph* a_rootBehavior, const char* a_animationPath, RE::BSTHashMap<RE::BSFixedString, uint32_t>* a_annotationToEventIdMap);
 		static bool CreateSynchronizedClips(RE::hkbBehaviorGraph* a_behaviorGraph, RE::hkbCharacter* a_character, RE::BSTHashMap<RE::BSFixedString, uint32_t>* a_annotationToEventIdMap);
@@ -129,6 +135,7 @@ namespace Hooks
 		static inline REL::Relocation<decltype(TESObjectREFR_IAnimationGraphManagerHolder_NotifyAnimationGraph)> _TESObjectREFR_IAnimationGraphManagerHolder_NotifyAnimationGraph;
 		static inline REL::Relocation<decltype(Character_IAnimationGraphManagerHolder_NotifyAnimationGraph)> _Character_IAnimationGraphManagerHolder_NotifyAnimationGraph;
 		static inline REL::Relocation<decltype(PlayerCharacter_IAnimationGraphManagerHolder_NotifyAnimationGraph)> _PlayerCharacter_IAnimationGraphManagerHolder_NotifyAnimationGraph;
+		static inline REL::Relocation<decltype(CreateSymbolIdMap)> _CreateSymbolIdMap;
 
 		static inline REL::Relocation<decltype(LoadClips)> _LoadClips;
 		static inline REL::Relocation<decltype(CreateSynchronizedClips)> _CreateSynchronizedClips;
@@ -140,6 +147,7 @@ namespace Hooks
 		static void PatchSynchronizedClips();
 		static void PatchUnsignedAnimationBindingIndex();
 		static void OnCreateSynchronizedClipBinding(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, RE::hkbCharacter* a_character);
+		static void InjectEvent(RE::hkbBehaviorGraph* a_graph, const RE::hkStringPtr& a_eventName);
 	};
 
 	class UIHooks

@@ -10,7 +10,7 @@ namespace Jobs
 	struct RemoveSharedRandomFloatJob;
 }
 
-enum class ConditionEditMode : int
+enum class EditMode : int
 {
 	kNone = 0,
 	kUser = 1,
@@ -44,6 +44,12 @@ public:
 
 	Conditions::ConditionSet* GetConditionSet() const { return _conditionSet.get(); }
 	Conditions::ConditionSet* GetSynchronizedConditionSet() const { return _synchronizedConditionSet.get(); }
+
+	Functions::FunctionSet* GetFunctionSet(Functions::FunctionSetType a_setType) const;
+	bool HasFunctionSet(Functions::FunctionSetType a_setType) const;
+	bool HasValidFunctionSet(Functions::FunctionSetType a_setType) const;
+	bool HasAnyFunctionSet() const;
+	Functions::FunctionSet* CreateOrGetFunctionSet(Functions::FunctionSetType a_setType);
 
 	std::string_view GetName() const { return _name; }
 	void SetName(std::string_view a_name) { _name = a_name; }
@@ -87,7 +93,13 @@ public:
 	bool IsReevaluatingOnEcho() const { return _bReplaceOnEcho; }
 	void SetReevaluatingOnEcho(bool a_bReplaceOnEcho) { _bReplaceOnEcho = a_bReplaceOnEcho; }
 
-	bool IsDirty() const { return _bDirty || _conditionSet->IsDirtyRecursive() || (_synchronizedConditionSet && _synchronizedConditionSet->IsDirtyRecursive()); }
+	bool IsRunningFunctionsOnLoop() const { return _bRunFunctionsOnLoop; }
+	void SetRunningFunctionsOnLoop(bool a_bRunFunctionsOnLoop) { _bRunFunctionsOnLoop = a_bRunFunctionsOnLoop; }
+
+	bool IsRunningFunctionsOnEcho() const { return _bRunFunctionsOnEcho; }
+	void SetRunningFunctionsOnEcho(bool a_bRunFunctionsOnEcho) { _bRunFunctionsOnEcho = a_bRunFunctionsOnEcho; }
+
+	bool IsDirty() const;
 	bool IsFromUserConfig() const { return _configSource == Parsing::ConfigSource::kUser; }
 	bool IsFromLegacyConfig() const { return _configSource >= Parsing::ConfigSource::kLegacy; }
 	bool IsFromLegacyActorBase() const { return _configSource == Parsing::ConfigSource::kLegacyActorBase; }
@@ -100,16 +112,26 @@ public:
 		if (_synchronizedConditionSet) {
 			_synchronizedConditionSet->SetDirtyRecursive(a_bDirty);
 		}
+		if (_functionSetOnActivate) {
+			_functionSetOnActivate->SetDirtyRecursive(a_bDirty);
+		}
+		if (_functionSetOnDeactivate) {
+			_functionSetOnDeactivate->SetDirtyRecursive(a_bDirty);
+		}
+		if (_functionSetOnTrigger) {
+			_functionSetOnTrigger->SetDirtyRecursive(a_bDirty);
+		}
 	}
 
 	bool HasInvalidConditions() const;
+	bool HasInvalidFunctions() const;
 
 	bool HasSynchronizedAnimations() const { return _synchronizedConditionSet != nullptr; }
 	void SetHasSynchronizedAnimations();
 
 	bool ReloadConfig();
-	void SaveConfig(ConditionEditMode a_editMode, bool a_bResetDirty = true);
-	void Serialize(rapidjson::Document& a_doc, ConditionEditMode a_editMode) const;
+	void SaveConfig(EditMode a_editMode, bool a_bResetDirty = true);
+	void Serialize(rapidjson::Document& a_doc, EditMode a_editMode) const;
 	std::string SerializeToString() const;
 
 	class ReplacerMod* GetParentMod() const;
@@ -148,6 +170,8 @@ private:
 	bool _bReplaceOnEcho = false;
 	bool _bCustomBlendTimeOnEcho = false;
 	float _blendTimeOnEcho = Settings::fDefaultBlendTimeOnEcho;
+	bool _bRunFunctionsOnLoop = true;
+	bool _bRunFunctionsOnEcho = true;
 	bool _bKeepRandomResultsOnLoop_DEPRECATED = false;
 	bool _bShareRandomResults_DEPRECATED = false;
 
@@ -155,6 +179,9 @@ private:
 
 	std::unique_ptr<Conditions::ConditionSet> _conditionSet;
 	std::unique_ptr<Conditions::ConditionSet> _synchronizedConditionSet = nullptr;
+	std::unique_ptr<Functions::FunctionSet> _functionSetOnActivate = nullptr;
+	std::unique_ptr<Functions::FunctionSet> _functionSetOnDeactivate = nullptr;
+	std::unique_ptr<Functions::FunctionSet> _functionSetOnTrigger = nullptr;
 	bool _bDirty = false;
 
 	mutable SharedLock _dataLock;
@@ -201,7 +228,7 @@ public:
 	void SetDirty(bool a_bDirty) { _bDirty = a_bDirty; }
 
 	bool ReloadConfig();
-	void SaveConfig(ConditionEditMode a_editMode);
+	void SaveConfig(EditMode a_editMode);
 	void Serialize(rapidjson::Document& a_doc) const;
 
 	void AddSubMod(std::unique_ptr<SubMod>& a_subMod);
@@ -220,7 +247,8 @@ public:
 	RE::BSVisit::BSVisitControl ForEachConditionPreset(const std::function<RE::BSVisit::BSVisitControl(Conditions::ConditionPreset*)>& a_func) const;
 	void SortConditionPresets();
 
-	bool HasInvalidConditions() const;
+	bool HasInvalidConditions(bool a_bCheckPresetsOnly) const;
+	bool HasInvalidFunctions() const;
 
 	StateDataContainer<std::string> conditionStateData;
 	VariantStateDataContainer variantStateData;

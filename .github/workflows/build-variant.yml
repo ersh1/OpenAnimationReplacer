@@ -1,0 +1,150 @@
+name: Build variant
+
+on:
+  workflow_call:
+    inputs:
+      GIT_BRANCH:
+        type: string
+      GIT_COMMON_LIB_BRANCH:
+        type: string
+      CMAKE_PROJECT_DIR:
+        type: string
+        required: true
+      CMAKE_CONFIG_PRESET:
+        type: string
+        required: true
+      CMAKE_BUILD_PRESET:
+        type: string
+        required: true
+      CMAKE_CONFIG:
+        type: string
+        required: true
+      BINARY_DIR:
+        type: string
+        required: true
+      BINARY_NAME:
+        type: string
+        required: true
+      BINARY_NAME_VAR:
+        type: string
+        required: true
+      BINARY_VERSION:
+        type: string
+        required: true
+      BINARY_VERSION_VAR:
+        type: string
+        required: true
+      TARGET_DIR:
+        type: string
+        required: true
+      VARIANT:
+        type: string
+        required: true
+      VCPKG_COMMIT_ID:
+        type: string
+        required: true
+    secrets:
+      GIT_SSH_KEY:
+        required: false
+    outputs:
+      ARTIFACT_NAME:
+        value: ${{ jobs.build.outputs.ARTIFACT_NAME }}
+      PRODUCT_NAME:
+        value: ${{ jobs.build.outputs.PRODUCT_NAME }}
+      PRODUCT_VERSION:
+        value: ${{ jobs.build.outputs.PRODUCT_VERSION }}
+      BINARY_NAME:
+        value: ${{ jobs.build.outputs.BINARY_NAME }}
+
+env:
+  COMMON_LIB_SSE_NAME: CommonLibSSE
+  COMMON_LIB_VR_NAME: CommonLibVR
+
+jobs:
+  build:
+    runs-on: windows-latest
+    outputs:
+      ARTIFACT_NAME: ${{ steps.export.outputs.ARTIFACT_NAME }}
+      BINARY_NAME: ${{ steps.export.outputs.BINARY_NAME }}
+      PRODUCT_NAME: ${{ steps.export.outputs.PRODUCT_NAME }}
+      PRODUCT_VERSION: ${{ steps.export.outputs.PRODUCT_VERSION }}
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.GIT_BRANCH }}
+        ssh-key: ${{ secrets.GIT_SSH_KEY }}
+        submodules: recursive
+        fetch-depth: 0
+
+    - name: Use CommonLib 1.6.353
+      if: inputs.GIT_COMMON_LIB_BRANCH != ''
+      shell: pwsh
+      run: |
+        $CLibSSEName = git submodule | Select-String -Pattern ${{ env.COMMON_LIB_SSE_NAME }} | %{[string]$_} | %{$_.Split(" ")[2]}
+        If ([string]::IsNullOrEmpty($CLibSSEName)) { return }
+        
+        cd "$CLibSSEName"
+        git fetch
+        git checkout ${{inputs.GIT_COMMON_LIB_BRANCH}}
+
+    - name: Restore artifacts, or setup vcpkg (do not install any package)
+      uses: lukka/run-vcpkg@v11
+      id: runvcpkg
+      with:
+        vcpkgDirectory: '${{ runner.workspace }}/b/vcpkg'
+        vcpkgGitCommitId: '${{ inputs.VCPKG_COMMIT_ID }}'
+        vcpkgJsonGlob: './${{inputs.CMAKE_PROJECT_DIR}}/vcpkg.json'
+
+    - name: Configure CMake
+      shell: pwsh
+      run: cmake --preset ${{inputs.CMAKE_CONFIG_PRESET}}
+
+    - name: Run CMake with build config
+      if: inputs.CMAKE_BUILD_PRESET != ''
+      shell: pwsh
+      run: cmake --build --preset ${{inputs.CMAKE_BUILD_PRESET}}
+
+    - name: Run CMake
+      if: inputs.CMAKE_BUILD_PRESET == ''
+      shell: pwsh
+      run: cmake --build ${{inputs.BINARY_DIR}} --config ${{inputs.CMAKE_CONFIG}}
+
+    - id: export
+      shell: pwsh
+      run: |
+        $PRODUCT_NAME = If (![string]::IsNullOrEmpty("${{inputs.BINARY_NAME}}")) {"${{inputs.BINARY_NAME}}"} Else { cmake -L -N ${{inputs.BINARY_DIR}} | grep "${{inputs.BINARY_NAME_VAR}}" | %{$_ -replace "${{inputs.BINARY_NAME_VAR}}:STRING=",""} }
+        $PRODUCT_VERSION = If (![string]::IsNullOrEmpty("${{inputs.BINARY_VERSION}}")) {"${{inputs.BINARY_VERSION}}"} Else { cmake -L -N ${{inputs.BINARY_DIR}} | grep "^${{inputs.BINARY_VERSION_VAR}}" | %{$_ -replace "${{inputs.BINARY_VERSION_VAR}}:STRING=",""} }
+        
+        $PRODUCTS_DIR = "${{inputs.TARGET_DIR}}/${{inputs.CMAKE_PROJECT_DIR}}/${{inputs.CMAKE_CONFIG}}" 
+        
+        $BINARY_NAME = "$PRODUCT_NAME.dll"
+        $BINARY_PATH = "$PRODUCTS_DIR/$BINARY_NAME"
+
+        $PDB_NAME = "$PRODUCT_NAME.pdb"
+        $PDB_PATH = "$PRODUCTS_DIR/$PDB_NAME"
+
+        $MARKETING_SUFFIX = "${{inputs.VARIANT}}".ToUpper()
+        $BUILD_TYPE = "${{inputs.CMAKE_CONFIG}}"
+
+        $ARTIFACT_NAME = "$PRODUCT_NAME $MARKETING_SUFFIX $BUILD_TYPE"
+
+        echo "PRODUCT_NAME=$PRODUCT_NAME" >> $Env:GITHUB_OUTPUT
+        echo "PRODUCT_VERSION=$PRODUCT_VERSION" >> $Env:GITHUB_OUTPUT
+        echo "ARTIFACT_NAME=$ARTIFACT_NAME" >> $Env:GITHUB_OUTPUT
+        echo "BINARY_PATH=$BINARY_PATH" >> $Env:GITHUB_OUTPUT
+        echo "BINARY_NAME=$BINARY_NAME" >> $Env:GITHUB_OUTPUT
+        echo "PDB_PATH=$PDB_PATH" >> $Env:GITHUB_OUTPUT
+        echo "PDB_NAME=$PDB_NAME" >> $Env:GITHUB_OUTPUT
+        echo "Built $BINARY_NAME ✅"
+        echo "Location: $BINARY_PATH"
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with: 
+        name: ${{ steps.export.outputs.ARTIFACT_NAME }}
+        if-no-files-found: error
+        path: |
+          ${{ steps.export.outputs.BINARY_PATH }}
+          ${{ steps.export.outputs.PDB_PATH }}
+      

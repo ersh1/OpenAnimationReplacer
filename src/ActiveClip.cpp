@@ -38,6 +38,22 @@ ActiveClip::~ActiveClip()
 	RestoreOriginalAnimation();
 }
 
+RE::BSEventNotifyControl ActiveClip::ProcessEvent(const RE::BSAnimationGraphEvent* a_event, [[maybe_unused]] RE::BSTEventSource<RE::BSAnimationGraphEvent>* a_eventSource)
+{
+	if (_currentReplacementAnimation && a_event) {
+		if (auto functions = _currentReplacementAnimation->GetFunctionSet(Functions::FunctionSetType::kOnTrigger)) {
+			auto trigger = Functions::Trigger(a_event->tag.data(), a_event->payload.data());
+			functions->ForEach([&](const std::unique_ptr<Functions::IFunction>& a_function) {
+				if (a_function->HasTrigger(a_event->tag.data(), a_event->payload.data())) {
+					a_function->Run(_refr, _clipGenerator, _currentReplacementAnimation->GetParentSubMod(), &trigger);
+				}
+				return RE::BSVisit::BSVisitControl::kContinue;
+			});
+		}
+	}
+	return RE::BSEventNotifyControl::kContinue;
+}
+
 bool ActiveClip::StateDataUpdate(float a_deltaTime)
 {
 	bool bActive = false;
@@ -113,11 +129,17 @@ void ActiveClip::ReplaceAnimation(ReplacementAnimation* a_replacementAnimation, 
 			const auto stateData = variants.GetVariantStateData(this);
 			stateData->OnStartVariant(&variants, a_variant, this);
 		}
+
+		if (_currentReplacementAnimation->HasValidFunctionSet(Functions::FunctionSetType::kOnTrigger)) {
+			RegisterEventSink();
+		}
 	}
 }
 
 void ActiveClip::RestoreOriginalAnimation()
 {
+	UnregisterEventSink();
+
 	if (_currentReplacementAnimation && _currentReplacementAnimation->HasVariants()) {
 		const auto& variants = _currentReplacementAnimation->GetVariants();
 		if (const auto stateData = variants.TryGetVariantStateData(this)) {
@@ -168,8 +190,13 @@ void ActiveClip::ReplaceActiveAnimation(RE::hkbClipGenerator* a_clipGenerator, c
 		// set to null before deactivation so it isn't destroyed when hkbClipGenerator::Deactivate is called (we continue using this animation control object in the fake clip generator)
 		a_clipGenerator->animationControl = nullptr;
 	}
+	
+	TransitioningReason transitioningReason = TransitioningReason::kDefault;
+	if (_queuedReplacement && _queuedReplacement->replacementAnimation == _currentReplacementAnimation && _queuedReplacement->variant) {
+		transitioningReason = _queuedReplacement->replacementEvent == AnimationLogEntry::Event::kEchoReplace ? TransitioningReason::kVariantEcho : TransitioningReason::kVariantLoop;
+	}
 
-	SetTransitioning(true);
+	SetTransitioning(true, transitioningReason);
 	if (_parentSynchronizedClipGenerator) {
 		_parentSynchronizedClipGenerator->Deactivate(a_context);
 	} else {
@@ -186,7 +213,7 @@ void ActiveClip::ReplaceActiveAnimation(RE::hkbClipGenerator* a_clipGenerator, c
 
 	auto& animationLog = AnimationLog::GetSingleton();
 
-	if (animationLog.ShouldLogAnimations() && animationLog.ShouldLogAnimationsForActiveClip(this, replacementEvent)) {
+	if (animationLog.ShouldLogAnimationsForActiveClip(this, replacementEvent)) {
 		animationLog.LogAnimation(replacementEvent, this, a_context.character);
 	}
 
@@ -221,9 +248,10 @@ bool ActiveClip::IsReadyToReplace(bool a_bIsAtTrueEndOfLoop) const
 	return false;
 }
 
-void ActiveClip::SetTransitioning(bool a_bValue)
+void ActiveClip::SetTransitioning(bool a_bValue, TransitioningReason a_transitioningReason)
 {
 	_bTransitioning = a_bValue;
+	_transitioningReason = a_transitioningReason;
 	if (_parentSynchronizedClipGenerator) {
 		if (const auto synchronizedAnim = OpenAnimationReplacer::GetSingleton().GetActiveSynchronizedAnimation(_parentSynchronizedClipGenerator->synchronizedScene)) {
 			synchronizedAnim->SetTransitioning(a_bValue);
@@ -326,7 +354,7 @@ void ActiveClip::PreUpdate(RE::hkbClipGenerator* a_clipGenerator, const RE::hkbC
 				if (bIsLoopingThisUpdate) {
 					auto& animationLog = AnimationLog::GetSingleton();
 					constexpr auto event = AnimationLogEntry::Event::kLoop;
-					if (animationLog.ShouldLogAnimations() && animationLog.ShouldLogAnimationsForActiveClip(this, event)) {
+					if (animationLog.ShouldLogAnimationsForActiveClip(this, event)) {
 						animationLog.LogAnimation(event, this, GetCharacter());
 					}
 				}
@@ -369,6 +397,7 @@ void ActiveClip::OnActivate(RE::hkbClipGenerator* a_clipGenerator, const RE::hkb
 			if (!refr) {
 				refr = Utils::GetRefrFromObject(animGraph->rootNode);
 			}
+
 			if (const auto replacementAnimation = replacements->EvaluateConditionsAndGetReplacementAnimation(refr, a_clipGenerator)) {
 				Variant* variant = nullptr;
 				[[maybe_unused]] const uint16_t newVariantIndex = replacementAnimation->GetIndex(this, variant);
@@ -380,6 +409,21 @@ void ActiveClip::OnActivate(RE::hkbClipGenerator* a_clipGenerator, const RE::hkb
 			}
 		}
 	}
+
+	// Run OnActivate functions
+	if (_currentReplacementAnimation) {
+		if (_bTransitioning) {
+			if (_transitioningReason == TransitioningReason::kVariantLoop && !ShouldRunFunctionsOnLoop()) {
+				return;
+			}
+			if (_transitioningReason == TransitioningReason::kVariantEcho && !ShouldRunFunctionsOnEcho()) {
+				return;
+			}
+		}
+		if (auto functionSet = _currentReplacementAnimation->GetFunctionSet(Functions::FunctionSetType::kOnActivate)) {
+			functionSet->Run(_refr, a_clipGenerator, _currentReplacementAnimation->GetParentSubMod());
+		}
+	}
 }
 
 void ActiveClip::OnPostActivate(RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] const RE::hkbContext& a_context)
@@ -388,6 +432,24 @@ void ActiveClip::OnPostActivate(RE::hkbClipGenerator* a_clipGenerator, [[maybe_u
 		// handle "triggers from annotations only" setting
 		if (_currentReplacementAnimation->GetTriggersFromAnnotationsOnly()) {
 			RemoveNonAnnotationTriggers(a_clipGenerator);
+		}
+	}
+}
+
+void ActiveClip::OnDeactivate(RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] const RE::hkbContext& a_context)
+{
+	if (_currentReplacementAnimation) {
+		// Run OnDeactivate functions
+		if (_bTransitioning) {
+			if (_transitioningReason == TransitioningReason::kVariantLoop && !ShouldRunFunctionsOnLoop()) {
+				return;
+			}
+			if (_transitioningReason == TransitioningReason::kVariantEcho && !ShouldRunFunctionsOnEcho()) {
+				return;
+			}
+		}
+		if (auto functionSet = _currentReplacementAnimation->GetFunctionSet(Functions::FunctionSetType::kOnDeactivate)) {
+			functionSet->Run(_refr, a_clipGenerator, _currentReplacementAnimation->GetParentSubMod());
 		}
 	}
 }
@@ -489,6 +551,50 @@ bool ActiveClip::IsInLoopSequence()
 	return false;
 }
 
+void ActiveClip::RegisterEventSink()
+{
+	if (_refr) {
+		RE::BSAnimationGraphManagerPtr graphManager;
+		_refr->GetAnimationGraphManager(graphManager);
+		if (graphManager) {
+			for (const auto animationGraph : graphManager->graphs) {
+				const auto eventSource = animationGraph->GetEventSource<RE::BSAnimationGraphEvent>();
+				bool bAlreadyAdded = false;
+				for (const auto& sink : eventSource->sinks) {
+					if (sink == this) {
+						bAlreadyAdded = true;
+						break;
+					}
+				}
+				if (!bAlreadyAdded) {
+					animationGraph->GetEventSource<RE::BSAnimationGraphEvent>()->AddEventSink(this);
+					_bRegisteredSink = true;
+				}
+			}
+		}
+	}
+}
+
+void ActiveClip::UnregisterEventSink()
+{
+	if (_refr && _bRegisteredSink) {
+		RE::BSAnimationGraphManagerPtr graphManager;
+		_refr->GetAnimationGraphManager(graphManager);
+		if (graphManager) {
+			for (const auto animationGraph : graphManager->graphs) {
+				const auto eventSource = animationGraph->GetEventSource<RE::BSAnimationGraphEvent>();
+				for (const auto& sink : eventSource->sinks) {
+					if (sink == this) {
+						eventSource->RemoveEventSink(this);
+						_bRegisteredSink = false;
+						break;
+					}
+				}
+			}
+		}
+	}
+}
+
 bool ActiveClip::OnLoopOrEcho(RE::hkbClipGenerator* a_clipGenerator, bool a_bIsEcho, float a_echoDuration)
 {
 	bool bHasVariants = _currentReplacementAnimation && _currentReplacementAnimation->HasVariants();
@@ -540,6 +646,18 @@ bool ActiveClip::OnLoopOrEcho(RE::hkbClipGenerator* a_clipGenerator, bool a_bIsE
 			const auto& variants = _currentReplacementAnimation->GetVariants();
 			if (const auto stateData = variants.GetVariantStateData(this)) {
 				stateData->OnStartVariant(&variants, _currentVariant, this);
+			}
+		}
+	}
+
+	// Run OnDeactivate/OnActivate functions
+	if (_currentReplacementAnimation) {
+		if (a_bIsEcho ? ShouldRunFunctionsOnEcho() : ShouldRunFunctionsOnLoop()) {
+			if (auto functionSet = _currentReplacementAnimation->GetFunctionSet(Functions::FunctionSetType::kOnDeactivate)) {
+				functionSet->Run(_refr, a_clipGenerator, _currentReplacementAnimation->GetParentSubMod());
+			}
+			if (auto functionSet = _currentReplacementAnimation->GetFunctionSet(Functions::FunctionSetType::kOnActivate)) {
+				functionSet->Run(_refr, a_clipGenerator, _currentReplacementAnimation->GetParentSubMod());
 			}
 		}
 	}

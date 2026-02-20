@@ -5,6 +5,7 @@
 #include "ActiveSynchronizedAnimation.h"
 #include "Jobs.h"
 #include "ReplacerMods.h"
+#include "API/OpenAnimationReplacerAPI-Functions.h"
 
 #include <unordered_set>
 
@@ -58,6 +59,9 @@ public:
 	void OnSynchronizedClipPostUpdate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context, float a_timestep);
 	void OnSynchronizedClipDeactivate(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context);
 
+	ReplacementTrace* GetTrace(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const;
+	ReplacementTrace* GetTraceFromSynchronizedScene(RE::TESObjectREFR* a_refr) const;
+
 	[[nodiscard]] ActiveScenelessSynchronizedClip* GetActiveScenelessSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context) const;
 	ActiveScenelessSynchronizedClip* AddOrGetActiveScenelessSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, const RE::hkbContext& a_context);
 	void RemoveScenelessSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator);
@@ -93,16 +97,22 @@ public:
 	[[nodiscard]] bool AreFactoriesInitialized() const { return _bFactoriesInitialized; }
 	void InitFactories();
 	bool HasConditionFactory(std::string_view a_conditionName) const;
+	bool HasFunctionFactory(std::string_view a_functionName) const;
 	void ForEachConditionFactory(const std::function<void(std::string_view, std::function<std::unique_ptr<Conditions::ICondition>()>)>& a_func) const;
+	void ForEachFunctionFactory(const std::function<void(std::string_view, std::function<std::unique_ptr<Functions::IFunction>()>)>& a_func) const;
 	[[nodiscard]] std::unique_ptr<Conditions::ICondition> CreateCondition(std::string_view a_conditionName);
+	[[nodiscard]] std::unique_ptr<Functions::IFunction> CreateFunction(std::string_view a_functionName);
 
 	bool IsPluginLoaded(std::string_view a_pluginName, REL::Version a_pluginVersion) const;
 	REL::Version GetPluginVersion(std::string_view a_pluginName) const;
 	OAR_API::Conditions::APIResult AddCustomCondition(std::string_view a_pluginName, REL::Version a_pluginVersion, std::string_view a_conditionName, Conditions::ConditionFactory a_conditionFactory);
 	bool IsCustomCondition(std::string_view a_conditionName) const;
 
-	[[nodiscard]] Conditions::IStateData* GetConditionStateData(const Conditions::IConditionStateComponent* a_conditionStateComponent, RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod);
-	[[nodiscard]] Conditions::IStateData* AddConditionStateData(Conditions::IStateData* a_conditionStateData, const Conditions::IConditionStateComponent* a_conditionStateComponent, RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod);
+	OAR_API::Functions::APIResult AddCustomFunction(std::string_view a_pluginName, REL::Version a_pluginVersion, std::string_view a_functionName, Functions::FunctionFactory a_functionFactory);
+	bool IsCustomFunction(std::string_view a_functionName) const;
+
+	[[nodiscard]] IStateData* GetConditionStateData(const Conditions::IConditionStateComponent* a_conditionStateComponent, RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod);
+	[[nodiscard]] IStateData* AddConditionStateData(IStateData* a_conditionStateData, const Conditions::IConditionStateComponent* a_conditionStateComponent, RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod);
 	[[nodiscard]] VariantStateData* GetVariantStateData(RE::TESObjectREFR* a_refr, const Variants* a_variants, ActiveClip* a_activeClip) const;
 	[[nodiscard]] VariantStateData* AddVariantStateData(VariantStateData* a_variantStateData, RE::TESObjectREFR* a_refr, const Variants* a_variants, ActiveClip* a_activeClip);
 
@@ -190,10 +200,13 @@ protected:
 	bool _bFactoriesInitialized = false;
 	std::map<std::string, std::function<std::unique_ptr<Conditions::ICondition>()>, CaseInsensitiveCompare> _conditionFactories;
 	std::map<std::string, std::function<std::unique_ptr<Conditions::ICondition>()>, CaseInsensitiveCompare> _hiddenConditionFactories;
+	std::map<std::string, std::function<std::unique_ptr<Functions::IFunction>()>, CaseInsensitiveCompare> _functionFactories;
 
-	mutable SharedLock _customConditionsLock;
+	mutable SharedLock _customLock;
 	std::unordered_map<std::string, REL::Version, CaseInsensitiveHash, CaseInsensitiveEqual> _customConditionPlugins;
 	std::unordered_map<std::string, Conditions::ConditionFactory, CaseInsensitiveHash, CaseInsensitiveEqual> _customConditionFactories;
+	std::unordered_map<std::string, REL::Version, CaseInsensitiveHash, CaseInsensitiveEqual> _customFunctionPlugins;
+	std::unordered_map<std::string, Functions::FunctionFactory, CaseInsensitiveHash, CaseInsensitiveEqual> _customFunctionFactories;
 
 	mutable SharedLock _jobsLock;
 	std::vector<std::unique_ptr<Jobs::GenericJob>> _jobs;

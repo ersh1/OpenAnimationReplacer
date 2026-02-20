@@ -130,6 +130,8 @@ namespace Utils
 	bool ConditionHasPresetCondition(Conditions::ICondition* a_condition);
 	bool ConditionSetHasPresetCondition(Conditions::ConditionSet* a_conditionSet);
 
+	bool ConditionHasMultiComponent(Conditions::ICondition* a_condition);
+
 	bool ConditionHasStateComponentWithSharedScope(Conditions::ICondition* a_condition);
 
 	bool GetCurrentTarget(RE::Actor* a_actor, TargetType a_targetType, RE::TESObjectREFRPtr& a_outPtr);
@@ -172,13 +174,20 @@ namespace Utils
 	void DeleteUserConfig(std::string_view a_path);
 
 	[[nodiscard]] RE::hkVector4 NormalizeHkVector4(const RE::hkVector4& a_vector);
-	[[nodiscard]] inline RE::hkVector4 NiPointToHkVector(const RE::NiPoint3& pt) { return { pt.x, pt.y, pt.z, 0 }; }
-	[[nodiscard]] inline RE::NiPoint3 HkVectorToNiPoint(const RE::hkVector4& a_vec) { return { a_vec.quad.m128_f32[0], a_vec.quad.m128_f32[1], a_vec.quad.m128_f32[2] }; }
+	[[nodiscard]] RE::hkVector4 NiPointToHkVector(const RE::NiPoint3& a_pt, bool bConvertScale = false);
+	[[nodiscard]] RE::NiPoint3 HkVectorToNiPoint(const RE::hkVector4& a_vec, bool bConvertScale = false);
 
 	[[nodiscard]] inline RE::NiPoint3 Mix(const RE::NiPoint3& a_vecA, const RE::NiPoint3& a_vecB, float a_alpha) { return a_vecA * (1.f - a_alpha) + a_vecB * a_alpha; }
 	[[nodiscard]] RE::hkVector4 Mix(const RE::hkVector4& a_vecA, const RE::hkVector4& a_vecB, float a_alpha);
 
 	[[nodiscard]] bool GetSurfaceNormal(RE::TESObjectREFR* a_refr, RE::hkVector4& a_outVector, bool a_bUseNavmesh);
+
+	[[nodiscard]] inline RE::NiPoint3 TransformVectorByMatrix(const RE::NiPoint3& a_vector, const RE::NiMatrix3& a_matrix)
+	{
+		return RE::NiPoint3(a_matrix.entry[0][0] * a_vector.x + a_matrix.entry[0][1] * a_vector.y + a_matrix.entry[0][2] * a_vector.z,
+			a_matrix.entry[1][0] * a_vector.x + a_matrix.entry[1][1] * a_vector.y + a_matrix.entry[1][2] * a_vector.z,
+			a_matrix.entry[2][0] * a_vector.x + a_matrix.entry[2][1] * a_vector.y + a_matrix.entry[2][2] * a_vector.z);
+	}
 
 	template <class T>
 	class UniqueQueue

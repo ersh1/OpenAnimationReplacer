@@ -15,6 +15,10 @@ namespace UI
 	private:
 		[[nodiscard]] bool IsInteractable() const;
 		void DrawFilterPanel() const;
-		void DrawLogEntry(AnimationLogEntry& a_logEntry) const;
+		void DrawLogEntry(AnimationLogEntry& a_logEntry);
+
+		void DrawTrace(const ReplacementTrace& a_trace) const;
+		std::string_view GetTraceResultText(ReplacementTrace::Step::StepResult a_stepResult) const;
+		void DrawTraceCondition(const ReplacementTrace::Step::ConditionEntry& a_conditionEntry) const;
 	};
 }

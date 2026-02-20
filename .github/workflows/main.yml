@@ -1,0 +1,27 @@
+name: Main
+
+on:
+  push:
+    branches: '**'
+    tags: '*'
+
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run:
+    uses: ./.github/workflows/build-variant.yml
+    with:
+      CMAKE_PROJECT_DIR: ''
+      CMAKE_CONFIG_PRESET: "github-actions"
+      CMAKE_BUILD_PRESET: ''
+      CMAKE_CONFIG: "Release"
+      BINARY_DIR: "build"
+      BINARY_NAME: ''
+      BINARY_NAME_VAR: "NAME"
+      BINARY_VERSION: ''
+      BINARY_VERSION_VAR: "VERSION"
+      TARGET_DIR: "build/src"
+      VARIANT: "ng"
+      VCPKG_COMMIT_ID: "a7d99a5c3cd1456af023051d025a5643a2d6e79c"

@@ -1,8 +1,8 @@
-#include "StateDataContainer.h"
+#include "Containers.h"
 
 #include "OpenAnimationReplacer.h"
 
-Conditions::IStateData* StateDataContainerEntry::AccessData(RE::hkbClipGenerator* a_clipGenerator)
+IStateData* StateDataContainerEntry::AccessData(RE::hkbClipGenerator* a_clipGenerator)
 {
 	if (auto activeClip = OpenAnimationReplacer::GetSingleton().GetActiveClipSharedPtr(a_clipGenerator)) {
 		AddActiveClip(activeClip);

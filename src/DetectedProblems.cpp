@@ -1,13 +1,14 @@
 #include "DetectedProblems.h"
 
 #include "OpenAnimationReplacer.h"
+#include "ReplacerMods.h"
 #include "UI/UIManager.h"
 
 #include <ranges>
 
 void DetectedProblems::UpdateShowErrorBanner() const
 {
-	if (_bIsOutdated || !_missingPlugins.empty() || !_invalidPlugins.empty() || !_subModsWithInvalidConditions.empty() || !_replacerModsWithInvalidConditions.empty()) {
+	if (_bIsOutdated || !_missingPlugins.empty() || !_invalidPlugins.empty() || !_subModsWithInvalidEntries.empty() || !_replacerModsWithInvalidEntries.empty()) {
 		UI::UIManager::GetSingleton().bShowErrorBanner = true;
 	} else {
 		UI::UIManager::GetSingleton().bShowErrorBanner = false;
@@ -109,15 +110,18 @@ bool DetectedProblems::CheckForSubModsSharingPriority()
 	return HasSubModsSharingPriority();
 }
 
-bool DetectedProblems::CheckForSubModsWithInvalidConditions()
+bool DetectedProblems::CheckForSubModsWithInvalidEntries()
 {
 	WriteLocker locker(_dataLock);
-	_subModsWithInvalidConditions.clear();
+	_subModsWithInvalidEntries.clear();
 
 	OpenAnimationReplacer::GetSingleton().ForEachReplacerMod([&](const auto& a_replacerMod) {
 		a_replacerMod->ForEachSubMod([&](const SubMod* a_subMod) {
 			if (a_subMod->HasInvalidConditions()) {
-				_subModsWithInvalidConditions.insert(a_subMod);
+				_subModsWithInvalidEntries.insert(a_subMod);
+			}
+			if (a_subMod->HasInvalidFunctions()) {
+				_subModsWithInvalidEntries.insert(a_subMod);
 			}
 			return RE::BSVisit::BSVisitControl::kContinue;
 		});
@@ -125,23 +129,23 @@ bool DetectedProblems::CheckForSubModsWithInvalidConditions()
 
 	UpdateShowErrorBanner();
 
-	return HasSubModsWithInvalidConditions();
+	return HasSubModsWithInvalidEntries();
 }
 
-bool DetectedProblems::CheckForReplacerModsWithInvalidConditions()
+bool DetectedProblems::CheckForReplacerModsWithInvalidEntries()
 {
 	WriteLocker locker(_dataLock);
-	_replacerModsWithInvalidConditions.clear();
+	_replacerModsWithInvalidEntries.clear();
 
 	OpenAnimationReplacer::GetSingleton().ForEachReplacerMod([&](const auto& a_replacerMod) {
-		if (a_replacerMod->HasInvalidConditions()) {
-			_replacerModsWithInvalidConditions.insert(a_replacerMod);
+		if (a_replacerMod->HasInvalidConditions(true)) {
+			_replacerModsWithInvalidEntries.insert(a_replacerMod);
 		}
 	});
 
 	UpdateShowErrorBanner();
 
-	return HasReplacerModsWithInvalidConditions();
+	return HasReplacerModsWithInvalidEntries();
 }
 
 bool DetectedProblems::CheckForProblems()
@@ -151,10 +155,10 @@ bool DetectedProblems::CheckForProblems()
 	if (CheckForSubModsSharingPriority()) {
 		bHasProblems = true;
 	}
-	if (CheckForSubModsWithInvalidConditions()) {
+	if (CheckForSubModsWithInvalidEntries()) {
 		bHasProblems = true;
 	}
-	if (CheckForReplacerModsWithInvalidConditions()) {
+	if (CheckForReplacerModsWithInvalidEntries()) {
 		bHasProblems = true;
 	}
 
@@ -163,7 +167,7 @@ bool DetectedProblems::CheckForProblems()
 
 DetectedProblems::Severity DetectedProblems::GetProblemSeverity() const
 {
-	if (IsOutdated() || HasMissingPlugins() || HasInvalidPlugins() || HasSubModsWithInvalidConditions() || HasReplacerModsWithInvalidConditions()) {
+	if (IsOutdated() || HasMissingPlugins() || HasInvalidPlugins() || HasSubModsWithInvalidEntries() || HasReplacerModsWithInvalidEntries()) {
 		return Severity::kError;
 	}
 
@@ -188,7 +192,7 @@ std::string_view DetectedProblems::GetProblemMessage() const
 		return "ERROR: At least one Open Animation Replacer plugin failed to initialize properly! Click for details..."sv;
 	}
 
-	if (HasSubModsWithInvalidConditions() || HasReplacerModsWithInvalidConditions()) {
+	if (HasSubModsWithInvalidEntries() || HasReplacerModsWithInvalidEntries()) {
 		return "ERROR: Detected mods with invalid conditions! Click for details..."sv;
 	}
 
@@ -228,20 +232,20 @@ void DetectedProblems::ForEachSubModSharingPriority(const std::function<void(con
 	}
 }
 
-void DetectedProblems::ForEachSubModWithInvalidConditions(const std::function<void(const SubMod*)>& a_func) const
+void DetectedProblems::ForEachSubModWithInvalidEntries(const std::function<void(const SubMod*)>& a_func) const
 {
 	ReadLocker locker(_dataLock);
 
-	for (auto& subMod : _subModsWithInvalidConditions) {
+	for (auto& subMod : _subModsWithInvalidEntries) {
 		a_func(subMod);
 	}
 }
 
-void DetectedProblems::ForEachReplacerModWithInvalidConditions(const std::function<void(const ReplacerMod*)>& a_func) const
+void DetectedProblems::ForEachReplacerModWithInvalidEntries(const std::function<void(const ReplacerMod*)>& a_func) const
 {
 	ReadLocker locker(_dataLock);
 
-	for (auto& replacerMod : _replacerModsWithInvalidConditions) {
+	for (auto& replacerMod : _replacerModsWithInvalidEntries) {
 		a_func(replacerMod);
 	}
 }

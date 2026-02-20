@@ -1,7 +1,9 @@
 #pragma once
 
-#include "Conditions.h"
+#include "BaseFunctions.h"
+#include "BaseConditions.h"
 #include "Settings.h"
+#include "SharedTypes.h"
 #include "Variants.h"
 
 struct ReplacementAnimationFile
@@ -63,6 +65,10 @@ public:
 	std::string_view GetProjectName() const { return _projectName; }
 	Conditions::ConditionSet* GetConditionSet() const { return _conditionSet; }
 	SubMod* GetParentSubMod() const;
+	Functions::FunctionSet* GetFunctionSet(Functions::FunctionSetType a_setType) const;
+	bool HasValidFunctionSet(Functions::FunctionSetType a_setType) const;
+	bool GetRunFunctionsOnLoop() const;
+	bool GetRunFunctionsOnEcho() const;
 
 	bool IsSynchronizedAnimation() const { return _bSynchronized; }
 	void MarkAsSynchronizedAnimation(bool a_bSynchronized);

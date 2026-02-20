@@ -36,6 +36,34 @@ namespace Conditions
 		std::string _argument;
 	};
 
+	class InvalidNonEssentialCondition : public ConditionBase
+	{
+	public:
+		InvalidNonEssentialCondition() = default;
+
+		InvalidNonEssentialCondition(std::string_view a_argument, std::string_view a_name, const rapidjson::Value& a_json)
+		{
+			_argument = a_argument;
+			_name = a_name;
+			_json.CopyFrom(a_json, _json.GetAllocator());
+		}
+
+		void Serialize(void* a_value, void* a_allocator, ICondition* a_outerCustomCondition = nullptr) override;
+
+		[[nodiscard]] RE::BSString GetArgument() const override { return _argument.data(); }
+		[[nodiscard]] RE::BSString GetName() const override;
+		[[nodiscard]] RE::BSString GetDescription() const override;
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 0, 0, 0 }; }
+
+		[[nodiscard]] bool IsValid() const override { return true; }
+
+	protected:
+		bool EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const override;
+		std::string _argument;
+		std::string _name;
+		rapidjson::Document _json;
+	};
+
 	class DeprecatedCondition : public ConditionBase
 	{
 	public:
@@ -460,7 +488,7 @@ namespace Conditions
 			comparisonComponent->comparisonOperator = a_comparisonOperator;
 		}
 
-		CompareValues(ActorValueType a_actorValueType, ComparisonOperator a_comparisonOperator)
+		CompareValues(Components::ActorValueType a_actorValueType, ComparisonOperator a_comparisonOperator)
 		{
 			numericComponentA = AddComponent<NumericConditionComponent>("Value A");
 			comparisonComponent = AddComponent<ComparisonConditionComponent>("Comparison");
@@ -640,9 +668,9 @@ namespace Conditions
 			stateComponent = AddComponent<ConditionStateComponent>("State");
 			stateComponent->SetShouldResetOnLoopOrEcho(true);
 			minRandomComponent = AddComponent<NumericConditionComponent>("Minimum random value");
-			minRandomComponent->SetForceStaticOnly(true);
+			minRandomComponent->SetForcedType(Components::NumericValue::Type::kStaticValue);
 			maxRandomComponent = AddComponent<NumericConditionComponent>("Maximum random value");
-			maxRandomComponent->SetForceStaticOnly(true);
+			maxRandomComponent->SetForcedType(Components::NumericValue::Type::kStaticValue);
 			comparisonComponent = AddComponent<ComparisonConditionComponent>("Comparison");
 			numericComponent = AddComponent<NumericConditionComponent>("Numeric value");
 			comparisonComponent->SetComparisonOperator(ComparisonOperator::kLess);
@@ -1424,12 +1452,12 @@ namespace Conditions
 		static float GetFallDamage(RE::TESObjectREFR* a_refr);
 	};
 
-	class CurrentPackageProcedureTypeCondition : public ConditionBase
+	class CurrentPackageTypeCondition : public ConditionBase
 	{
 	public:
-		CurrentPackageProcedureTypeCondition()
+		CurrentPackageTypeCondition()
 		{
-			packageProcedureTypeComponent = AddComponent<NumericConditionComponent>("Package procedure type", "The required type of the current package procedure.");
+			packageTypeComponent = AddComponent<NumericConditionComponent>("Package type", "The required type of the current package.");
 		}
 
 		void PostInitialize() override;
@@ -1437,16 +1465,16 @@ namespace Conditions
 		[[nodiscard]] RE::BSString GetArgument() const override;
 		[[nodiscard]] RE::BSString GetCurrent(RE::TESObjectREFR* a_refr) const override;
 
-		[[nodiscard]] RE::BSString GetName() const override { return "CurrentPackageProcedureType"sv.data(); }
-		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the actor's current package procedure is of a given type."sv.data(); }
-		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 1, 0 }; }
+		[[nodiscard]] RE::BSString GetName() const override { return "CurrentPackageType"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the actor's current package is of a given type."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 3, 0, 0 }; }
 
-		NumericConditionComponent* packageProcedureTypeComponent;
+		NumericConditionComponent* packageTypeComponent;
 
 	protected:
 		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 		RE::PACKAGE_TYPE GetPackageType(RE::Actor* a_actor) const;
-		std::string_view GetPackageProcedureTypeName(RE::PACKAGE_TYPE a_type) const;
+		std::string_view GetPackageTypeName(RE::PACKAGE_TYPE a_type) const;
 
 		static std::map<int32_t, std::string_view> GetEnumMap();
 	};
@@ -2251,7 +2279,7 @@ namespace Conditions
 
 		[[nodiscard]] bool IsValid() const override { return conditionsComponent->IsValid(); }
 
-		[[nodiscard]] ConditionType GetConditionType() const override { return ConditionType::kPreset; }
+		[[nodiscard]] ConditionType GetConditionTypeImpl() const override { return ConditionType::kPreset; }
 
 		ConditionPresetComponent* conditionsComponent;
 
@@ -2615,6 +2643,125 @@ namespace Conditions
 
 	protected:
 		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
-		float GetIdleTime(RE::TESObjectREFR* a_refr) const;
+		float GetIdleTime(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const;
+	};
+
+	class IsAboveWaterCondition : public ConditionBase
+	{
+	public:
+		IsAboveWaterCondition()
+		{
+			distanceNumericComponent = AddComponent<NumericConditionComponent>("Distance", "Minimum distance from water surface.");
+			depthNumericComponent = AddComponent<NumericConditionComponent>("Depth", "Minimum depth of the water.");
+		}
+
+		[[nodiscard]] RE::BSString GetName() const override { return "IsAboveWater"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the actor is above water - as in, if it fell straight down, it'd hit water."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 3, 0, 0 }; }
+
+		NumericConditionComponent* distanceNumericComponent;
+		NumericConditionComponent* depthNumericComponent;
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+	};
+
+	class MagicEffectElapsedTimeCondition : public ConditionBase
+	{
+	public:
+		MagicEffectElapsedTimeCondition()
+		{
+			formComponent = AddComponent<FormConditionComponent>("Magic effect", "The magic effect to check.");
+			boolComponent = AddComponent<BoolConditionComponent>("Active effects only", "Enable to check active magic effects only.");
+			comparisonComponent = AddComponent<ComparisonConditionComponent>("Comparison");
+			numericComponent = AddComponent<NumericConditionComponent>("Numeric value");
+		}
+
+		[[nodiscard]] RE::BSString GetArgument() const override;
+		[[nodiscard]] RE::BSString GetCurrent(RE::TESObjectREFR* a_refr) const override;
+
+		[[nodiscard]] RE::BSString GetName() const override { return "MagicEffectElapsedTime"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Compares the time the ref has been affected by the specified magic effect with a numeric value."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 3, 0, 0 }; }
+
+		FormConditionComponent* formComponent;
+		BoolConditionComponent* boolComponent;
+		ComparisonConditionComponent* comparisonComponent;
+		NumericConditionComponent* numericComponent;
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+	};
+
+	class IsWornInSlotCondition : public ConditionBase
+	{
+	public:
+		IsWornInSlotCondition()
+		{
+			slotComponent = AddComponent<NumericConditionComponent>("Slot", "The slot that should be checked.");
+		}
+
+		void PostInitialize() override;
+
+		[[nodiscard]] RE::BSString GetArgument() const override;
+
+		[[nodiscard]] RE::BSString GetName() const override { return "IsWornInSlot"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the ref has an item worn in the specified slot."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 3, 0, 0 }; }
+
+		NumericConditionComponent* slotComponent;
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+
+		static std::map<int32_t, std::string_view> GetEnumMap();
+	};
+
+	class InventoryWeightCondition : public ConditionBase
+	{
+	public:
+		InventoryWeightCondition()
+		{
+			boolComponent = AddComponent<BoolConditionComponent>("Percentage", "Enable to check the inventory weight as a percentage of the actor's carry capacity instead of the absolute weight.");
+			comparisonComponent = AddComponent<ComparisonConditionComponent>("Comparison");
+			numericComponent = AddComponent<NumericConditionComponent>("Numeric value");
+		}
+
+		[[nodiscard]] RE::BSString GetArgument() const override;
+		[[nodiscard]] RE::BSString GetCurrent(RE::TESObjectREFR* a_refr) const override;
+
+		[[nodiscard]] RE::BSString GetName() const override { return "InventoryWeight"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Tests the actor's total inventory weight, or the current encumbrance percentage, against a numeric value."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 3, 0, 0 }; }
+
+		BoolConditionComponent* boolComponent;
+		ComparisonConditionComponent* comparisonComponent;
+		NumericConditionComponent* numericComponent;
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+		float GetInventoryWeight(RE::TESObjectREFR* a_refr) const;
+	};
+
+	class IsGhostCondition : public ConditionBase
+	{
+	public:
+		[[nodiscard]] RE::BSString GetName() const override { return "IsGhost"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the ref is in the ghost (invulnerable) state. Not related to in-game ghosts."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 3, 0, 0 }; }
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
+	};
+
+	class IsSwimmingCondition : public ConditionBase
+	{
+	public:
+		[[nodiscard]] RE::BSString GetName() const override { return "IsSwimming"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the actor is swimming."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 3, 0, 0 }; }
+
+	protected:
+		bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod) const override;
 	};
 }

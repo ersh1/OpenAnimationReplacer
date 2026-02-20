@@ -739,6 +739,27 @@ namespace RE
 		uint8_t unk2A;
 		uint8_t unk2B;
 	};
+
+	class hkbSymbolLinker;
+
+	class hkbEventInfo
+	{
+	public:
+		constexpr hkbEventInfo() :
+			flags(Flags(0)) {}
+
+		bool isSyncPoint() { return (flags.get() & FLAG_SYNC_POINT) != 0; }
+		bool isSilent() { return (flags.get() & FLAG_SILENT) != 0; }
+
+		enum Flags
+		{
+			FLAG_SILENT = 0x1,
+			FLAG_SYNC_POINT = 0x2,
+		};
+
+		stl::enumeration<Flags, std::uint32_t> flags;
+	};
+	static_assert(sizeof(hkbEventInfo) == 0x4);
 }
 
 inline RE::hkMemoryRouter& hkGetMemoryRouter() { return *(RE::hkMemoryRouter*)(uintptr_t)REX::W32::TlsGetValue(g_dwTlsIndex); }

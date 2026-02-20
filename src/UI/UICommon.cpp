@@ -742,4 +742,135 @@ namespace UI::UICommon
 			a_listbox_window->Scroll.y += diff + 1.0f;
 		}
 	}
+
+	bool TreeNodeCollapsedLeaf(const char* a_label, ImGuiTreeNodeFlags a_flags)
+	{
+		ImGuiWindow* window = ImGui::GetCurrentWindow();
+		if (window->SkipItems)
+			return false;
+
+		return TreeNodeCollapsedLeafBehavior(window->GetID(a_label), a_flags, a_label);
+	}
+
+	bool TreeNodeCollapsedLeaf(const void* a_ptrId, ImGuiTreeNodeFlags a_flags, const char* a_label)
+	{
+		ImGuiWindow* window = ImGui::GetCurrentWindow();
+		if (window->SkipItems)
+			return false;
+
+		return TreeNodeCollapsedLeafBehavior(window->GetID(a_ptrId), a_flags, a_label);
+	}
+
+	bool TreeNodeCollapsedLeafBehavior(ImGuiID a_id, ImGuiTreeNodeFlags a_flags, const char* a_label)
+	{
+		using namespace ImGui;
+
+		const ImGuiWindow* window = GetCurrentWindow();
+		if (window->SkipItems)
+			return false;
+
+		ImGuiContext& g = *GImGui;
+		const ImGuiStyle& style = g.Style;
+		const bool display_frame = (a_flags & ImGuiTreeNodeFlags_Framed) != 0;
+		const ImVec2 padding = (display_frame || (a_flags & ImGuiTreeNodeFlags_FramePadding)) ? style.FramePadding : ImVec2(style.FramePadding.x, ImMin(window->DC.CurrLineTextBaseOffset, style.FramePadding.y));
+
+		const char* label_end = FindRenderedTextEnd(a_label);
+		const ImVec2 label_size = CalcTextSize(a_label, label_end, false);
+
+		// We vertically grow up to current line height up the typical widget height.
+		const float frame_height = ImMax(ImMin(window->DC.CurrLineSize.y, g.FontSize + style.FramePadding.y * 2), label_size.y + padding.y * 2);
+		ImRect frame_bb;
+		frame_bb.Min.x = (a_flags & ImGuiTreeNodeFlags_SpanFullWidth) ? window->WorkRect.Min.x : window->DC.CursorPos.x;
+		frame_bb.Min.y = window->DC.CursorPos.y;
+		frame_bb.Max.x = window->WorkRect.Max.x;
+		frame_bb.Max.y = window->DC.CursorPos.y + frame_height;
+		if (display_frame) {
+			// Framed header expand a little outside the default padding, to the edge of InnerClipRect
+			// (FIXME: May remove this at some point and make InnerClipRect align with WindowPadding.x instead of WindowPadding.x*0.5f)
+			frame_bb.Min.x -= IM_FLOOR(window->WindowPadding.x * 0.5f - 1.0f);
+			frame_bb.Max.x += IM_FLOOR(window->WindowPadding.x * 0.5f);
+		}
+
+		const float text_offset_x = g.FontSize + (display_frame ? padding.x * 3 : padding.x * 2);           // Collapser arrow width + Spacing
+		const float text_offset_y = ImMax(padding.y, window->DC.CurrLineTextBaseOffset);                    // Latch before ItemSize changes it
+		const float text_width = g.FontSize + (label_size.x > 0.0f ? label_size.x + padding.x * 2 : 0.0f);  // Include collapser
+		ImVec2 text_pos(window->DC.CursorPos.x + text_offset_x, window->DC.CursorPos.y + text_offset_y);
+		ItemSize(ImVec2(text_width, frame_height), padding.y);
+
+		// For regular tree nodes, we arbitrary allow to click past 2 worth of ItemSpacing
+		ImRect interact_bb = frame_bb;
+		if (!display_frame && (a_flags & (ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_SpanFullWidth)) == 0)
+			interact_bb.Max.x = frame_bb.Min.x + text_width + style.ItemSpacing.x * 2.0f;
+
+		const bool item_add = ItemAdd(interact_bb, a_id);
+		g.LastItemData.StatusFlags |= ImGuiItemStatusFlags_HasDisplayRect;
+		g.LastItemData.DisplayRect = frame_bb;
+
+		if (!item_add) {
+			IMGUI_TEST_ENGINE_ITEM_INFO(g.LastItemData.ID, label, g.LastItemData.StatusFlags);
+			return false;
+		}
+
+		ImGuiButtonFlags button_flags = ImGuiTreeNodeFlags_None;
+		if (a_flags & ImGuiTreeNodeFlags_AllowItemOverlap)
+			button_flags |= ImGuiButtonFlags_AllowItemOverlap;
+
+		if (window != g.HoveredWindow)
+			button_flags |= ImGuiButtonFlags_NoKeyModifiers;
+
+		if (a_flags & ImGuiTreeNodeFlags_OpenOnDoubleClick)
+			button_flags |= ImGuiButtonFlags_PressedOnClickRelease | ImGuiButtonFlags_PressedOnDoubleClick;
+		else
+			button_flags |= ImGuiButtonFlags_PressedOnClickRelease;
+
+		const bool selected = (a_flags & ImGuiTreeNodeFlags_Selected) != 0;
+		const bool was_selected = selected;
+
+		bool hovered, held;
+		ButtonBehavior(interact_bb, a_id, &hovered, &held, button_flags);
+
+		if (a_flags & ImGuiTreeNodeFlags_AllowItemOverlap)
+			SetItemAllowOverlap();
+
+		// In this branch, TreeNodeBehavior() cannot toggle the selection so this will never trigger.
+		if (selected != was_selected)  //-V547
+			g.LastItemData.StatusFlags |= ImGuiItemStatusFlags_ToggledSelection;
+
+		// Render
+		const ImU32 text_col = GetColorU32(ImGuiCol_Text);
+		const ImGuiNavHighlightFlags nav_highlight_flags = ImGuiNavHighlightFlags_TypeThin;
+		if (display_frame) {
+			// Framed type
+			const ImU32 bg_col = GetColorU32((held && hovered) ? ImGuiCol_HeaderActive : hovered ? ImGuiCol_HeaderHovered :
+																								   ImGuiCol_Header);
+			RenderFrame(frame_bb.Min, frame_bb.Max, bg_col, true, style.FrameRounding);
+			RenderNavHighlight(frame_bb, a_id, nav_highlight_flags);
+			if (a_flags & ImGuiTreeNodeFlags_Bullet)
+				RenderBullet(window->DrawList, ImVec2(text_pos.x - text_offset_x * 0.60f, text_pos.y + g.FontSize * 0.5f), text_col);
+			else  // Leaf without bullet, left-adjusted text
+				text_pos.x -= text_offset_x;
+			if (a_flags & ImGuiTreeNodeFlags_ClipLabelForTrailingButton)
+				frame_bb.Max.x -= g.FontSize + style.FramePadding.x;
+
+			if (g.LogEnabled)
+				LogSetNextTextDecoration("###", "###");
+			RenderTextClipped(text_pos, frame_bb.Max, a_label, label_end, &label_size);
+		} else {
+			// Unframed typed for tree nodes
+			if (hovered || selected) {
+				const ImU32 bg_col = GetColorU32((held && hovered) ? ImGuiCol_HeaderActive : hovered ? ImGuiCol_HeaderHovered :
+																									   ImGuiCol_Header);
+				RenderFrame(frame_bb.Min, frame_bb.Max, bg_col, false);
+			}
+			RenderNavHighlight(frame_bb, a_id, nav_highlight_flags);
+			if (a_flags & ImGuiTreeNodeFlags_Bullet)
+				RenderBullet(window->DrawList, ImVec2(text_pos.x - text_offset_x * 0.5f, text_pos.y + g.FontSize * 0.5f), text_col);
+			if (g.LogEnabled)
+				LogSetNextTextDecoration(">", nullptr);
+			RenderText(text_pos, a_label, label_end, false);
+		}
+
+		IMGUI_TEST_ENGINE_ITEM_INFO(id, label, g.LastItemData.StatusFlags);
+		return false;
+	}
 }

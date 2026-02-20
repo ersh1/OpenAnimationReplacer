@@ -33,13 +33,14 @@ void ActiveSynchronizedAnimation::OnSynchronizedClipPreActivate(RE::BSSynchroniz
 	bool bAdded;
 	const auto activeClip = OpenAnimationReplacer::GetSingleton().AddOrGetActiveClip(a_synchronizedClipGenerator->clipGenerator, a_context, bAdded);
 	activeClip->SetSynchronizedParent(a_synchronizedClipGenerator);
+	activeClip->trace = _trace;
 
 	if (const auto synchronizedClipData = GetSynchronizedClipData(a_synchronizedClipGenerator)) {
 		activeClip->OnActivateSynchronized(a_synchronizedClipGenerator, synchronizedClipData->replacements, _bIsReplacementActive ? synchronizedClipData->replacementAnimation : nullptr, synchronizedClipData->variant);
 
 		auto& animationLog = AnimationLog::GetSingleton();
 		const auto event = (activeClip->IsOriginal() || !_bIsReplacementActive) ? AnimationLogEntry::Event::kActivateSynchronized : AnimationLogEntry::Event::kActivateReplaceSynchronized;
-		if (bAdded && animationLog.ShouldLogAnimations() && !activeClip->IsTransitioning() && animationLog.ShouldLogAnimationsForActiveClip(activeClip, event)) {
+		if (bAdded && !activeClip->IsTransitioning() && animationLog.ShouldLogAnimationsForActiveClip(activeClip, event)) {
 			animationLog.LogAnimation(event, activeClip, a_context.character);
 		}
 	}
@@ -225,8 +226,10 @@ void ActiveSynchronizedAnimation::Initialize()
 				replacementAnimation = replacements->EvaluateSynchronizedConditionsAndGetReplacementAnimation(sourceRefHandle.get().get(), targetRefHandle.get().get(), actorSyncInfo.synchronizedClipGenerator->clipGenerator);
 				if (replacementAnimation) {
 					// handle variants
-					if (!_variantRandomWeight && replacementAnimation->HasVariants()) {
-						_variantRandomWeight = Utils::GetRandomFloat(0.f, 1.f);  // saving the random value will ensure we get the same variant for all involved clips
+					if (replacementAnimation->HasVariants()) {
+						if (!_variantRandomWeight) {
+							_variantRandomWeight = Utils::GetRandomFloat(0.f, 1.f);  // saving the random value will ensure we get the same variant for all involved clips
+						}
 						replacementAnimation->GetIndex(variant, *_variantRandomWeight);
 					}
 				}
@@ -339,6 +342,11 @@ RE::BGSSynchronizedAnimationInstance::ActorSyncInfo const* ActiveSynchronizedAni
 	}
 
 	return nullptr;
+}
+
+ReplacementTrace* ActiveSynchronizedAnimation::GetTrace()
+{
+	return &_trace;
 }
 
 ActiveScenelessSynchronizedClip::ActiveScenelessSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator) :

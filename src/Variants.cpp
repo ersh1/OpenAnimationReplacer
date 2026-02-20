@@ -671,7 +671,7 @@ void VariantStateDataContainer::Clear()
 	_replacerModVariantStateData.Clear();
 }
 
-Conditions::IStateData* VariantStateDataContainer::AccessStateData(RE::ObjectRefHandle a_key, RE::hkbClipGenerator* a_clipGenerator, const Variants* a_variants)
+IStateData* VariantStateDataContainer::AccessStateData(RE::ObjectRefHandle a_key, RE::hkbClipGenerator* a_clipGenerator, const Variants* a_variants)
 {
 	switch (a_variants->GetVariantStateScope()) {
 	case Conditions::StateDataScope::kLocal:
@@ -697,7 +697,7 @@ Conditions::IStateData* VariantStateDataContainer::AccessStateData(RE::ObjectRef
 	return nullptr;
 }
 
-Conditions::IStateData* VariantStateDataContainer::AddStateData(RE::ObjectRefHandle a_key, Conditions::IStateData* a_stateData, RE::hkbClipGenerator* a_clipGenerator, const Variants* a_variants)
+IStateData* VariantStateDataContainer::AddStateData(RE::ObjectRefHandle a_key, IStateData* a_stateData, RE::hkbClipGenerator* a_clipGenerator, const Variants* a_variants)
 {
 	switch (a_variants->GetVariantStateScope()) {
 	case Conditions::StateDataScope::kLocal:

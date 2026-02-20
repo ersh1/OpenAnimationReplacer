@@ -25,4 +25,24 @@ namespace Conditions
 	{
 		return AddComponent(g_oarConditionsInterface->GetConditionComponentFactory(a_componentType), a_name, a_description);
 	}
+
+	ConditionType ICondition::GetConditionType() const
+	{
+		// workaround for not having a versioning system for conditions in earlier versions
+		ConditionAPIVersion apiVersion = GetConditionAPIVersion();
+		if (apiVersion < ConditionAPIVersion::kNew) {
+			return static_cast<ConditionType>(apiVersion);
+		}
+
+		return GetConditionTypeImpl();
+	}
+
+	EssentialState ICondition::GetEssential() const
+	{
+		if (GetConditionAPIVersion() < ConditionAPIVersion::kNew) {
+			return EssentialState::kEssential;
+		}
+
+		return GetEssentialImpl();
+	}
 }

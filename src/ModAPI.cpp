@@ -138,6 +138,88 @@ namespace OAR_API
 		}
 	}
 
+	namespace Functions
+	{
+		APIResult FunctionsInterface::AddCustomFunction([[maybe_unused]] SKSE::PluginHandle a_pluginHandle, const char* a_pluginName, REL::Version a_pluginVersion, const char* a_functionName, ::Functions::FunctionFactory a_functionFactory) noexcept
+		{
+			return OpenAnimationReplacer::GetSingleton().AddCustomFunction(a_pluginName, a_pluginVersion, a_functionName, a_functionFactory);
+		}
+
+		::Functions::IFunction* WrappedFunctionFactory()
+		{
+			return new ::Functions::WrappedFunction();
+		}
+
+		::Functions::FunctionFactory FunctionsInterface::GetWrappedFunctionFactory() noexcept
+		{
+			return &WrappedFunctionFactory;
+		}
+
+		::Functions::IFunctionComponent* MultiFunctionComponentFactory(const ::Functions::IFunction* a_parentFunction, const char* a_name, const char* a_description)
+		{
+			return new ::Functions::MultiFunctionComponent(a_parentFunction, a_name, a_description);
+		}
+
+		::Functions::IFunctionComponent* FormFunctionComponentFactory(const ::Functions::IFunction* a_parentFunction, const char* a_name, const char* a_description)
+		{
+			return new ::Functions::FormFunctionComponent(a_parentFunction, a_name, a_description);
+		}
+
+		::Functions::IFunctionComponent* NumericFunctionComponentFactory(const ::Functions::IFunction* a_parentFunction, const char* a_name, const char* a_description)
+		{
+			return new ::Functions::NumericFunctionComponent(a_parentFunction, a_name, a_description);
+		}
+
+		::Functions::IFunctionComponent* NiPoint3FunctionComponentFactory(const ::Functions::IFunction* a_parentFunction, const char* a_name, const char* a_description)
+		{
+			return new ::Functions::NiPoint3FunctionComponent(a_parentFunction, a_name, a_description);
+		}
+
+		::Functions::IFunctionComponent* KeywordFunctionComponentFactory(const ::Functions::IFunction* a_parentFunction, const char* a_name, const char* a_description)
+		{
+			return new ::Functions::KeywordFunctionComponent(a_parentFunction, a_name, a_description);
+		}
+
+		::Functions::IFunctionComponent* TextFunctionComponentFactory(const ::Functions::IFunction* a_parentFunction, const char* a_name, const char* a_description)
+		{
+			return new ::Functions::TextFunctionComponent(a_parentFunction, a_name, a_description);
+		}
+
+		::Functions::IFunctionComponent* BoolFunctionComponentFactory(const ::Functions::IFunction* a_parentFunction, const char* a_name, const char* a_description)
+		{
+			return new ::Functions::BoolFunctionComponent(a_parentFunction, a_name, a_description);
+		}
+
+		::Functions::IFunctionComponent* ConditionFunctionComponentFactory(const ::Functions::IFunction* a_parentFunction, const char* a_name, const char* a_description)
+		{
+			return new ::Functions::ConditionFunctionComponent(a_parentFunction, a_name, a_description);
+		}
+
+		::Functions::FunctionComponentFactory FunctionsInterface::GetFunctionComponentFactory(::Functions::FunctionComponentType a_componentType) noexcept
+		{
+			switch (a_componentType) {
+			case ::Functions::FunctionComponentType::kMulti:
+				return &MultiFunctionComponentFactory;
+			case ::Functions::FunctionComponentType::kForm:
+				return &FormFunctionComponentFactory;
+			case ::Functions::FunctionComponentType::kNumeric:
+				return &NumericFunctionComponentFactory;
+			case ::Functions::FunctionComponentType::kNiPoint3:
+				return NiPoint3FunctionComponentFactory;
+			case ::Functions::FunctionComponentType::kKeyword:
+				return KeywordFunctionComponentFactory;
+			case ::Functions::FunctionComponentType::kText:
+				return TextFunctionComponentFactory;
+			case ::Functions::FunctionComponentType::kBool:
+				return BoolFunctionComponentFactory;
+			case ::Functions::FunctionComponentType::kCondition:
+				return ConditionFunctionComponentFactory;
+			}
+
+			return nullptr;
+		}
+	}
+
 	namespace UI
 	{
 		void* UIInterface::GetImGuiContext() noexcept

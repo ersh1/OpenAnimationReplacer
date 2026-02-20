@@ -1,8 +1,10 @@
 #pragma once
 #include "API/OpenAnimationReplacerAPI-Animations.h"
 #include "API/OpenAnimationReplacerAPI-Conditions.h"
+#include "API/OpenAnimationReplacerAPI-Functions.h"
 #include "API/OpenAnimationReplacerAPI-UI.h"
 #include "BaseConditions.h"
+#include "BaseFunctions.h"
 
 namespace OAR_API
 {
@@ -60,6 +62,33 @@ namespace OAR_API
 		};
 	}
 
+	namespace Functions
+	{
+		class FunctionsInterface : public IFunctionsInterface
+		{
+		public:
+			static FunctionsInterface* GetSingleton() noexcept
+			{
+				static FunctionsInterface singleton;
+				return std::addressof(singleton);
+			}
+
+			// InterfaceVersion1
+			APIResult AddCustomFunction(SKSE::PluginHandle a_pluginHandle, const char* a_pluginName, REL::Version a_pluginVersion, const char* a_functionName, ::Functions::FunctionFactory a_functionFactory) noexcept override;
+			::Functions::FunctionFactory GetWrappedFunctionFactory() noexcept override;
+			::Functions::FunctionComponentFactory GetFunctionComponentFactory(::Functions::FunctionComponentType a_componentType) noexcept override;
+
+		private:
+			FunctionsInterface() = default;
+			FunctionsInterface(const FunctionsInterface&) = delete;
+			FunctionsInterface(FunctionsInterface&&) = delete;
+			virtual ~FunctionsInterface() = default;
+
+			FunctionsInterface& operator=(const FunctionsInterface&) = delete;
+			FunctionsInterface& operator=(FunctionsInterface&&) = delete;
+		};
+	}
+
 	namespace UI
 	{
 		class UIInterface : public IUIInterface
@@ -101,5 +130,19 @@ namespace Conditions
 
 	protected:
 		bool EvaluateImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod) const override { return false; }
+	};
+}
+
+namespace Functions
+{
+	class WrappedFunction : public FunctionBase
+	{
+	public:
+		RE::BSString GetName() const override { return "WrappedFunction"sv.data(); }
+		RE::BSString GetDescription() const override { return "Internal object used in custom functions"sv.data(); }
+		constexpr REL::Version GetRequiredVersion() const override { return { 0, 0, 0 }; }
+
+	protected:
+		bool RunImpl([[maybe_unused]] RE::TESObjectREFR* a_refr, [[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] void* a_parentSubMod, [[maybe_unused]] Trigger* a_trigger) const override { return false; }
 	};
 }

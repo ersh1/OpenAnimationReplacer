@@ -390,6 +390,26 @@ void OpenAnimationReplacer::OnSynchronizedClipDeactivate(RE::BSSynchronizedClipG
 	}
 }
 
+ReplacementTrace* OpenAnimationReplacer::GetTrace(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const
+{
+	// try to get it from the active clip first
+	if (const auto activeClip = GetActiveClip(a_clipGenerator)) {
+		return &activeClip->trace;
+	}
+
+	// if we haven't found the active clip, try to get it from the active synchronized animation instead
+	return GetTraceFromSynchronizedScene(a_refr);
+}
+
+ReplacementTrace* OpenAnimationReplacer::GetTraceFromSynchronizedScene(RE::TESObjectREFR* a_refr) const
+{
+	if (const auto activeSynchronizedAnimation = GetActiveSynchronizedAnimationForRefr(a_refr)) {
+		return activeSynchronizedAnimation->GetTrace();
+	}
+
+	return nullptr;
+}
+
 ActiveScenelessSynchronizedClip* OpenAnimationReplacer::GetActiveScenelessSynchronizedClip(RE::BSSynchronizedClipGenerator* a_synchronizedClipGenerator, [[maybe_unused]] const RE::hkbContext& a_context) const
 {
 	ReadLocker locker(_activeSynchronizedAnimationsLock);
@@ -528,7 +548,7 @@ void OpenAnimationReplacer::CreateReplacerMods()
 
 	auto& detectedProblems = DetectedProblems::GetSingleton();
 	detectedProblems.CheckForSubModsSharingPriority();
-	detectedProblems.CheckForSubModsWithInvalidConditions();
+	detectedProblems.CheckForSubModsWithInvalidEntries();
 
 	auto endTime = std::chrono::high_resolution_clock::now();
 
@@ -772,6 +792,7 @@ void OpenAnimationReplacer::UnloadAnimation(RE::hkbCharacter* a_character, uint1
 void OpenAnimationReplacer::InitFactories()
 {
 	using namespace Conditions;
+	using namespace Functions;
 
 	Locker locker(_factoriesLock);
 
@@ -779,7 +800,7 @@ void OpenAnimationReplacer::InitFactories()
 		return;
 	}
 
-	logger::info("Initializing condition factories...");
+	logger::info("Initializing condition and function factories...");
 
 	// Init core condition factories
 	_conditionFactories.emplace("IsForm", []() { return std::make_unique<IsFormCondition>(); });
@@ -845,7 +866,7 @@ void OpenAnimationReplacer::InitFactories()
 	_conditionFactories.emplace("InventoryCount", []() { return std::make_unique<InventoryCountCondition>(); });
 	_conditionFactories.emplace("FallDistance", []() { return std::make_unique<FallDistanceCondition>(); });
 	_conditionFactories.emplace("FallDamage", []() { return std::make_unique<FallDamageCondition>(); });
-	_conditionFactories.emplace("CurrentPackageProcedureType", []() { return std::make_unique<CurrentPackageProcedureTypeCondition>(); });
+	_conditionFactories.emplace("CurrentPackageType", []() { return std::make_unique<CurrentPackageTypeCondition>(); });
 	_conditionFactories.emplace("IsOnMount", []() { return std::make_unique<IsOnMountCondition>(); });
 	_conditionFactories.emplace("IsRiding", []() { return std::make_unique<IsRidingCondition>(); });
 	_conditionFactories.emplace("IsRidingHasKeyword", []() { return std::make_unique<IsRidingHasKeywordCondition>(); });
@@ -897,6 +918,12 @@ void OpenAnimationReplacer::InitFactories()
 	_conditionFactories.emplace("IsCrimeSearching", []() { return std::make_unique<IsCrimeSearchingCondition>(); });
 	_conditionFactories.emplace("IsCombatSearching", []() { return std::make_unique<IsCombatSearchingCondition>(); });
 	_conditionFactories.emplace("IdleTime", []() { return std::make_unique<IdleTimeCondition>(); });
+	_conditionFactories.emplace("IsAboveWater", []() { return std::make_unique<IsAboveWaterCondition>(); });
+	_conditionFactories.emplace("MagicEffectElapsedTime", []() { return std::make_unique<MagicEffectElapsedTimeCondition>(); });
+	_conditionFactories.emplace("IsWornInSlot", []() { return std::make_unique<IsWornInSlotCondition>(); });
+	_conditionFactories.emplace("InventoryWeight", []() { return std::make_unique<InventoryWeightCondition>(); });
+	_conditionFactories.emplace("IsGhost", []() { return std::make_unique<IsGhostCondition>(); });
+	_conditionFactories.emplace("IsSwimming", []() { return std::make_unique<IsSwimmingCondition>(); });
 
 	// Hidden factories - not visible for selection in the UI, used for mapping legacy names to new conditions etc
 	_hiddenConditionFactories.emplace("IsEquippedRight", []() { return std::make_unique<IsEquippedCondition>(false); });
@@ -907,14 +934,14 @@ void OpenAnimationReplacer::InitFactories()
 	_hiddenConditionFactories.emplace("IsEquippedLeftHasKeyword", []() { return std::make_unique<IsEquippedHasKeywordCondition>(true); });
 	_hiddenConditionFactories.emplace("ValueEqualTo", []() { return std::make_unique<CompareValues>(ComparisonOperator::kEqual); });
 	_hiddenConditionFactories.emplace("ValueLessThan", []() { return std::make_unique<CompareValues>(ComparisonOperator::kLess); });
-	_hiddenConditionFactories.emplace("IsActorValueEqualTo", []() { return std::make_unique<CompareValues>(ActorValueType::kActorValue, ComparisonOperator::kEqual); });
-	_hiddenConditionFactories.emplace("IsActorValueLessThan", []() { return std::make_unique<CompareValues>(ActorValueType::kActorValue, ComparisonOperator::kLess); });
-	_hiddenConditionFactories.emplace("IsActorValueBaseEqualTo", []() { return std::make_unique<CompareValues>(ActorValueType::kBase, ComparisonOperator::kEqual); });
-	_hiddenConditionFactories.emplace("IsActorValueBaseLessThan", []() { return std::make_unique<CompareValues>(ActorValueType::kBase, ComparisonOperator::kLess); });
-	_hiddenConditionFactories.emplace("IsActorValueMaxEqualTo", []() { return std::make_unique<CompareValues>(ActorValueType::kMax, ComparisonOperator::kEqual); });
-	_hiddenConditionFactories.emplace("IsActorValueMaxLessThan", []() { return std::make_unique<CompareValues>(ActorValueType::kMax, ComparisonOperator::kLess); });
-	_hiddenConditionFactories.emplace("IsActorValuePercentageEqualTo", []() { return std::make_unique<CompareValues>(ActorValueType::kPercentage, ComparisonOperator::kEqual); });
-	_hiddenConditionFactories.emplace("IsActorValuePercentageLessThan", []() { return std::make_unique<CompareValues>(ActorValueType::kPercentage, ComparisonOperator::kLess); });
+	_hiddenConditionFactories.emplace("IsActorValueEqualTo", []() { return std::make_unique<CompareValues>(Components::ActorValueType::kActorValue, ComparisonOperator::kEqual); });
+	_hiddenConditionFactories.emplace("IsActorValueLessThan", []() { return std::make_unique<CompareValues>(Components::ActorValueType::kActorValue, ComparisonOperator::kLess); });
+	_hiddenConditionFactories.emplace("IsActorValueBaseEqualTo", []() { return std::make_unique<CompareValues>(Components::ActorValueType::kBase, ComparisonOperator::kEqual); });
+	_hiddenConditionFactories.emplace("IsActorValueBaseLessThan", []() { return std::make_unique<CompareValues>(Components::ActorValueType::kBase, ComparisonOperator::kLess); });
+	_hiddenConditionFactories.emplace("IsActorValueMaxEqualTo", []() { return std::make_unique<CompareValues>(Components::ActorValueType::kMax, ComparisonOperator::kEqual); });
+	_hiddenConditionFactories.emplace("IsActorValueMaxLessThan", []() { return std::make_unique<CompareValues>(Components::ActorValueType::kMax, ComparisonOperator::kLess); });
+	_hiddenConditionFactories.emplace("IsActorValuePercentageEqualTo", []() { return std::make_unique<CompareValues>(Components::ActorValueType::kPercentage, ComparisonOperator::kEqual); });
+	_hiddenConditionFactories.emplace("IsActorValuePercentageLessThan", []() { return std::make_unique<CompareValues>(Components::ActorValueType::kPercentage, ComparisonOperator::kLess); });
 	_hiddenConditionFactories.emplace("IsFactionRankEqualTo", []() { return std::make_unique<FactionRankCondition>(ComparisonOperator::kEqual); });
 	_hiddenConditionFactories.emplace("IsFactionRankLessThan", []() { return std::make_unique<FactionRankCondition>(ComparisonOperator::kLess); });
 	_hiddenConditionFactories.emplace("IsLevelLessThan", []() { return std::make_unique<LevelCondition>(ComparisonOperator::kLess); });
@@ -928,9 +955,26 @@ void OpenAnimationReplacer::InitFactories()
 		_conditionFactories.emplace(name, [&]() { return std::unique_ptr<ICondition>(factory()); });
 	}
 
+	// Init core function factories
+	_functionFactories.emplace("CONDITION", []() { return std::make_unique<CONDITIONFunction>(); });
+	_functionFactories.emplace("RANDOM", []() { return std::make_unique<RANDOMFunction>(); });
+	_functionFactories.emplace("ONE", []() { return std::make_unique<ONEFunction>(); });
+	_functionFactories.emplace("PlaySound", []() { return std::make_unique<PlaySoundFunction>(); });
+	_functionFactories.emplace("ModActorValue", []() { return std::make_unique<ModActorValueFunction>(); });
+	_functionFactories.emplace("SetGraphVariable", []() { return std::make_unique<SetGraphVariableFunction>(); });
+	_functionFactories.emplace("SendAnimEvent", []() { return std::make_unique<SendAnimEventFunction>(); });
+	_functionFactories.emplace("CastSpell", []() { return std::make_unique<CastSpellFunction>(); });
+	_functionFactories.emplace("DispelSpell", []() { return std::make_unique<DispelSpellFunction>(); });
+	_functionFactories.emplace("SpawnParticle", []() { return std::make_unique<SpawnParticleFunction>(); });
+	_functionFactories.emplace("UnequipSlot", []() { return std::make_unique<UnequipSlotFunction>(); });
+
+	for (auto& [name, factory] : _customFunctionFactories) {
+		_functionFactories.emplace(name, [&]() { return std::unique_ptr<IFunction>(factory()); });
+	}
+
 	_bFactoriesInitialized = true;
 
-	logger::info("Condition factories initialized.");
+	logger::info("Condition and function factories initialized.");
 }
 
 bool OpenAnimationReplacer::HasConditionFactory(std::string_view a_conditionName) const
@@ -938,9 +982,21 @@ bool OpenAnimationReplacer::HasConditionFactory(std::string_view a_conditionName
 	return _conditionFactories.contains(a_conditionName.data());
 }
 
+bool OpenAnimationReplacer::HasFunctionFactory(std::string_view a_functionName) const
+{
+	return _functionFactories.contains(a_functionName.data());
+}
+
 void OpenAnimationReplacer::ForEachConditionFactory(const std::function<void(std::string_view, std::function<std::unique_ptr<Conditions::ICondition>()>)>& a_func) const
 {
 	for (auto& [name, factory] : _conditionFactories) {
+		a_func(name, factory);
+	}
+}
+
+void OpenAnimationReplacer::ForEachFunctionFactory(const std::function<void(std::string_view, std::function<std::unique_ptr<Functions::IFunction>()>)>& a_func) const
+{
+	for (auto& [name, factory] : _functionFactories) {
 		a_func(name, factory);
 	}
 }
@@ -958,11 +1014,24 @@ std::unique_ptr<Conditions::ICondition> OpenAnimationReplacer::CreateCondition(s
 	return nullptr;
 }
 
+std::unique_ptr<Functions::IFunction> OpenAnimationReplacer::CreateFunction(std::string_view a_functionName)
+{
+	if (const auto search = _functionFactories.find(a_functionName.data()); search != _functionFactories.end()) {
+		return search->second();
+	}
+
+	return nullptr;
+}
+
 bool OpenAnimationReplacer::IsPluginLoaded(std::string_view a_pluginName, REL::Version a_pluginVersion) const
 {
-	ReadLocker locker(_customConditionsLock);
+	ReadLocker locker(_customLock);
 
 	if (const auto search = _customConditionPlugins.find(a_pluginName.data()); search != _customConditionPlugins.end()) {
+		return search->second >= a_pluginVersion;
+	}
+
+	if (const auto search = _customFunctionPlugins.find(a_pluginName.data()); search != _customFunctionPlugins.end()) {
 		return search->second >= a_pluginVersion;
 	}
 
@@ -971,9 +1040,13 @@ bool OpenAnimationReplacer::IsPluginLoaded(std::string_view a_pluginName, REL::V
 
 REL::Version OpenAnimationReplacer::GetPluginVersion(std::string_view a_pluginName) const
 {
-	ReadLocker locker(_customConditionsLock);
+	ReadLocker locker(_customLock);
 
 	if (const auto search = _customConditionPlugins.find(a_pluginName.data()); search != _customConditionPlugins.end()) {
+		return search->second;
+	}
+
+	if (const auto search = _customFunctionPlugins.find(a_pluginName.data()); search != _customFunctionPlugins.end()) {
 		return search->second;
 	}
 
@@ -1002,7 +1075,7 @@ OAR_API::Conditions::APIResult OpenAnimationReplacer::AddCustomCondition(std::st
 		return Result::Failed;
 	}
 
-	WriteLocker locker(_customConditionsLock);
+	WriteLocker locker(_customLock);
 
 	_customConditionPlugins.emplace(a_pluginName, a_pluginVersion);
 	_customConditionFactories.emplace(a_conditionName, a_conditionFactory);
@@ -1012,12 +1085,49 @@ OAR_API::Conditions::APIResult OpenAnimationReplacer::AddCustomCondition(std::st
 
 bool OpenAnimationReplacer::IsCustomCondition(std::string_view a_conditionName) const
 {
-	ReadLocker locker(_customConditionsLock);
+	ReadLocker locker(_customLock);
 
 	return _customConditionFactories.contains(a_conditionName.data());
 }
 
-Conditions::IStateData* OpenAnimationReplacer::GetConditionStateData(const Conditions::IConditionStateComponent* a_conditionStateComponent, RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod)
+OAR_API::Functions::APIResult OpenAnimationReplacer::AddCustomFunction(std::string_view a_pluginName, REL::Version a_pluginVersion, std::string_view a_functionName, Functions::FunctionFactory a_functionFactory)
+{
+	using Result = OAR_API::Functions::APIResult;
+
+	const std::string_view pluginName(a_pluginName);
+	const std::string_view functionName(a_functionName);
+
+	if (pluginName.empty() || functionName.empty() || !a_functionFactory) {
+		logger::error("AddCustomFunction - invalid arguments");
+		return Result::Invalid;
+	}
+
+	if (HasFunctionFactory(a_functionName)) {
+		logger::error("AddCustomFunction - function already exists: {}", a_functionName);
+		return Result::AlreadyRegistered;
+	}
+
+	// too late, factories already initialized
+	if (_bFactoriesInitialized) {
+		return Result::Failed;
+	}
+
+	WriteLocker locker(_customLock);
+
+	_customFunctionPlugins.emplace(a_pluginName, a_pluginVersion);
+	_customFunctionFactories.emplace(a_functionName, a_functionFactory);
+
+	return Result::OK;
+}
+
+bool OpenAnimationReplacer::IsCustomFunction(std::string_view a_functionName) const
+{
+	ReadLocker locker(_customLock);
+
+	return _customFunctionFactories.contains(a_functionName.data());
+}
+
+IStateData* OpenAnimationReplacer::GetConditionStateData(const Conditions::IConditionStateComponent* a_conditionStateComponent, RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod)
 {
 	if (a_refr) {
 		switch (a_conditionStateComponent->GetStateDataScope()) {
@@ -1050,7 +1160,7 @@ Conditions::IStateData* OpenAnimationReplacer::GetConditionStateData(const Condi
 	return nullptr;
 }
 
-Conditions::IStateData* OpenAnimationReplacer::AddConditionStateData(Conditions::IStateData* a_conditionStateData, const Conditions::IConditionStateComponent* a_conditionStateComponent, RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod)
+IStateData* OpenAnimationReplacer::AddConditionStateData(IStateData* a_conditionStateData, const Conditions::IConditionStateComponent* a_conditionStateComponent, RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_parentSubMod)
 {
 	if (a_refr) {
 		switch (a_conditionStateComponent->GetStateDataScope()) {

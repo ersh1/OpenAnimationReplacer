@@ -1,10 +1,11 @@
 #pragma once
 
+#include "OpenAnimationReplacer-SharedTypes.h"
+
 namespace Conditions
 {
 	class ICondition;
 	class IConditionComponent;
-	class IStateData;
 
 	using ConditionFactory = ICondition* (*)();
 	using ConditionComponentFactory = IConditionComponent* (*)(const ICondition* a_parentCondition, const char* a_name, const char* a_description);
@@ -27,11 +28,21 @@ namespace Conditions
 		kPreset
 	};
 
+	// hack for not having a versioning system before
+	enum class ConditionAPIVersion : uint8_t
+	{
+		kOld_Normal = 0,
+		kOld_Custom = 1,
+		kOld_Preset = 2,
+
+		kNew = 3
+	};
+
 	enum class ConditionType : uint8_t
 	{
-		kNormal,
-		kCustom,
-		kPreset
+		kNormal = 0,
+		kCustom = 1,
+		kPreset = 2
 	};
 
 	enum class ComparisonOperator : uint8_t
@@ -44,21 +55,6 @@ namespace Conditions
 		kLessEqual,
 
 		kInvalid
-	};
-
-	enum class ActorValueType : int
-	{
-		kActorValue,
-		kBase,
-		kMax,
-		kPercentage
-	};
-
-	enum class GraphVariableType : int
-	{
-		kFloat,
-		kInt,
-		kBool
 	};
 
 	enum class StateDataScope : int
@@ -76,6 +72,13 @@ namespace Conditions
 	inline StateDataScope& operator|=(StateDataScope& a, StateDataScope b) { return a = a | b; }
 	inline StateDataScope& operator&=(StateDataScope& a, StateDataScope b) { return a = a & b; }
 	inline StateDataScope& operator^=(StateDataScope& a, StateDataScope b) { return a = a ^ b; }
+
+	enum class EssentialState : uint8_t
+	{
+		kEssential,
+		kNonEssential_True,
+		kNonEssential_False
+	};
 
 	// the parent class of all conditions
 	// some arguments are kept as void* pointers to avoid including rapidjson headers. You most likely don't need to include it in your project if you're not creating a custom condition component
@@ -113,7 +116,7 @@ namespace Conditions
 		[[nodiscard]] virtual IConditionComponent* GetComponent(uint32_t a_index) const = 0;
 		virtual IConditionComponent* AddComponent(ConditionComponentFactory a_factory, const char* a_name, const char* a_description = "") = 0;
 
-		[[nodiscard]] virtual ConditionType GetConditionType() const = 0;
+		[[nodiscard]] virtual ConditionAPIVersion GetConditionAPIVersion() const = 0;
 		[[nodiscard]] virtual ICondition* GetWrappedCondition() const = 0;
 
 		[[nodiscard]] virtual bool IsDeprecated() const { return false; }
@@ -122,10 +125,20 @@ namespace Conditions
 		[[nodiscard]] class ConditionSet* GetParentConditionSet() const { return _parentConditionSet; }
 		void SetParentConditionSet(ConditionSet* a_conditionSet) { _parentConditionSet = a_conditionSet; }
 
+		[[nodiscard]] ConditionType GetConditionType() const;
+		[[nodiscard]] EssentialState GetEssential() const;
+
 	protected:
 		virtual bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator, void* a_subMod) const = 0;
 
 		ConditionSet* _parentConditionSet = nullptr;
+
+		// API version 3+ only
+		[[nodiscard]] virtual ConditionType GetConditionTypeImpl() const = 0;
+		
+	public:
+		[[nodiscard]] virtual EssentialState GetEssentialImpl() const = 0;
+		virtual void SetEssential(EssentialState a_essentialState) = 0;
 	};
 
 	// a condition can have many condition components
@@ -173,15 +186,6 @@ namespace Conditions
 
 		const std::string _name;
 		const std::string _description;
-	};
-
-	class IStateData
-	{
-	public:
-		virtual ~IStateData() = default;
-		virtual bool Update([[maybe_unused]] float a_deltaTime) { return false; }
-		virtual void OnLoopOrEcho([[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] bool a_bIsEcho) {}
-		virtual bool ShouldResetOnLoopOrEcho([[maybe_unused]] RE::hkbClipGenerator* a_clipGenerator, [[maybe_unused]] bool a_bIsEcho) const { return false; }
 	};
 
 	class IMultiConditionComponent : public IConditionComponent
@@ -236,8 +240,8 @@ namespace Conditions
 		[[nodiscard]] virtual float GetNumericValue(RE::TESObjectREFR* a_refr) const = 0;
 		virtual void SetStaticValue(float a_value) = 0;
 		virtual void SetGlobalVariable(RE::TESGlobal* a_global) = 0;
-		virtual void SetActorValue(RE::ActorValue a_actorValue, ActorValueType a_valueType) = 0;
-		virtual void SetGraphVariable(const char* a_graphVariableName, GraphVariableType a_valueType) = 0;
+		virtual void SetActorValue(RE::ActorValue a_actorValue, Components::ActorValueType a_valueType) = 0;
+		virtual void SetGraphVariable(const char* a_graphVariableName, Components::GraphVariableType a_valueType) = 0;
 	};
 
 	class INiPoint3ConditionComponent : public IConditionComponent
@@ -400,7 +404,7 @@ namespace Conditions
 		[[nodiscard]] IConditionComponent* GetComponent(uint32_t a_index) const override { return _wrappedCondition->GetComponent(a_index); }
 		IConditionComponent* AddComponent(ConditionComponentFactory a_factory, const char* a_name, const char* a_description = "") override { return _wrappedCondition->AddComponent(a_factory, a_name, a_description); }
 
-		[[nodiscard]] ConditionType GetConditionType() const override { return ConditionType::kCustom; }
+		[[nodiscard]] ConditionAPIVersion GetConditionAPIVersion() const override { return ConditionAPIVersion::kNew; }
 		[[nodiscard]] ICondition* GetWrappedCondition() const override { return _wrappedCondition.get(); }
 
 		IConditionComponent* AddBaseComponent(ConditionComponentType a_componentType, const char* a_name, const char* a_description = "");
@@ -419,5 +423,13 @@ namespace Conditions
 
 	protected:
 		std::unique_ptr<ICondition> _wrappedCondition = nullptr;
+
+	// API version 3+ only
+	protected:
+		[[nodiscard]] ConditionType GetConditionTypeImpl() const override { return ConditionType::kCustom; }
+
+	public:
+		[[nodiscard]] EssentialState GetEssentialImpl() const override { return _wrappedCondition->GetEssentialImpl(); }
+		void SetEssential(EssentialState a_essentialState) override { _wrappedCondition->SetEssential(a_essentialState); }
 	};
 }

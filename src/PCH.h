@@ -171,6 +171,10 @@ struct CaseInsensitivePathEqual
 {
 	bool operator()(const std::filesystem::path& a_lhs, const std::filesystem::path& a_rhs) const
 	{
+		auto convertToLower = [](char c) {
+			return static_cast<char>(std::tolower(c));
+		};
+
 		std::string lhsStr = a_lhs.string();
 		std::string rhsStr = a_rhs.string();
 
@@ -178,12 +182,8 @@ struct CaseInsensitivePathEqual
 			return false;
 		}
 
-		std::ranges::transform(lhsStr, lhsStr.begin(), [](char c) {
-			return static_cast<char>(std::tolower(c));
-		});
-		std::ranges::transform(rhsStr, rhsStr.begin(), [](char c) {
-			return static_cast<char>(std::tolower(c));
-		});
+		std::ranges::transform(lhsStr, lhsStr.begin(), convertToLower);
+		std::ranges::transform(rhsStr, rhsStr.begin(), convertToLower);
 
 		return lhsStr == rhsStr;
 	}

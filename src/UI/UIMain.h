@@ -35,6 +35,8 @@ namespace UI
 			bool bDuplicateName = false;
 		};
 
+		inline static std::atomic<bool> bEvaluatingConditionsForUI{false};
+
 	protected:
 		bool ShouldDrawImpl() const override;
 		void DrawImpl() override;

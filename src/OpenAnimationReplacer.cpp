@@ -7,6 +7,7 @@
 #include "Parsing.h"
 #include "ReplacementAnimation.h"
 #include "Settings.h"
+#include "UI/UIMain.h"
 #include "UI/UIManager.h"
 
 #include <future>
@@ -392,6 +393,10 @@ void OpenAnimationReplacer::OnSynchronizedClipDeactivate(RE::BSSynchronizedClipG
 
 ReplacementTrace* OpenAnimationReplacer::GetTrace(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator* a_clipGenerator) const
 {
+	if (UI::UIMain::bEvaluatingConditionsForUI) {
+		return nullptr;
+	}
+
 	// try to get it from the active clip first
 	if (const auto activeClip = GetActiveClip(a_clipGenerator)) {
 		return &activeClip->trace;

@@ -2314,8 +2314,13 @@ namespace UI
 		auto evalResult = ConditionEvaluateResult::kFailure;
 		if (Utils::ConditionHasRandomResult(a_condition.get())) {
 			evalResult = ConditionEvaluateResult::kRandom;
-		} else if (a_refrToEvaluate && a_condition->Evaluate(a_refrToEvaluate, nullptr, a_parentSubMod)) {
-			evalResult = ConditionEvaluateResult::kSuccess;
+		} else if (a_refrToEvaluate) {
+			bEvaluatingConditionsForUI = true;
+			const bool bEvaluationResult = a_condition->Evaluate(a_refrToEvaluate, nullptr, a_parentSubMod);
+			bEvaluatingConditionsForUI = false;
+			if (bEvaluationResult) {
+				evalResult = ConditionEvaluateResult::kSuccess;
+			}
 		}
 
 		//ImGui::BeginGroup();

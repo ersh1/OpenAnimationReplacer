@@ -32,6 +32,8 @@ public:
 	void StateDataClearData() override;
 
 	bool AddReplacementAnimation(std::string_view a_animPath, uint16_t a_originalIndex, class ReplacerProjectData* a_replacerProjectData, RE::hkbCharacterStringData* a_stringData);
+	void InitializeReplacementAnimation(ReplacementAnimation* a_replacementAnimation) const;
+	void SortReplacementAnimationsByPath();
 
 	void SetAnimationFiles(const std::vector<ReplacementAnimationFile>& a_animationFiles);
 	void LoadParseResult(const Parsing::SubModParseResult& a_parseResult);
@@ -311,9 +313,7 @@ protected:
 class ReplacerProjectData
 {
 public:
-	ReplacerProjectData(RE::hkbCharacterStringData* a_stringData, RE::BShkbHkxDB::ProjectDBData* a_projectDBData) :
-		stringData(a_stringData),
-		projectDBData(a_projectDBData) {}
+	ReplacerProjectData(RE::hkbCharacterStringData* a_stringData, RE::BShkbHkxDB::ProjectDBData* a_projectDBData);
 
 	ReplacementAnimation* EvaluateConditionsAndGetReplacementAnimation(RE::hkbClipGenerator* a_clipGenerator, uint16_t a_originalIndex, RE::TESObjectREFR* a_refr) const;
 	[[nodiscard]] uint16_t GetOriginalAnimationIndex(uint16_t a_currentIndex) const;
@@ -340,6 +340,26 @@ public:
 	uint16_t synchronizedClipIDOffset = 0;
 
 protected:
+	struct AnimationPathHash
+	{
+		using is_transparent = void;
+
+		size_t operator()(std::string_view a_path) const
+		{
+			return std::hash<std::string_view>{}(a_path);
+		}
+	};
+
+	struct AnimationPathEqual
+	{
+		using is_transparent = void;
+
+		bool operator()(std::string_view a_lhs, std::string_view a_rhs) const
+		{
+			return a_lhs == a_rhs;
+		}
+	};
+
 	struct DuplicateHashCandidate
 	{
 		DuplicateHashCandidate(std::string_view a_path, uint16_t a_index) :
@@ -352,5 +372,6 @@ protected:
 	};
 
 	std::unordered_map<std::string, std::vector<DuplicateHashCandidate>> _fileHashToIndexMap;
+	std::unordered_map<std::string, uint16_t, AnimationPathHash, AnimationPathEqual> _animationPathToIndexMap;
 	uint32_t _filteredDuplicates = 0;
 };

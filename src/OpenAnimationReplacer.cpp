@@ -560,7 +560,8 @@ void OpenAnimationReplacer::CreateReplacerMods()
 	auto endTime = std::chrono::high_resolution_clock::now();
 
 	logger::info("Time spent creating replacer mods:");
-	logger::info("  Parsing: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfParsingTime - startTime).count());
+	logger::info("  Waiting cache: {}ms", parseResults.waitCacheDuration.count());
+	logger::info("  Parsing directory: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfParsingTime - startTime - parseResults.waitCacheDuration).count());
 	logger::info("  Adding mods: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfModsTime - endOfParsingTime).count());
 	logger::info("  Adding legacy mods: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfLegacyModsTime - endOfModsTime).count());
 	logger::info("  Checking for problems: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endTime - endOfLegacyModsTime).count());
@@ -609,8 +610,9 @@ void OpenAnimationReplacer::CreateReplacementAnimations([[maybe_unused]] const c
 			}
 
 			for (const auto& subMod : search->second) {
-				subMod->AddReplacementAnimation(originalAnimationPathString, static_cast<uint16_t>(i), projectData, a_stringData);
-				subModsToUpdate.emplace(subMod);
+				if (subMod->AddReplacementAnimation(originalAnimationPathString, static_cast<uint16_t>(i), projectData, a_stringData)) {
+					subModsToUpdate.emplace(subMod);
+				}
 			}
 		}
 	}
@@ -618,9 +620,8 @@ void OpenAnimationReplacer::CreateReplacementAnimations([[maybe_unused]] const c
 	auto endOfParsingTime = std::chrono::high_resolution_clock::now();
 
 	for (auto& subMod : subModsToUpdate) {
-		subMod->LoadReplacementAnimationDatas();
-		subMod->HandleDeprecatedSettings();
-		subMod->UpdateAnimations();
+		subMod->AddReplacerProject(projectData);
+		subMod->SortReplacementAnimationsByPath();
 	}
 
 	auto endOfUpdatingTime = std::chrono::high_resolution_clock::now();
@@ -640,8 +641,8 @@ void OpenAnimationReplacer::CreateReplacementAnimations([[maybe_unused]] const c
 	auto endTime = std::chrono::high_resolution_clock::now();
 	logger::info("Time spent creating replacement animations for {}:", a_path);
 	logger::info("  Parsing: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfParsingTime - startTime).count());
-	logger::info("  Updating animations in submods: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfUpdatingTime - endOfParsingTime).count());
-	logger::info("  Initializing replacment animations: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endTime - endOfUpdatingTime).count());
+	logger::info("  Updating submods: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endOfUpdatingTime - endOfParsingTime).count());
+	logger::info("  Final initialization: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endTime - endOfUpdatingTime).count());
 	logger::info("  Total: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count());
 }
 

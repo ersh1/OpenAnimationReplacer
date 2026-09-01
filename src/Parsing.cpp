@@ -840,8 +840,9 @@ namespace Parsing
 			}
 
 			if (!cachedMod.subModDirectories.empty()) {
-				a_outParseResults.modParseResultFutures.emplace_back(a_workerPool.Enqueue([cachedMod]() {
-					return ParseModDirectory(cachedMod);
+				const CachedModDirectory* cachedModPtr = &cachedMod;
+				a_outParseResults.modParseResultFutures.emplace_back(a_workerPool.Enqueue([cachedModPtr]() {
+					return ParseModDirectory(*cachedModPtr);
 				}));
 				continue;
 			}
@@ -867,8 +868,9 @@ namespace Parsing
 
 				if (detailedEntry.isCustomConditions) {
 					for (const auto& cachedSubMod : detailedEntry.subMods) {
-						a_outParseResults.legacyParseResultFutures.emplace_back(a_workerPool.Enqueue([cachedSubMod]() {
-							return ParseLegacyCustomConditionsDirectory(cachedSubMod);
+						const CachedLegacySubMod* cachedSubModPtr = &cachedSubMod;
+						a_outParseResults.legacyParseResultFutures.emplace_back(a_workerPool.Enqueue([cachedSubModPtr]() {
+							return ParseLegacyCustomConditionsDirectory(*cachedSubModPtr);
 						}));
 					}
 				} else {
@@ -918,15 +920,17 @@ namespace Parsing
 
 		if (!IsDirectoryCacheReady()) {
 			logger::info("Waiting for directory cache to complete...");
+			auto startWaitingTime = std::chrono::high_resolution_clock::now();
 			WaitForDirectoryCache();
+			auto endWaitingTime = std::chrono::high_resolution_clock::now();
+			a_outParseResults.waitCacheDuration = std::chrono::duration_cast<std::chrono::milliseconds>(endWaitingTime - startWaitingTime);
 		}
 
 		const auto workerCount = std::clamp(Settings::uParsingWorkerCount, 1u, 32u);
 		logger::info("Using {} parsing worker(s).", workerCount);
-		WorkerPool workerPool(workerCount);
-
 		{
 			std::shared_lock lock(g_directoryCache.cacheLock);
+			WorkerPool workerPool(workerCount);
 			for (const auto& cachedOAR : g_directoryCache.oarDirectories) {
 				ParseCachedOARDirectory(cachedOAR, a_outParseResults, workerPool);
 			}
@@ -1668,38 +1672,19 @@ namespace Parsing
 		return true;
 	}
 
-	static void PrecacheAnimationHashes(const std::filesystem::path& a_directory)
+	static void PrecacheAnimationHash(const std::filesystem::path& a_path)
 	{
 		if (!Settings::bFilterOutDuplicateAnimations) {
 			return;
 		}
 
-		try {
-			for (const auto& entry : std::filesystem::recursive_directory_iterator(a_directory)) {
-				if (!entry.is_regular_file()) {
-					continue;
-				}
-
-				const auto& path = entry.path();
-				if (!path.has_extension() || !Utils::CompareStringsIgnoreCase(path.extension().string(), ".hkx"sv) || !IsPathValid(path)) {
-					continue;
-				}
-
-				auto filename = TryConvertPathToString(path);
-				if (!filename) {
-					continue;
-				}
-
-				if (IsHiddenDirectoryName(*filename)) {
-					continue;
-				}
-
-				AnimationFileHashCache::CalculateHash(*filename);
-				g_precachedHashCount.fetch_add(1, std::memory_order_relaxed);
-			}
-		} catch (const std::filesystem::filesystem_error& e) {
-			logger::warn("Error pre-caching animation hashes in {}: {}", a_directory.string(), e.what());
+		auto filename = TryConvertPathToString(a_path);
+		if (!filename) {
+			return;
 		}
+
+		AnimationFileHashCache::CalculateHash(*filename);
+		g_precachedHashCount.fetch_add(1, std::memory_order_relaxed);
 	}
 
 	static bool IsDirectoryCacheReady()
@@ -1736,6 +1721,7 @@ namespace Parsing
 	{
 		if (!a_bIsLegacy) {
 			std::vector<std::string> variantDirectoryNames;
+			std::vector<CachedAnimationFile> regularAnimationFiles;
 
 			for (const auto& entry : std::filesystem::directory_iterator(a_directory)) {
 				if (!IsPathValid(entry.path())) {
@@ -1743,6 +1729,11 @@ namespace Parsing
 				}
 
 				if (!Utils::IsDirectory(entry)) {
+					if (Utils::IsRegularFile(entry) && Utils::CompareStringsIgnoreCase(entry.path().extension().string(), ".hkx"sv)) {
+						CachedAnimationFile cachedAnim;
+						cachedAnim.path = entry.path();
+						regularAnimationFiles.push_back(std::move(cachedAnim));
+					}
 					continue;
 				}
 
@@ -1759,6 +1750,7 @@ namespace Parsing
 							Utils::IsRegularFile(variantEntry) &&
 							Utils::CompareStringsIgnoreCase(variantEntry.path().extension().string(), ".hkx"sv)) {
 							cachedAnim.variantPaths.push_back(variantEntry.path());
+							PrecacheAnimationHash(variantEntry.path());
 						}
 					}
 
@@ -1775,19 +1767,14 @@ namespace Parsing
 				}
 			}
 
-			for (const auto& entry : std::filesystem::directory_iterator(a_directory)) {
-				if (!IsPathValid(entry.path()) || !Utils::IsRegularFile(entry) || !Utils::CompareStringsIgnoreCase(entry.path().extension().string(), ".hkx"sv)) {
-					continue;
-				}
-
-				std::string filename = entry.path().filename().string();
+			for (auto& cachedAnim : regularAnimationFiles) {
+				std::string filename = cachedAnim.path.filename().string();
 				const bool bSkip = std::ranges::any_of(variantDirectoryNames, [&](const auto& name) {
 					return filename == name;
 				});
 
 				if (!bSkip) {
-					CachedAnimationFile cachedAnim;
-					cachedAnim.path = entry.path();
+					PrecacheAnimationHash(cachedAnim.path);
 					a_outCached.animationFiles.push_back(std::move(cachedAnim));
 				}
 			}
@@ -1798,6 +1785,7 @@ namespace Parsing
 					Utils::CompareStringsIgnoreCase(entry.path().extension().string(), ".hkx"sv)) {
 					CachedAnimationFile cachedAnim;
 					cachedAnim.path = entry.path();
+					PrecacheAnimationHash(cachedAnim.path);
 					a_outCached.animationFiles.push_back(std::move(cachedAnim));
 				}
 			}
@@ -1827,14 +1815,10 @@ namespace Parsing
 					continue;
 				}
 
-				cachedMod.entries.push_back({ subEntry.path(), Utils::IsDirectory(subEntry) });
-
 				if (Utils::IsDirectory(subEntry)) {
 					CachedSubModDirectory cachedSubMod;
 					CacheSubModDirectoryContents(subEntry.path(), cachedSubMod, false);
 					cachedMod.subModDirectories.push_back(std::move(cachedSubMod));
-
-					PrecacheAnimationHashes(subEntry.path());
 				}
 			}
 
@@ -1852,6 +1836,7 @@ namespace Parsing
 				Utils::CompareStringsIgnoreCase(entry.path().extension().string(), ".hkx"sv)) {
 				CachedAnimationFile cachedAnim;
 				cachedAnim.path = entry.path();
+				PrecacheAnimationHash(cachedAnim.path);
 				a_outCached.animationFiles.push_back(std::move(cachedAnim));
 			}
 		}
@@ -1879,8 +1864,6 @@ namespace Parsing
 						CachedLegacySubMod cachedSubMod;
 						CacheLegacyAnimationFiles(customConditionEntry.path(), cachedSubMod);
 						detailedEntry.subMods.push_back(std::move(cachedSubMod));
-
-						PrecacheAnimationHashes(customConditionEntry.path());
 					}
 				}
 			} else {
@@ -1889,8 +1872,6 @@ namespace Parsing
 						CachedLegacySubMod cachedSubMod;
 						CacheLegacyAnimationFiles(formIdEntry.path(), cachedSubMod);
 						detailedEntry.subMods.push_back(std::move(cachedSubMod));
-
-						PrecacheAnimationHashes(formIdEntry.path());
 					}
 				}
 			}
@@ -1927,7 +1908,7 @@ namespace Parsing
 
 		try {
 			for (std::filesystem::recursive_directory_iterator i(meshesDir), end; i != end; ++i) {
-				auto entry = *i;
+				const auto& entry = *i;
 				if (!Utils::IsDirectory(entry)) {
 					continue;
 				}

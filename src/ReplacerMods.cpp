@@ -92,28 +92,50 @@ bool SubMod::AddReplacementAnimation(std::string_view a_animPath, uint16_t a_ori
 			{
 				WriteLocker locker(_dataLock);
 				_replacementAnimations.emplace_back(newReplacementAnimation.get());
-
-				// sort replacement animations by path
-				std::ranges::sort(_replacementAnimations, [](const auto& a_lhs, const auto& a_rhs) {
-					return a_lhs->_path < a_rhs->_path;
-				});
 			}
 
 			// load anim data
-			const auto animDataSearch = std::ranges::find_if(_replacementAnimDatas, [&](const ReplacementAnimData& a_replacementAnimData) {
-				return a_replacementAnimData.projectName == projectName && a_replacementAnimData.path == animFile.fullPath;
-			});
-
-			if (animDataSearch != _replacementAnimDatas.end()) {
-				newReplacementAnimation->LoadAnimData(*animDataSearch);
+			for (const auto& replacementAnimData : _replacementAnimDatas) {
+				if (replacementAnimData.projectName == projectName && Utils::ComparePaths(replacementAnimData.path, animFile.fullPath)) {
+					newReplacementAnimation->LoadAnimData(replacementAnimData);
+				}
 			}
 
+			InitializeReplacementAnimation(newReplacementAnimation.get());
 			a_replacerProjectData->AddReplacementAnimation(a_stringData, a_originalIndex, newReplacementAnimation);
-			AddReplacerProject(a_replacerProjectData);
 		}
 	}
 
 	return bAdded;
+}
+
+void SubMod::InitializeReplacementAnimation(ReplacementAnimation* a_replacementAnimation) const
+{
+	if (_bKeepRandomResultsOnLoop_DEPRECATED || _bShareRandomResults_DEPRECATED) {
+		if (a_replacementAnimation->HasVariants()) {
+			auto& variants = a_replacementAnimation->GetVariants();
+			if (_bKeepRandomResultsOnLoop_DEPRECATED) {
+				variants.SetShouldResetRandomOnLoopOrEcho(false);
+			}
+			if (_bShareRandomResults_DEPRECATED) {
+				variants.SetVariantStateScope(Conditions::StateDataScope::kSubMod);
+			}
+		}
+	}
+
+	a_replacementAnimation->UpdateVariantCache();
+	if (_synchronizedConditionSet) {
+		a_replacementAnimation->SetSynchronizedConditionSet(_synchronizedConditionSet.get());
+	}
+}
+
+void SubMod::SortReplacementAnimationsByPath()
+{
+	WriteLocker locker(_dataLock);
+
+	std::ranges::sort(_replacementAnimations, [](const auto& a_lhs, const auto& a_rhs) {
+		return a_lhs->_path < a_rhs->_path;
+	});
 }
 
 void SubMod::SetAnimationFiles(const std::vector<ReplacementAnimationFile>& a_animationFiles)
@@ -1461,6 +1483,25 @@ void AnimationReplacements::MarkAsSynchronizedAnimation(bool a_bSynchronized)
 	}
 }
 
+ReplacerProjectData::ReplacerProjectData(RE::hkbCharacterStringData* a_stringData, RE::BShkbHkxDB::ProjectDBData* a_projectDBData) :
+	stringData(a_stringData),
+	projectDBData(a_projectDBData)
+{
+	if (stringData) {
+		const auto animationCount = static_cast<size_t>(stringData->animationNames.size());
+		_animationPathToIndexMap.reserve(animationCount);
+		uint16_t pathIndex = 0;
+		for (const auto& animationName : stringData->animationNames) {
+			if (pathIndex == std::numeric_limits<uint16_t>::max()) {
+				break;
+			}
+
+			_animationPathToIndexMap.try_emplace(animationName.data(), pathIndex);
+			++pathIndex;
+		}
+	}
+}
+
 ReplacementAnimation* ReplacerProjectData::EvaluateConditionsAndGetReplacementAnimation(RE::hkbClipGenerator* a_clipGenerator, uint16_t a_originalIndex, RE::TESObjectREFR* a_refr) const
 {
 	if (const auto replacementAnimations = GetAnimationReplacements(a_originalIndex)) {
@@ -1502,10 +1543,8 @@ uint16_t ReplacerProjectData::TryAddAnimationToAnimationBundleNames(std::string_
 	}
 
 	// Check if the animation is already in the list and return the index if it is
-	for (uint16_t i = 0; i < stringData->animationNames.size(); i++) {
-		if (stringData->animationNames[i].data() == a_path) {
-			return i;
-		}
+	if (const auto search = _animationPathToIndexMap.find(a_path); search != _animationPathToIndexMap.end()) {
+		return search->second;
 	}
 
 	// Check if the animation can be added to the list
@@ -1522,6 +1561,7 @@ uint16_t ReplacerProjectData::TryAddAnimationToAnimationBundleNames(std::string_
 	if (Settings::bFilterOutDuplicateAnimations && hash) {
 		_fileHashToIndexMap[*hash].emplace_back(a_path, newIndex);
 	}
+	_animationPathToIndexMap.try_emplace(std::string(a_path), newIndex);
 
 	return newIndex;
 }

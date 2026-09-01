@@ -208,6 +208,7 @@ namespace Parsing
 	{
 		std::vector<std::future<ModParseResult>> modParseResultFutures;
 		std::vector<std::future<SubModParseResult>> legacyParseResultFutures;
+		std::chrono::milliseconds waitCacheDuration{ 0 };
 	};
 
 	[[nodiscard]] std::unique_ptr<Conditions::ConditionSet> ParseConditionsTxt(const std::filesystem::path& a_txtPath);
@@ -245,7 +246,6 @@ namespace Parsing
 	struct CachedModDirectory
 	{
 		std::filesystem::path path;
-		std::vector<CachedDirectoryEntry> entries;
 		std::vector<CachedSubModDirectory> subModDirectories;
 	};
 

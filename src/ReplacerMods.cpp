@@ -91,12 +91,10 @@ bool SubMod::AddReplacementAnimation(std::string_view a_animPath, uint16_t a_ori
 
 			{
 				WriteLocker locker(_dataLock);
-				_replacementAnimations.emplace_back(newReplacementAnimation.get());
 
-				// sort replacement animations by path
-				std::ranges::sort(_replacementAnimations, [](const auto& a_lhs, const auto& a_rhs) {
-					return a_lhs->_path < a_rhs->_path;
-				});
+				// keep replacement animations sorted by path; insert after any equal paths (insertion order among equals)
+				const auto insertPos = std::ranges::upper_bound(_replacementAnimations, newReplacementAnimation->_path, std::less<>{}, &ReplacementAnimation::_path);
+				_replacementAnimations.insert(insertPos, newReplacementAnimation.get());
 			}
 
 			// load anim data
@@ -1502,10 +1500,9 @@ uint16_t ReplacerProjectData::TryAddAnimationToAnimationBundleNames(std::string_
 	}
 
 	// Check if the animation is already in the list and return the index if it is
-	for (uint16_t i = 0; i < stringData->animationNames.size(); i++) {
-		if (stringData->animationNames[i].data() == a_path) {
-			return i;
-		}
+	SyncAnimationNameIndex();
+	if (const auto search = _animationNameIndex.find(a_path); search != _animationNameIndex.end()) {
+		return search->second;
 	}
 
 	// Check if the animation can be added to the list
@@ -1518,12 +1515,33 @@ uint16_t ReplacerProjectData::TryAddAnimationToAnimationBundleNames(std::string_
 
 	// Add the animation to the list
 	stringData->animationNames.push_back(a_path.data());
+	SyncAnimationNameIndex();
 
 	if (Settings::bFilterOutDuplicateAnimations && hash) {
 		_fileHashToIndexMap[*hash].emplace_back(a_path, newIndex);
 	}
 
 	return newIndex;
+}
+
+void ReplacerProjectData::SyncAnimationNameIndex()
+{
+	const auto& animationNames = stringData->animationNames;
+	const int32_t size = animationNames.size();
+
+	// rebuild if the list isn't the one we indexed or has shrunk; otherwise only index names added since the last call
+	if (_animationNameIndexOwner != stringData.get() || size < _animationNameIndexCount) {
+		_animationNameIndex.clear();
+		_animationNameIndexOwner = stringData.get();
+		_animationNameIndexCount = 0;
+	}
+
+	for (int32_t i = _animationNameIndexCount; i < size; ++i) {
+		if (const char* name = animationNames[i].data()) {
+			_animationNameIndex.try_emplace(name, static_cast<uint16_t>(i));  // try_emplace keeps the first index of a duplicate name, like the old linear scan
+		}
+	}
+	_animationNameIndexCount = size;
 }
 
 void ReplacerProjectData::AddReplacementAnimation(RE::hkbCharacterStringData* a_stringData, uint16_t a_originalIndex, std::unique_ptr<ReplacementAnimation>& a_replacementAnimation)

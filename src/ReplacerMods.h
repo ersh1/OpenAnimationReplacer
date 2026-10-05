@@ -353,4 +353,19 @@ protected:
 
 	std::unordered_map<std::string, std::vector<DuplicateHashCandidate>> _fileHashToIndexMap;
 	uint32_t _filteredDuplicates = 0;
+
+	// exact (case-sensitive) name -> first index in stringData->animationNames, so that
+	// TryAddAnimationToAnimationBundleNames doesn't have to scan (and strlen) every name.
+	// Guarded by the same lock as animationNames/_fileHashToIndexMap (OpenAnimationReplacer::_animationCreationLock).
+	struct AnimationNameHash
+	{
+		using is_transparent = void;
+		size_t operator()(std::string_view a_name) const noexcept { return std::hash<std::string_view>{}(a_name); }
+	};
+
+	void SyncAnimationNameIndex();
+
+	std::unordered_map<std::string, uint16_t, AnimationNameHash, std::equal_to<>> _animationNameIndex;
+	RE::hkbCharacterStringData* _animationNameIndexOwner = nullptr;
+	int32_t _animationNameIndexCount = 0;
 };
